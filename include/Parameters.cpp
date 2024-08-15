@@ -130,6 +130,7 @@ public:
     double LightConeOrigins[3*125];  // Same units as BoxSize
 
     char LightConeDirectory[1024];
+    int CheckLCAcrossWrap;  // If 1, check for light cone particles that cross the periodic wrap
 
     int PowerSpectrumStepInterval;
     int PowerSpectrumN1d; //1D number of bins to use in the powerspectrum
@@ -315,6 +316,8 @@ public:
         OutputFullLightCones = 0;
         installscalar("OutputFullLightCones",OutputFullLightCones,DONT_CARE); //if not set, we assume 0
         installvector("LightConeOrigins",LightConeOrigins,3*125,1,DONT_CARE);
+        CheckLCAcrossWrap = 0;
+        installscalar("CheckLCAcrossWrap",CheckLCAcrossWrap,DONT_CARE);
 
         FinalRedshift = -2.0;        // If <-1, then we will cascade back to the minimum of the TimeSliceRedshifts list
         installscalar("FinalRedshift",FinalRedshift,DONT_CARE);

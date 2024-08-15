@@ -25,10 +25,12 @@ class LightCone {
     double tol;      // The tolerance for our searching
     FLOAT DeltaEtaKick;   // The total Delta(eta_Kick) for this step
     FLOAT driftfactor;
+    int do_boundary;  // Whether to check a boundary layer of cells from the periodic images
 
-    LightCone(int _lcn) {
+    LightCone(int _lcn, int _do_boundary=0) {
         lcn = _lcn;
         origin = LCOrigin[lcn];
+        do_boundary = _do_boundary;
 
         // Bounds for light cone, in unit-box units
         rmax = (cosm->today.etaK - cosm->current.etaK)*etaktoHMpc/ReadState.BoxSizeHMpc; // Light cone start
@@ -40,7 +42,7 @@ class LightCone {
         // And we want to catch this particle even if it is in the corner of the cell, 
         // which means that we have to catch its cell center too.
         // So this is FINISH_WAIT_RADIUS + sqrt(3)/2 cells
-        tol = (FINISH_WAIT_RADIUS+sqrt(3.0)/2.0)/P.cpd;   
+        tol = (FINISH_WAIT_RADIUS+sqrt(3.0)/2.0)/P.cpd;
         // TODO: Could consider stricter bounds, e.g., using MaxVelocity from the previous state.
         rmin_tol2 = rmin-tol; rmin_tol2 *= rmin_tol2;
         rmax_tol2 = rmax+tol; rmax_tol2 *= rmax_tol2;
@@ -102,7 +104,7 @@ inline int LightCone::isParticleInLightCone(double3 cellcenter, posstruct &pos, 
 
     double frac_step = (rmax-r0)/(rmax-rmin-r0+r1);
         // This is the fraction of the upcoming step when the particle meets the light cone
-        // frac_step = 0 means r=rmax, =1 means r-rmin
+        // frac_step = 0 means r=rmax, =1 means r=rmin
 
 #ifdef USE_LC_AUX_BITS
     if (frac_step<-1.0e-6||frac_step>=1) return 0;
@@ -121,6 +123,13 @@ inline int LightCone::isParticleInLightCone(double3 cellcenter, posstruct &pos, 
     // The particle is in the light cone!
     // Update the pos and vel to the fractional step (for output).
     pos += vel*driftfactor*frac_step;
+
+    if(this->do_boundary){
+        // Check if the interpolated pos is in primary region
+        double3 globalpos = cellcenter + pos;
+        if(!globalpos.inrange<IntervalType::HalfOpen>(-0.5, 0.5)) return 0;
+    }
+
     vel += TOFLOAT3(acc)*DeltaEtaKick*frac_step;
     return 1;
 }
@@ -149,17 +158,55 @@ size_t makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
     OutputLightConeSetup.Start();
     STDLOG(4, "Making light cone %d for slab %d\n", lcn, slab);
 
-    LightCone LC(lcn);
+    LightCone LC(lcn, P.CheckLCAcrossWrap);
+
+    int xstart, xend, ystart, yend, zstart, zend;
+    if (LC.do_boundary) {
+        // Search a boundary layer 1 cell deep.
+        // We accept particles from these boundary cells
+        // if their interpolated LC crossing is in the primary zone.
+        // For y and z, we effectively extend the loop over [0,cpd) to [-1,cpd+1).
+        // For x, when we encounter the x=0 and x=cpd-1 slabs,
+        // we also consider their periodic images.
+
+        if (slab == 0) {
+            xstart = -1;
+            xend = 1;
+        } else if (slab == CP->cpd - 1) {
+            xstart = CP->cpd - 1;
+            xend = CP->cpd + 1;
+        } else {
+            xstart = slab;
+            xend = slab + 1;
+        }
+
+        ystart = -1;
+        yend = CP->cpd + 1;
+
+        // The z boundaries may not be the box boundaries in 2D
+        zstart = node_z_start == 0 ? -1 : node_z_start;
+        zend = node_z_size == CP->cpd ? CP->cpd : node_z_start + node_z_size + 1;
+    } else {
+        xstart = slab;
+        xend = slab + 1;
+        ystart = 0;
+        yend = CP->cpd;
+        zstart = node_z_start;
+        zend = node_z_start + node_z_size;
+    }
 
     // Before we start allocating memory, do a quick pass to see if any cells are in the LC
     uint64_t slabtotalcell = 0;
 
     #pragma omp parallel for schedule(static) reduction(+:slabtotalcell)
-    for (int y = 0; y < CP->cpd; y ++) {
-        for (int z = node_z_start; z < node_z_start + node_z_size; z++) {
-            // Check if the cell center is in the lightcone, with some wiggle room
-            double3 cc = CP->CellCenter(slab, y, z);
-            if(LC.isCellInLightCone(cc)) slabtotalcell++;
+    for (int y = ystart; y < yend; y ++) {
+        for (int z = zstart; z < zend; z++) {
+            for(int x = xstart; x < xend; x++){
+                int xoff = x == -1 ? CP->cpd : (x == CP->cpd ? -CP->cpd : 0);
+                // Check if the cell center is in the lightcone, with some wiggle room
+                double3 cc = CP->CellCenter(x + xoff, y, z);
+                if(LC.isCellInLightCone(cc)) slabtotalcell++;
+            }
         }
     }
 
@@ -178,81 +225,122 @@ size_t makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
     // What fraction of a slab is the light cone?  It depends on geometry and the time step.
     // But for 1-2 Gpc boxes, it takes a few hundred time steps to cross the box.  We'll guess 1%.
     // That said, if the slab is tangent to the annulus, one can include >1% of the slab.
-    LightConeRV.setup(  CP->cpd, node_z_size, P.np/P.cpd*(P.ParticleSubsampleA+P.ParticleSubsampleB)/100);
-    LightConePIDs.setup(CP->cpd, node_z_size, P.np/P.cpd*(P.ParticleSubsampleA+P.ParticleSubsampleB)/100);
-    LightConeHealPix.setup(CP->cpd, node_z_size, P.np/P.cpd/100);
+    // If we're checking boundary cells, we effectively have a slab that is bigger by 2 cells in y and z.
+    int pad = LC.do_boundary ? 2 : 0;
+    // Could consider zwidth > 1 to keep CPUs on different cache lines, but we may not touch the CellAccums very often
+    LightConeRV.setup(  CP->cpd + pad, 1, P.np/P.cpd/node_z_size*(P.ParticleSubsampleA+P.ParticleSubsampleB)/10);
+    LightConePIDs.setup(CP->cpd + pad, 1, P.np/P.cpd/node_z_size*(P.ParticleSubsampleA+P.ParticleSubsampleB)/10);
+    LightConeHealPix.setup(CP->cpd + pad, 1, P.np/P.cpd/node_z_size/10);
 
     uint64 mask = auxstruct::lightconemask(lcn);
     double vunits = ReadState.VelZSpace_to_kms/ReadState.VelZSpace_to_Canonical;  // Code to km/s
 
-    integer3 ij(slab,0,0);
     uint64_t slabtotal = 0;
     uint64_t slabtotalsub = 0;
     uint64_t doubletagged = 0;
     OutputLightConeSetup.Stop();
     OutputLightConeSearch.Start();
 
-    #pragma omp parallel for schedule(dynamic,1) reduction(+:slabtotal) reduction (+:slabtotalsub) reduction(+:doubletagged)
-    for (int y = 0; y < CP->cpd; y ++) {
-        integer3 ijk = ij; ijk.y = y;
+    #pragma omp parallel for schedule(dynamic,1) reduction(+:slabtotal,slabtotalsub,doubletagged)
+    for (int y = ystart; y < yend; y++) {
+        integer3 ijk(slab,0,0);
+        integer3 offset(0,0,0);
+        if (y == -1){
+            ijk.y = CP->cpd - 1;
+            offset.y = -CP->cpd;
+        }
+        else if (y == CP->cpd) {
+            ijk.y = 0;
+            offset.y = CP->cpd;
+        }
+        else {
+            ijk.y = y;
+            offset.y = 0;
+        }
 
-        PencilAccum<RVfloat>   *pLightConeRV   =   LightConeRV.StartPencil(ijk.y);
-        PencilAccum<TaggedPID> *pLightConePIDs = LightConePIDs.StartPencil(ijk.y);
-        PencilAccum<unsigned int> *pLightConeHealPix = LightConeHealPix.StartPencil(ijk.y);
+        PencilAccum<RVfloat>   *pLightConeRV   =   LightConeRV.StartPencil(y - ystart);
+        PencilAccum<TaggedPID> *pLightConePIDs = LightConePIDs.StartPencil(y - ystart);
+        PencilAccum<unsigned int> *pLightConeHealPix = LightConeHealPix.StartPencil(y - ystart);
 
-        for (ijk.z = node_z_start; ijk.z < node_z_start + node_z_size; ijk.z++) {
-            // Check if the cell center is in the lightcone, with some wiggle room
-            double3 cc = CP->CellCenter(ijk);
-            if(!LC.isCellInLightCone(cc)) continue;  // Skip the rest if too far from the region
+        for (int z = zstart; z < zend; z++) {
+            if (z == -1){
+                ijk.z = CP->cpd - 1;
+                offset.z = -CP->cpd;
+            }
+            else if (z == CP->cpd) {
+                ijk.z = 0;
+                offset.z = CP->cpd;
+            }
+            else {
+                ijk.z = z;
+                offset.z = 0;
+            }
 
-            Cell c = CP->GetCell(ijk);
-            accstruct *acc = CP->AccCell(ijk);
-            #ifdef GLOBALPOS
-                cc= 0*cc;
-            #endif
+            for(int x = xstart; x < xend; x++){
+                // Same cell, different offset
+                offset.x = x == -1 ? CP->cpd : (x == CP->cpd ? -CP->cpd : 0);
 
-            // STDLOG(4, "LC: Particles in current cell: %d\n", c.count());
-            for (int p=0;p<c.count();p++) {
-                if(!c.aux[p].lightconedone(mask)){   // This particle isn't already in the light cone
-                    // Need to unkick by half
-                    velstruct vel = c.vel[p] - TOFLOAT3(acc[p])*WriteState.FirstHalfEtaKick;
-                    posstruct poscopy = c.pos[p];  // Need a copy, since it will be changed
-                    if (LC.isParticleInLightCone(cc, poscopy, vel, acc[p])) { 
-                        // Yes, it's in the light cone.  pos and vel were updated.
-                        double3 pos = cc+poscopy;    // This is now a global position in double precision
+                // Check if the cell center is in the lightcone, with some wiggle room
+                double3 cc = CP->CellCenter(ijk + offset);
+                if(!LC.isCellInLightCone(cc)) continue;  // Skip the rest if too far from the region
 
-                        pLightConeHealPix->append(LC.healpixel(pos));  // We're outputting all particles for this
-                        slabtotal++;
+                Cell c = CP->GetCell(ijk);
+                accstruct *acc = CP->AccCell(ijk);
+                #ifdef GLOBALPOS
+                    cc= 0*cc;
+                #endif
 
-                        if(c.aux[p].is_taggable() or P.OutputFullLightCones){
-                            // Going to output; pack the density in the aux
-                            c.aux[p].set_compressed_density(acc[p].w);
-                            
-                            // These output routines take global positions and velocities in km/s
-                            pLightConePIDs->append(TaggedPID(c.aux[p]));
-                            pLightConeRV->append(RVfloat(pos.x, pos.y, pos.z, vel.x * vunits, vel.y * vunits, vel.z * vunits));
-                            slabtotalsub++;
+                // STDLOG(4, "LC: Particles in current cell: %d\n", c.count());
+                for (int p=0;p<c.count();p++) {
+                    if(!c.aux[p].lightconedone(mask) || offset != integer3(0.)){
+                        // This particle isn't already in the light cone,
+                        // or it crossed the periodic wrap to end up in the LC.
+                        // If it did that, then it's almost certainly about to get its LC aux bits reset,
+                        // but that hasn't happened yet.
 
+                        // Need to unkick by half
+                        velstruct vel = c.vel[p] - TOFLOAT3(acc[p])*WriteState.FirstHalfEtaKick;
+                        posstruct poscopy = c.pos[p];  // Need a copy, since it will be changed
+                        if (LC.isParticleInLightCone(cc, poscopy, vel, acc[p])) { 
+
+                            // Yes, it's in the light cone.  pos and vel were updated.
+                            double3 pos = cc+poscopy;    // This is now a global position in double precision
+
+                            pLightConeHealPix->append(LC.healpixel(pos));  // We're outputting all particles for this
+                            slabtotal++;
+
+                            if(c.aux[p].is_taggable() || P.OutputFullLightCones){
+                                // Going to output; pack the density in the aux
+                                c.aux[p].set_compressed_density(acc[p].w);
+                                
+                                // These output routines take global positions and velocities in km/s
+                                pLightConePIDs->append(TaggedPID(c.aux[p]));
+                                pLightConeRV->append(RVfloat(pos.x, pos.y, pos.z, vel.x * vunits, vel.y * vunits, vel.z * vunits));
+                                slabtotalsub++;
+
+                            }
+
+                            // TODO: For now, we're going to look for particles that get tagged twice.
+                            // But maybe we'll find that they are very few, in which case we might stop tagging.
+                            /*
+                            if (c.aux[p].lightconedone(mask)) {
+                                doubletagged++;
+                                STDLOG(1,"Double tag: (%6.4f %6.4f %6.4f) = %10.7f vs %10.7f %10.7f\n",
+                                    pos.x, pos.y, pos.z, (pos-LC.origin).norm(), LC.rmin, LC.rmax);
+                            }
+                            */
+                            c.aux[p].setlightconedone(mask);
                         }
-
-                        // TODO: For now, we're going to look for particles that get tagged twice.
-                        // But maybe we'll find that they are very few, in which case we might stop tagging.
-                        /*
-                        if (c.aux[p].lightconedone(mask)) {
-                            doubletagged++;
-                            STDLOG(1,"Double tag: (%6.4f %6.4f %6.4f) = %10.7f vs %10.7f %10.7f\n",
-                                pos.x, pos.y, pos.z, (pos-LC.origin).norm(), LC.rmin, LC.rmax);
-                        }
-                        */
-                        c.aux[p].setlightconedone(mask);
                     }
-                 }
-            }  // Done with this particle
-
-            pLightConePIDs->FinishCell();
-            pLightConeRV->FinishCell();
-            pLightConeHealPix->FinishCell();
+                }  // Done with this particle
+            }  // Done with this xoffset
         }   // Done with this cell
+        
+        // We don't care about cell indexing, so we'll just use one "cell" per pencil
+        pLightConePIDs->FinishCell();
+        pLightConeRV->FinishCell();
+        pLightConeHealPix->FinishCell();
+        
         pLightConePIDs->FinishPencil();
         pLightConeRV->FinishPencil();
         pLightConeHealPix->FinishPencil();
@@ -296,10 +384,6 @@ size_t makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
 
         unsigned int *arenaptr = (unsigned int *) SB->GetSlabPtr(lchealtype, slab);
         OutputLightConeSortHealpix.Start();
-        // mm.mmsort(arenaptr, out, slabtotal, UINT32_MAX, 1<<20, 32);
-        // tbb::parallel_sort(arenaptr, arenaptr+slabtotal);
-        // std::sort(arenaptr, arenaptr+slabtotal);
-        // __gnu_parallel::sort(arenaptr, arenaptr+slabtotal);
         // ips4o::parallel::sort(L2.d2_active, L2.d2_active+size, omp_get_max_threads());
         OutputLightConeSortHealpix.Stop();
 

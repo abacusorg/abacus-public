@@ -15,6 +15,11 @@ Time-stamp: <threevector.cc on Saturday, 8 September, 2012 at 16:05:45 MST (phil
 
 #include "promote_numeric.h"
 
+enum IntervalType {
+    Closed,
+    HalfOpen
+};
+
 template <class T>
 class ThreeVector {
 public:
@@ -252,12 +257,15 @@ public:
         return *this;
     }
 
-    // return true if all components are on [a,b]
-    template <class U, class V>
-    inline int inrange(U low, V hi) {
-        return (x >= low && x <= hi) && (y >= low && y <= hi) && (z >= low && z <= hi);
+    // return true if all components are on [a,b] or [a,b)
+    template <IntervalType interval = IntervalType::Closed>
+    inline bool inrange(T low, T hi) {
+        if constexpr (interval == HalfOpen) {
+            return (x >= low && x < hi) && (y >= low && y < hi) && (z >= low && z < hi);
+        } else {
+            return (x >= low && x <= hi) && (y >= low && y <= hi) && (z >= low && z <= hi);
+        }
     }
-
 };
 
 // componentwise addition and subtraction

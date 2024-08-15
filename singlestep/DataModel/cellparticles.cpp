@@ -57,7 +57,7 @@ public:
 // or the number of particles in a cell.
 
     inline cellinfo *_CellInfo(integer3 xyz) {
-        // Assumes a wrapped cell
+        // Doesn't need to be wrapped
         return ((cellinfo *)SB->GetSlabPtr(CellInfoSlab,xyz.x)) + NodeCellID(xyz);
     }
     inline cellinfo *CellInfo(integer3 xyz) {
