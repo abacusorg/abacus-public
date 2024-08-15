@@ -155,7 +155,7 @@ void SlabMultipolesLocal::ComputeMultipoleFFT( int x, FLOAT3 *spos,
     PTimer _kernel_c2r;
     
     wc.Start();
-    NUMA_FOR(y,0,cpd, reduction(+:MassSlabX[x]) reduction(+:globaldipole) reduction(+:MassSlabZ[:cpd]), FALLBACK_DYNAMIC){
+    NUMA_FOR(y,0,cpd, reduction(+:MassSlabX[x],globaldipole,MassSlabZ[:cpd]), FALLBACK_DYNAMIC){
         int g = omp_get_thread_num();
         double localMassSlabY = 0;
         _kernel_c2r.Start();

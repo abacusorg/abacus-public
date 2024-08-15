@@ -334,7 +334,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
         // Was DensityKernelRad2 but now the self-count has been subtracted.
     }
 
-    NUMA_FOR(j,0,cpd, reduction(+:CGactive) reduction(max:maxFOFdensity) reduction(+:meanFOFdensity), FALLBACK_DYNAMIC){
+    NUMA_FOR(j,0,cpd, reduction(+:CGactive,meanFOFdensity) reduction(max:maxFOFdensity), FALLBACK_DYNAMIC){
         int g = omp_get_thread_num();
         PencilAccum<CellGroup> *cg = cellgroups[slab].StartPencil(j);
         for (int k=zstart; k<zend; k++) {  // global z

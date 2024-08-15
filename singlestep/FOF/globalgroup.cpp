@@ -940,7 +940,7 @@ void GlobalGroupSlab::FindSubGroups() {
     }
 
     int np_subA = 0, np_subB = 0;
-    NUMA_FOR(jj,0,cpd, reduction(+:np_subA) reduction(+:np_subB), FALLBACK_DYNAMIC){
+    NUMA_FOR(jj,0,cpd, reduction(+:np_subA,np_subB), FALLBACK_DYNAMIC){
         int j = pstat[jj].pnum;    // Get the pencil number from the list
         GFC->L1Tot.Start();
         const int g = omp_get_thread_num();

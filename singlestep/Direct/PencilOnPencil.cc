@@ -246,7 +246,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
             // This is oversized because we'll re-use for Sources
 
     const int twoD = MPI_size_z > 1;  // Don't do a z-wrap in 2D
-    #pragma omp parallel for schedule(static) reduction(+:SinkTotal) reduction(+:skewer_blocks) collapse(2)
+    #pragma omp parallel for schedule(static) reduction(+:SinkTotal,skewer_blocks) collapse(2)
     for(int j = 0; j < j_width; j++){
         int this_skewer_blocks = 0;   // Just to have a local variable
         for(int k = 0; k < Nk; k ++) {
@@ -323,7 +323,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     // We once again need to precompute the enumeration of the padded
     // blocks, totaled by skewer.  
 
-    #pragma omp parallel for schedule(static) reduction(+:SourceTotal) reduction(+:skewer_blocks) collapse(2)
+    #pragma omp parallel for schedule(static) reduction(+:SourceTotal,skewer_blocks) collapse(2)
     for(int j = 0; j<j_width+nfwidth-1; j++) {
         int this_skewer_blocks = 0;   // Just to have a local variable
         for(int k = 0; k < Nk; k++) {
@@ -383,7 +383,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     
     assertf(j_width*Nk <= NSinkSets, "SinkSetCount size %d would exceed allocation %d\n", j_width*Nk, NSinkSets);
 
-    #pragma omp parallel for schedule(static) reduction(+:DirectTotal) reduction(+:PaddedDirectTotal) collapse(2)
+    #pragma omp parallel for schedule(static) reduction(+:DirectTotal,PaddedDirectTotal) collapse(2)
     for(int j = 0; j < j_width; j++){
         for(int k=0; k < Nk; k++) {
 	    int zmid = index_to_zcen(k, twoD);

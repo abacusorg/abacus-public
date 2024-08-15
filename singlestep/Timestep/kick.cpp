@@ -30,7 +30,7 @@ inline void KickCell(Cell &c, FLOAT kick1, FLOAT kick2, int set_aux_dens) {
     FLOAT sumvel2 = 0.0;
 
     uint32_t N = c.count();
-    #pragma omp simd reduction(max:maxvel) reduction(max:maxacc) reduction(+:sumvel2)
+    #pragma omp simd reduction(max:maxvel,maxacc) reduction(+:sumvel2)
     for (uint32_t i=0;i<N;i++) {
         // First half kick, to get synchronous
         c.vel[i] += TOFLOAT3(c.acc[i]) * kick1;

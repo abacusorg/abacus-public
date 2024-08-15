@@ -191,7 +191,7 @@ void SlabMultipolesMPI::ComputeMultipoleFFT( int x, FLOAT3 *spos,
     
     wc.Start();
     // compute the cell-by-cell multipoles for this node's subslab
-    NUMA_FOR(y,0,cpd, reduction(+:MassSlabX[x]) reduction(+:globaldipole) reduction(+:MassSlabZ[node_z_start:node_z_size]), FALLBACK_DYNAMIC){
+    NUMA_FOR(y,0,cpd, reduction(+:MassSlabX[x],globaldipole,MassSlabZ[node_z_start:node_z_size]), FALLBACK_DYNAMIC){
         double localMassSlabY = 0.;
         int64_t g = omp_get_thread_num();
         for(int64_t z = 0; z < node_z_size; z++) {
