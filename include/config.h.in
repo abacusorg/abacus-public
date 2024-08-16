@@ -109,15 +109,12 @@
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 
-/* Define to 1 if you have the `numa' library (-lnuma). */
+/* Define to 1 if you have the 'numa' library (-lnuma). */
 #undef HAVE_LIBNUMA
 
-/* Define to 1 if you have the `tcmalloc_minimal' library
+/* Define to 1 if you have the 'tcmalloc_minimal' library
    (-ltcmalloc_minimal). */
 #undef HAVE_LIBTCMALLOC_MINIMAL
-
-/* Define to 1 if you have the <memory.h> header file. */
-#undef HAVE_MEMORY_H
 
 /* Define to 1 to support Multimedia Extensions */
 #undef HAVE_MMX
@@ -157,6 +154,9 @@
 
 /* Define to 1 if you have the <stdint.h> header file. */
 #undef HAVE_STDINT_H
+
+/* Define to 1 if you have the <stdio.h> header file. */
+#undef HAVE_STDIO_H
 
 /* Define to 1 if you have the <stdlib.h> header file. */
 #undef HAVE_STDLIB_H
@@ -243,13 +243,15 @@
 /* "Path to the ramdisk" */
 #undef RAMDISK_PATH
 
-/* The size of `long', as computed by sizeof. */
+/* The size of 'long', as computed by sizeof. */
 #undef SIZEOF_LONG
 
 /* "Use SO finder for L1/L2 halos */
 #undef SPHERICAL_OVERDENSITY
 
-/* Define to 1 if you have the ANSI C header files. */
+/* Define to 1 if all of the C89 standard headers exist (not just the ones
+   required in a freestanding environment). This macro is provided for
+   backward compatibility; new code need not use it. */
 #undef STDC_HEADERS
 
 /* "Unrolled plain-C multipoles/Taylors" */
