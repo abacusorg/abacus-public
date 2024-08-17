@@ -24,8 +24,6 @@ infile.c returns "35v kls a"
 EXERCISE EXTREME CAUTION: THIS CLASS ALLOWS ARBITRARY EXECUTION OF TEXT FILES AS CODE
 '''
 
-import sys
-import os.path as path
 from io import StringIO
 import shlex
 

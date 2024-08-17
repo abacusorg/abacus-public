@@ -9,7 +9,6 @@ and writes a level 1 parameter file readable by parseheader
 
 import csv
 import time
-import sys
 import os
 import os.path
 from os.path import dirname, abspath
@@ -49,14 +48,34 @@ def shellreplace(line):
         
         raise ValueError
     return line[:pos1] + value + line[pos2 +1:]
+
+def find_unquoted(s, c, start=0):
+    in_quote = False
+    for i in range(len(s)):
+        if s[i] == c and not in_quote and i >= start:
+            return i
+        if s[i] == '"':
+            in_quote = not in_quote
+    return -1
+
+def count_unquoted(s, c):
+    in_quote = False
+    count = 0
+    for i in range(len(s)):
+        if s[i] == c and not in_quote:
+            count += 1
+        if s[i] == '"':
+            in_quote = not in_quote
+    return count
     
 # Replace tokens like @VAR@ with their previously defined value
 # Tokens like @_VAR@ indicates an optional parameter
 def varreplace(line, values):
-    pos1 = line.find("@")
+    pos1 = find_unquoted(line, '@')
     if pos1 == -1:
         return line
-    pos2 = line.find("@",pos1+1)
+
+    pos2 = find_unquoted(line, '@', pos1+1)
     if pos2 == -1:
         print(("No matching @ in :%s"%(line)))
         raise SyntaxError
@@ -65,7 +84,7 @@ def varreplace(line, values):
     optional = varname[0] == '_'
     if optional:
         varname = varname[1:]
-    if not (varname in values.keys()):
+    if varname not in values.keys():
         if optional:
             # variable wasn't defined but was optional; do nothing
             return line[:pos1] + '""' + line[pos2+1:]
@@ -120,7 +139,6 @@ def parseInput(filename, values=None, fixvalues=None, varreplace_values=None, re
 
     with open(filename, 'r') as fp:
         lines = fp.readlines()
-    olen = len(lines)
 
     comment_regex = re.compile(r'#(?!include)')
 
@@ -131,7 +149,7 @@ def parseInput(filename, values=None, fixvalues=None, varreplace_values=None, re
             break
 
         comment = comment_regex.search(line)
-        if comment != None:
+        if comment is not None:
             line = line[:comment.start()]
 
         line = line.strip()
@@ -142,7 +160,7 @@ def parseInput(filename, values=None, fixvalues=None, varreplace_values=None, re
             line = shellreplace(line)
         
         #process previously defined variables
-        if '@' in line:
+        if count_unquoted(line, '@'):
             _key = _get_key_from_line(line)
             deferrals[_key] = line
             continue
@@ -176,8 +194,8 @@ def parseInput(filename, values=None, fixvalues=None, varreplace_values=None, re
     else:
         # resolve deferrals
         for line in deferrals.values():
-            while '@' in line:
-                line = varreplace(line,{**varreplace_values,**values})
+            while (newline := varreplace(line,{**varreplace_values,**values})) != line:
+                line = newline
             pa = _parse_assignment(line, fixvalues, varreplace_values)
             if pa is None:
                 continue
@@ -196,12 +214,12 @@ CPD and BoxSize. IF BoxSize does not appear in the file defaults.param, e.g. the
 
 def tostr(item): #recursively decompose the argument into a string we can print in the parameters file
     if isinstance(item, str):
-        if not ('"' in item):
+        if '"' not in item:
             return '"' + item + '"'
         return item
     else:
         try:
-            it = iter(item)
+            iter(item)
         except TypeError:
             return repr(item)
         else:
@@ -238,7 +256,7 @@ def makeInput(outfn, inputfile, strict=False, del_keywords=[], **keywords):
             outfile.write(keyword)
             outfile.write(' = ')
             value = res[keyword]
-            if isinstance(value, str) and not ('"' in value):
+            if isinstance(value, str) and ('"' not in value):
                 value = '"' +value +'"'
             outfile.write(tostr(value))
             outfile.write('\n')
