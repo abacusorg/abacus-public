@@ -4605,14 +4605,7 @@ printf "%s\n" "$as_me: WARNING: unable to find numa!" >&2;} ;;
 esac
 fi
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 # for ips4o
-=======
->>>>>>> 3ca5df00 (Relax requirement to C++17 (since we are no longer using PPQSort))
-=======
-# for ips4o
->>>>>>> dc63697d (args for perf)
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for __atomic_fetch_add_16 in -latomic" >&5
 printf %s "checking for __atomic_fetch_add_16 in -latomic... " >&6; }
 if test ${ac_cv_lib_atomic___atomic_fetch_add_16+y}
