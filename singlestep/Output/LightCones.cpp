@@ -72,6 +72,24 @@ class LightCone {
     }
 };
 
+void InitializeLightCones(){
+    assertf(P.NLightCones % 3 == 0, "LightConeOrigins must be specified as a list of 3-tuples\n");
+    P.NLightCones /= 3;
+
+    STDLOG(2, "Initializing Light Cones with %d observers\n", P.NLightCones);
+
+#ifdef USE_LC_AUX_BITS
+    assertf(P.NLightCones <= NUM_LC_AUX_BITS, "Parameter file requests %d light cones, but AUX data model supports only %d\n", P.NLightCones, NUM_LC_AUX_BITS);
+#endif
+    LCOrigin = new double3[P.NLightCones];
+    for(int i = 0; i < P.NLightCones; i++){
+        LCOrigin[i] = ((double3*) P.LightConeOrigins)[i]/P.BoxSize;  // convert to unit-box units
+    }
+}
+
+void FinalizeLightCones(){
+    delete[] LCOrigin;
+}
 
 // Return whether a CellCenter is in the light cone, including some tolerance
 inline int LightCone::isCellInLightCone(double3 pos) {
