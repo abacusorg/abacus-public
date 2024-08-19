@@ -236,7 +236,7 @@ public:
         installscalar("Order",order,MUST_DEFINE);
 
         installscalar("NearFieldRadius",NearFieldRadius,MUST_DEFINE);    // Radius of cells in the near-field
-        installvector("SofteningLength", &SofteningLength, 2, 0, MUST_DEFINE); // Softening length in the same units as BoxSize
+        installvector("SofteningLength", &SofteningLength, LEN_DONTNEED, 2, 0, MUST_DEFINE); // Softening length in the same units as BoxSize
         installscalar("DerivativeExpansionRadius", DerivativeExpansionRadius,MUST_DEFINE);
         MAXRAMMB = getRAMSize();
         installscalar("MAXRAMMB", MAXRAMMB, DONT_CARE);
@@ -311,11 +311,11 @@ public:
     	installscalar("OutputEveryStep",OutputEveryStep,DONT_CARE);
 
         installscalar("LightConeDirectory",LightConeDirectory,MUST_DEFINE); //Where the lightcones go. Generally will be the same as the Output directory
-        NLightCones = 0;
-        installscalar("NLightCones",NLightCones,DONT_CARE); //if not set, we assume 0
         OutputFullLightCones = 0;
         installscalar("OutputFullLightCones",OutputFullLightCones,DONT_CARE); //if not set, we assume 0
-        installvector("LightConeOrigins",LightConeOrigins,3*125,1,DONT_CARE);
+
+        // NLightCones is the number of x,y,z components, but will be divided by 3 later
+        installvector("LightConeOrigins",LightConeOrigins,&NLightCones,3*125,1,DONT_CARE);
         CheckLCAcrossWrap = 0;
         installscalar("CheckLCAcrossWrap",CheckLCAcrossWrap,DONT_CARE);
 
@@ -324,15 +324,15 @@ public:
 		
         for (int i = 0; i < MAX_TIMESLICE_REDSHIFTS; i++)
             TimeSliceRedshifts[i] = -2;		
-        installvector("TimeSliceRedshifts",TimeSliceRedshifts,MAX_TIMESLICE_REDSHIFTS,1,DONT_CARE);
+        installvector("TimeSliceRedshifts",TimeSliceRedshifts,LEN_DONTNEED,MAX_TIMESLICE_REDSHIFTS,1,DONT_CARE);
 		
         for (int i = 0; i < MAX_TIMESLICE_REDSHIFTS; i++)
             TimeSliceRedshifts_Subsample[i] = -2;		
-        installvector("TimeSliceRedshifts_Subsample",TimeSliceRedshifts_Subsample,MAX_TIMESLICE_REDSHIFTS,1,DONT_CARE);
+        installvector("TimeSliceRedshifts_Subsample",TimeSliceRedshifts_Subsample,LEN_DONTNEED,MAX_TIMESLICE_REDSHIFTS,1,DONT_CARE);
 
         for (int i = 0; i < MAX_L1OUTPUT_REDSHIFTS; i++)
             L1OutputRedshifts[i] = -2;
-        installvector("L1OutputRedshifts", L1OutputRedshifts, MAX_L1OUTPUT_REDSHIFTS, 1, DONT_CARE);
+        installvector("L1OutputRedshifts", L1OutputRedshifts, LEN_DONTNEED, MAX_L1OUTPUT_REDSHIFTS, 1, DONT_CARE);
 
         ParticleSubsampleA = 0.;
         ParticleSubsampleB = 0.;
@@ -392,11 +392,11 @@ public:
         // default means don't bind to core
         for (int i = 0; i < MAX_IO_THREADS; i++)
             IOCores[i] = -1;
-        installvector("IOCores", IOCores, MAX_IO_THREADS, 1, DONT_CARE);
+        installvector("IOCores", IOCores, LEN_DONTNEED, MAX_IO_THREADS, 1, DONT_CARE);
 
         for (int i = 0; i < MAX_IO_THREADS; i++)
             Conv_IOCores[i] = -1;
-        installvector("Conv_IOCores", Conv_IOCores, MAX_IO_THREADS, 1, DONT_CARE);
+        installvector("Conv_IOCores", Conv_IOCores, LEN_DONTNEED, MAX_IO_THREADS, 1, DONT_CARE);
 
         Conv_OMP_NUM_THREADS = 0;
         installscalar("Conv_OMP_NUM_THREADS", Conv_OMP_NUM_THREADS, DONT_CARE);
@@ -412,18 +412,18 @@ public:
             strcpy(IODirs[i], STRUNDEF);
             IODirThreads[i] = -1;
         }
-        installvector("IODirs", IODirs, MAX_IODIRS, 1024, DONT_CARE);
+        installvector("IODirs", IODirs, LEN_DONTNEED, MAX_IODIRS, 1024, DONT_CARE);
         nIODirs = 0;
         installscalar("nIODirs", nIODirs, DONT_CARE);
-        installvector("IODirThreads", IODirThreads, MAX_IODIRS, 1, DONT_CARE);
+        installvector("IODirThreads", IODirThreads, LEN_DONTNEED, MAX_IODIRS, 1, DONT_CARE);
 
         // If GPUThreadCoreStart is undefined, GPU threads will not be bound to cores
         for(int i = 0; i < MAX_GPUS; i++){
             GPUThreadCoreStart[i] = -1;
             GPUQueueAssignments[i] = i;  // one per GPU
         }
-        installvector("GPUThreadCoreStart", GPUThreadCoreStart, MAX_GPUS, 1, DONT_CARE);
-        installvector("GPUQueueAssignments", GPUQueueAssignments, MAX_GPUS, 1, DONT_CARE);
+        installvector("GPUThreadCoreStart", GPUThreadCoreStart, LEN_DONTNEED, MAX_GPUS, 1, DONT_CARE);
+        installvector("GPUQueueAssignments", GPUQueueAssignments, LEN_DONTNEED, MAX_GPUS, 1, DONT_CARE);
         NGPUThreadCores = -1;
         installscalar("NGPUThreadCores", NGPUThreadCores, DONT_CARE);
 
@@ -440,10 +440,10 @@ public:
         FoFLinkingLength[0] = .25;
         FoFLinkingLength[1] = .186;
         FoFLinkingLength[2] = .138;
-        installvector("FoFLinkingLength",FoFLinkingLength,3,1,DONT_CARE);
+        installvector("FoFLinkingLength",FoFLinkingLength,LEN_DONTNEED,3,1,DONT_CARE);
         SODensity[0] = 200.0;
         SODensity[1] = 800.0;
-        installvector("SODensity",SODensity,2,1,DONT_CARE);
+        installvector("SODensity",SODensity,LEN_DONTNEED,2,1,DONT_CARE);
         MinL1HaloNP = 40;
         installscalar("MinL1HaloNP", MinL1HaloNP, DONT_CARE);
 		L1Output_dlna = -1;

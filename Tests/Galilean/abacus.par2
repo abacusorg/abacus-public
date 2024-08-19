@@ -40,7 +40,6 @@ OutputFormat = "Pack9"
 BackupStepInterval = -1
 
 LightConeOrigins = (-15.,-15.,-15.), (-15., -15., -47.), (-15., -47., -15.)
-NLightCones = 0
 
 # Group finding parameters
 AllowGroupFinding = 0

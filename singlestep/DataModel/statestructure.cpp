@@ -181,7 +181,7 @@ public:
     	installscalar("ParameterFileName",ParameterFileName,DONT_CARE);
     	installscalar("ppd",ppd,DONT_CARE);
         installscalar("SofteningType", SofteningType,DONT_CARE);
-        installvector("SofteningLengthNow", &SofteningLengthNow, 2, 0, MUST_DEFINE);
+        installvector("SofteningLengthNow", &SofteningLengthNow, LEN_DONTNEED, 2, 0, MUST_DEFINE);
         installscalar("SofteningLengthNowInternal", SofteningLengthNowInternal,MUST_DEFINE);
 
     	sprintf(CodeVersion,"version_not_defined");
