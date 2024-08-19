@@ -52,6 +52,7 @@ typedef struct {
     int stride;
     int dim;
     int nvals;
+    int *nvals_user;
     int *init;
     char* mapped;
 } SYMENT;
@@ -80,7 +81,7 @@ public:
      
     // external interface
     void ResetParser(void);
-    void InstallSym(const char *name, void *ptr, int type, int dim, int stride, bool init);
+    void InstallSym(const char *name, void *ptr, int *len, int type, int dim, int stride, bool init);
     int parse (const std::string &fname, bool Warn, int NoUndefined, bool stop);
     int parse (const char* buffer, int len, std::string fromfilename, 
                      bool Warn, int NoUndefined, bool stop);

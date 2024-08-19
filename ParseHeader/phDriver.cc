@@ -309,6 +309,8 @@ void phDriver::stuffit(SYMENT **spec, VAL_STACK *list, int len, int varzone,
             }
         }
     }
+
+    if(pf->nvals_user) *pf->nvals_user = pf->nvals;
 }
 #undef STUFF
 
@@ -375,8 +377,8 @@ void phDriver::ResetParser(void) {
     nwarn = 0;
 }
 
-// install a variable in the symbol table and initialize it's entry
-void phDriver::InstallSym(const char *name, void *ptr, int type, int dim, int stride, bool init) {
+// install a variable in the symbol table and initialize its entry
+void phDriver::InstallSym(const char *name, void *ptr, int *len, int type, int dim, int stride, bool init) {
     SYMENT *sym;
     int i;
 
@@ -438,6 +440,7 @@ void phDriver::InstallSym(const char *name, void *ptr, int type, int dim, int st
         break;
     }
 
+    sym->nvals_user = len;
     sym->type = type;
     sym->dim = dim;
     if(init)                          // a false argument means don't care 

@@ -6,6 +6,7 @@
 
 #define MUST_DEFINE true
 #define DONT_CARE false
+#define LEN_DONTNEED NULL
 
 class HeaderStream {
 public:
@@ -64,17 +65,17 @@ public:
 
 // Install a vector
     template <typename T>
-    void installvector(std::string name, T *var, int len, int stride, bool must_define);
+    void installvector(std::string name, T *var, int *len, int maxlen, int stride, bool must_define);
 
-    void installvector(std::string name, int *var, int len, int stride, bool must_define);
+    void installvector(std::string name, int *var, int *len, int maxlen, int stride, bool must_define);
 
-    void installvector(std::string name, float *var, int len, int stride, bool must_define);
+    void installvector(std::string name, float *var, int *len, int maxlen, int stride, bool must_define);
 
-    void installvector(std::string name, double *var, int len, int stride, bool must_define);
+    void installvector(std::string name, double *var, int *len, int maxlen, int stride, bool must_define);
 
-    void installvector(std::string name, long long int *var, int len, int stride, bool must_define);
+    void installvector(std::string name, long long int *var, int *len, int maxlen, int stride, bool must_define);
 
-    void installvector(std::string name, std::string *var, int len, int stride, bool must_define);
+    void installvector(std::string name, std::string *var, int *len, int maxlen, int stride, bool must_define);
 
     void ReadHeader(HeaderStream &in);
 
