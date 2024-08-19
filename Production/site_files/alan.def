@@ -3,7 +3,6 @@ SiteName = "alan"
 StateIOMode = "normal"
 Conv_IOMode = "normal"
 #IODirs = []
-#nIODirs = 0
 #IODirThreads = []
 #MAXRAMMB = 200000  # This will be automatically detected
 # ConvolutionCacheSizeMB = 30  # This will be automatically detected

@@ -7,7 +7,6 @@ Conv_IOMode = "overwrite"
 
 AllowDirectIO = 0
 #IODirs = ["multipole/", "taylor/", "multipole2/", "taylor2/"]
-#nIODirs = 4
 #IODirThreads = [2, 2, 3, 3]
 # MAXRAMMB = 50000  # This will be automatically detected
 MemPerGPUBufferGB = 1

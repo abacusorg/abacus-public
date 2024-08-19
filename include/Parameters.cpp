@@ -318,21 +318,15 @@ public:
         installvector("LightConeOrigins",LightConeOrigins,&NLightCones,3*125,1,DONT_CARE);
         CheckLCAcrossWrap = 0;
         installscalar("CheckLCAcrossWrap",CheckLCAcrossWrap,DONT_CARE);
+        SingleIsotropicLC = 0;
+        installscalar("SingleIsotropicLC",SingleIsotropicLC,DONT_CARE);
 
         FinalRedshift = -2.0;        // If <-1, then we will cascade back to the minimum of the TimeSliceRedshifts list
         installscalar("FinalRedshift",FinalRedshift,DONT_CARE);
 		
-        for (int i = 0; i < MAX_TIMESLICE_REDSHIFTS; i++)
-            TimeSliceRedshifts[i] = -2;		
-        installvector("TimeSliceRedshifts",TimeSliceRedshifts,LEN_DONTNEED,MAX_TIMESLICE_REDSHIFTS,1,DONT_CARE);
-		
-        for (int i = 0; i < MAX_TIMESLICE_REDSHIFTS; i++)
-            TimeSliceRedshifts_Subsample[i] = -2;		
-        installvector("TimeSliceRedshifts_Subsample",TimeSliceRedshifts_Subsample,LEN_DONTNEED,MAX_TIMESLICE_REDSHIFTS,1,DONT_CARE);
-
-        for (int i = 0; i < MAX_L1OUTPUT_REDSHIFTS; i++)
-            L1OutputRedshifts[i] = -2;
-        installvector("L1OutputRedshifts", L1OutputRedshifts, LEN_DONTNEED, MAX_L1OUTPUT_REDSHIFTS, 1, DONT_CARE);
+        installvector("TimeSliceRedshifts",TimeSliceRedshifts,&nTimeSlice,MAX_TIMESLICE_REDSHIFTS,1,DONT_CARE);
+        installvector("TimeSliceRedshifts_Subsample",TimeSliceRedshifts_Subsample,&nTimeSliceSubsample,MAX_TIMESLICE_REDSHIFTS,1,DONT_CARE);
+        installvector("L1OutputRedshifts", L1OutputRedshifts, &nTimeSliceL1, MAX_L1OUTPUT_REDSHIFTS, 1, DONT_CARE);
 
         ParticleSubsampleA = 0.;
         ParticleSubsampleB = 0.;
@@ -412,9 +406,7 @@ public:
             strcpy(IODirs[i], STRUNDEF);
             IODirThreads[i] = -1;
         }
-        installvector("IODirs", IODirs, LEN_DONTNEED, MAX_IODIRS, 1024, DONT_CARE);
-        nIODirs = 0;
-        installscalar("nIODirs", nIODirs, DONT_CARE);
+        installvector("IODirs", IODirs, &nIODirs, MAX_IODIRS, 1024, DONT_CARE);
         installvector("IODirThreads", IODirThreads, LEN_DONTNEED, MAX_IODIRS, 1, DONT_CARE);
 
         // If GPUThreadCoreStart is undefined, GPU threads will not be bound to cores
@@ -559,7 +551,7 @@ public:
     void ProcessStateDirectories();
 
 private:
-    void CountTimeSlices();
+    void SortTimeSlices();
 };
 
 // Convert a whole string to lower case, in place.
@@ -568,37 +560,15 @@ void strlower(char* str){
         *str = tolower(*str);
 }
 
-void Parameters::CountTimeSlices(){
-    nTimeSlice = -1;
-    for (int i = 0; i < MAX_TIMESLICE_REDSHIFTS; i++){
-        if (TimeSliceRedshifts[i] <= -1) {
-            nTimeSlice = i;
-            break;
-        }
-    }
+void Parameters::SortTimeSlices(){
     std::sort(TimeSliceRedshifts, TimeSliceRedshifts + nTimeSlice, greater<double>());
-
-    nTimeSliceSubsample = -1;
-    for (int i = 0; i < MAX_TIMESLICE_REDSHIFTS; i++){
-        if (TimeSliceRedshifts_Subsample[i] <= -1) {
-            nTimeSliceSubsample = i;
-            break;
-        }
-    }
     std::sort(TimeSliceRedshifts_Subsample, TimeSliceRedshifts_Subsample + nTimeSliceSubsample, greater<double>());
-
-    nTimeSliceL1 = -1;
-    for (int i = 0; i < MAX_L1OUTPUT_REDSHIFTS; i++){
-        if (L1OutputRedshifts[i] <= -1) {
-            nTimeSliceL1 = i;
-            break;
-        }
-    }
     std::sort(L1OutputRedshifts, L1OutputRedshifts + nTimeSliceL1, greater<double>());
 
     if (! (nTimeSlice > 0 || nTimeSliceSubsample > 0 || nTimeSliceL1 > 0 || OutputEveryStep || StoreForces))
         printf("Warning! No output requested. Are you sure you want this?\n");
 }
+
 void Parameters::ProcessStateDirectories(){
     strlower(StateIOMode);
     strlower(Conv_IOMode);
@@ -654,7 +624,7 @@ void Parameters::ReadParameters(char *parameterfile, int icflag) {
     hs = new HeaderStream(parameterfile);
     ReadHeader(*hs);
     hs->Close();
-    CountTimeSlices();
+    SortTimeSlices();
     // ProcessStateDirectories();  // this is now done in singlestep.cpp (after MPI)
     if(!icflag) ValidateParameters();
 }

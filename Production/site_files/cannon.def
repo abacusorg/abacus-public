@@ -4,7 +4,6 @@ StateIOMode = "overwrite"
 Conv_IOMode = "overwrite"
 #RamDisk = 1
 #IODirs = ["multipole/", "taylor/", "multipole2/", "taylor2/"]
-#nIODirs = 4
 #IODirThreads = [2, 2, 3, 3]
 #MAXRAMMB = 200000  # This will be automatically detected
 ConvolutionCacheSizeMB = 44
