@@ -180,7 +180,7 @@ size_t makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
     OutputLightConeSetup.Start();
     STDLOG(4, "Making light cone %d for slab %d\n", lcn, slab);
 
-    LightCone LC(lcn, P.CheckLCAcrossWrap, P.LightConeBoxRepeats);
+    LightCone LC(lcn, P.LightConeCheckAcrossWrap, P.LightConeBoxRepeats);
 
     int xstart, xend, ystart, yend, zstart, zend;
     if (LC.do_boundary) {

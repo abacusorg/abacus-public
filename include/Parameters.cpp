@@ -130,7 +130,7 @@ public:
     double LightConeOrigins[3*125];  // Same units as BoxSize
 
     char LightConeDirectory[1024];
-    int CheckLCAcrossWrap;  // If 1, check for light cone particles that cross the periodic wrap
+    int LightConeCheckAcrossWrap;  // If 1, check for light cone particles that cross the periodic wrap
     int LightConeBoxRepeats;  // The number of times to repeat the box in +/- x, y, z directions (0 = normal light cone)
 
     int PowerSpectrumStepInterval;
@@ -317,8 +317,8 @@ public:
 
         // NLightCones is the number of x,y,z components, but will be divided by 3 later
         installvector("LightConeOrigins",LightConeOrigins,&NLightCones,3*125,1,DONT_CARE);
-        CheckLCAcrossWrap = 0;
-        installscalar("CheckLCAcrossWrap",CheckLCAcrossWrap,DONT_CARE);
+        LightConeCheckAcrossWrap = 0;
+        installscalar("LightConeCheckAcrossWrap",LightConeCheckAcrossWrap,DONT_CARE);
         LightConeBoxRepeats = 0;
         installscalar("LightConeBoxRepeats",LightConeBoxRepeats,DONT_CARE);
 
