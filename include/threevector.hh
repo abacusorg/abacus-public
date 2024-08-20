@@ -266,6 +266,15 @@ public:
             return (x >= low && x <= hi) && (y >= low && y <= hi) && (z >= low && z <= hi);
         }
     }
+
+    template <IntervalType interval = IntervalType::Closed>
+    inline bool inrange(ThreeVector<T> low, ThreeVector<T> hi) {
+        if constexpr (interval == HalfOpen) {
+            return (x >= low.x && x < hi.x) && (y >= low.y && y < hi.y) && (z >= low.z && z < hi.z);
+        } else {
+            return (x >= low.x && x <= hi.x) && (y >= low.y && y <= hi.y) && (z >= low.z && z <= hi.z);
+        }
+    }
 };
 
 // componentwise addition and subtraction

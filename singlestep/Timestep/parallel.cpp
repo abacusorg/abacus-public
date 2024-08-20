@@ -116,7 +116,7 @@ void InitializeParallelDomain(){
                 // InitGroupFinding() will check GHOST_RADIUS against GROUP_RADIUS
         }
 
-        // The primary, "corporeal" domain boundaries will be registered to y=0
+        // The primary, "corporeal" domain boundaries will be registered to z=0
         // This is arbitrary, but it makes it so the multipoles never span the wrap
         for(int i = 0; i < MPI_size_z; i++){
             all_node_z_start[i] = P.cpd * i / MPI_size_z;

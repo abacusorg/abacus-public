@@ -298,7 +298,7 @@ class PencilAccum {
 
 template <class T>
 class SlabAccum {
-    int cpd;
+    int cpd;                // number of y pencils
 	int zwidth;             // number of z cells on this node
     CellAccum *cells;		// Will be allocated to [0,cpd*zwidth)
 

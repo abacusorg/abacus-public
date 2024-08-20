@@ -131,6 +131,7 @@ public:
 
     char LightConeDirectory[1024];
     int CheckLCAcrossWrap;  // If 1, check for light cone particles that cross the periodic wrap
+    int LightConeBoxRepeats;  // The number of times to repeat the box in +/- x, y, z directions (0 = normal light cone)
 
     int PowerSpectrumStepInterval;
     int PowerSpectrumN1d; //1D number of bins to use in the powerspectrum
@@ -318,8 +319,8 @@ public:
         installvector("LightConeOrigins",LightConeOrigins,&NLightCones,3*125,1,DONT_CARE);
         CheckLCAcrossWrap = 0;
         installscalar("CheckLCAcrossWrap",CheckLCAcrossWrap,DONT_CARE);
-        SingleIsotropicLC = 0;
-        installscalar("SingleIsotropicLC",SingleIsotropicLC,DONT_CARE);
+        LightConeBoxRepeats = 0;
+        installscalar("LightConeBoxRepeats",LightConeBoxRepeats,DONT_CARE);
 
         FinalRedshift = -2.0;        // If <-1, then we will cascade back to the minimum of the TimeSliceRedshifts list
         installscalar("FinalRedshift",FinalRedshift,DONT_CARE);
@@ -565,7 +566,7 @@ void Parameters::SortTimeSlices(){
     std::sort(TimeSliceRedshifts_Subsample, TimeSliceRedshifts_Subsample + nTimeSliceSubsample, greater<double>());
     std::sort(L1OutputRedshifts, L1OutputRedshifts + nTimeSliceL1, greater<double>());
 
-    if (! (nTimeSlice > 0 || nTimeSliceSubsample > 0 || nTimeSliceL1 > 0 || OutputEveryStep || StoreForces))
+    if (! (nTimeSlice > 0 || nTimeSliceSubsample > 0 || nTimeSliceL1 > 0 || OutputEveryStep || StoreForces || NLightCones > 0) )
         printf("Warning! No output requested. Are you sure you want this?\n");
 }
 
