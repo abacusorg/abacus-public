@@ -9,7 +9,7 @@
 
 // This is all blocking, regardless of instruction!
 
-void IO_Initialize(char *logfn) { return; }    // Nothing to do
+void IO_Initialize(char *logfn, int num_types) { return; }    // Nothing to do
 void IO_Terminate() { return; }
 
 void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
@@ -38,7 +38,14 @@ void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
 }
 
 void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, 
-	    const char *filename, off_t fileoffset, int deleteafter, int blocking) {
+	    const char *filename, off_t fileoffset, int deleteafter, int blocking, int do_checksum, int use_fp) {
+
+    if(use_fp){
+        QUIT("WriteFile with use_fp not implemented\n");
+    }
+    if(do_checksum){
+        QUIT("WriteFile with do_checksum not implemented\n");
+    }
 
     STDLOG(1,"Using IO_dio module to write file %f\n", filename);
     // Write the file

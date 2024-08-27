@@ -1,3 +1,6 @@
+#ifndef __READ_DIO_H__
+#define __READ_DIO_H__
+
 class ReadDirect { 
 public:
     ReadDirect(int no_directio, size_t buffersize) {
@@ -39,3 +42,5 @@ private:
 
     int allow_directio;
 };
+
+#endif

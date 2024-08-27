@@ -27,6 +27,7 @@ int first_slab_on_node = 0, first_slab_finished = -1, total_slabs_on_node = -1;
 
 
 #include "Parameters.cpp"
+#include "../singlestep/DataModel/node_slabs.cpp"
 
 #ifdef PARALLEL
 	MPI_Datatype MPI_skewer;
