@@ -6,6 +6,9 @@ icc -o dumpspiral -I../ParseHeader -I../ParseHeader/util  -I../util -I../include
 
  */
 
+#include <filesystem>
+namespace fs = std::filesystem;
+
 #include "header.h"
 #include "util.h"
 #include "threevector.hh"
@@ -31,20 +34,20 @@ using namespace std;
 #include "Cosmology.cc"
 
 void Usage(char *progname) {
-    std::cout << "Usage: " << progname << ": -i infile -r rotfile\n";
+    fmt::print("Usage: {:s}: -i infile -r rotfile\n", progname);
     abort();
 }
 
-void ParseCommandLine(int argc, char **argv, std::string &infile, std::string &rotfile) {
+void ParseCommandLine(int argc, char **argv, fs::path &infile, fs::path &rotfile) {
     int c;
     while ((c = getopt (argc, argv, "i:r:")) != -1)
         switch (c)
         {
         case 'i':
-            infile.assign(optarg);
+            infile = optarg;
             break;
         case 'r':
-            rotfile.assign(optarg);
+            rotfile = optarg;
             break;
         case '?':
             Usage(argv[0]);
@@ -62,10 +65,8 @@ void ParseCommandLine(int argc, char **argv, std::string &infile, std::string &r
 
 int main(int argc, char **argv) {
 
-    std::string datafile, rotfile;
-    ParseCommandLine(argc, argv, datafile, rotfile);
-
-    std::string infile(datafile);
+    fs::path infile, rotfile;
+    ParseCommandLine(argc, argv, infile, rotfile);
     
     ParseHeader PH;
 
@@ -106,7 +107,7 @@ int main(int argc, char **argv) {
     //ConvertDimensionlessToVz(ps, np, cp, anow, C.H(anow));
     cout << "H(" << anow << ") = " << C.H(anow) << "\n";
 
-    FILE *out = OpenForWrite(std::string(rotfile), true);
+    FILE *out = OpenForWrite(rotfile, true);
     WriteHStream(out, "##\n", "# ");
     WriteHStream(out, " Input parameters from " + instream.name + ":\n", "# ");
     WriteHStream(out, "##\n", "# ");

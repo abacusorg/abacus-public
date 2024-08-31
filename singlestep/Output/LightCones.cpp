@@ -64,7 +64,7 @@ class LightCone {
     inline int isCellInLightCone(double3 pos);
     inline int isParticleInLightCone(double3 cellcenter, double3 &dpos, velstruct &vel, const accstruct acc, double3 box_repeat_offset);
 
-    static void WriteHeaderFile(const char* fn){
+    static void WriteHeaderFile(const fs::path &fn){
         std::ofstream headerfile;
         headerfile.open(fn);
         headerfile << P.header();
@@ -412,9 +412,7 @@ size_t makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
         static int made_dir = 0;
         if (!made_dir) {
             made_dir = 1;
-            char dir[32];
-            sprintf(dir, "Step%04d", ReadState.FullStepNumber);
-            CreateSubDirectory(P.LightConeDirectory, dir);
+            fs::create_directory(P.LightConeDirectory / fmt::format("Step{:04d}", ReadState.FullStepNumber));
         }
 
         SlabType lcrvtype = (SlabType)((int)(LightCone0RV + 3*lcn));

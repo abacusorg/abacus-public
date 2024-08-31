@@ -7,6 +7,12 @@
 #include "phDriver.hh"
 #include "stringutil.hh"
 
+#include <fmt/base.h>
+#include <fmt/format.h>
+#include <fmt/std.h>
+
+template <> struct fmt::formatter<yy::location> : ostream_formatter {};
+
 using std::string;
 using std::endl;
 
@@ -19,7 +25,7 @@ phDriver::phDriver (int _Warnings, int _No_Undefined)
      
 phDriver::~phDriver () { }
 
-int phDriver::parse(const std::string &fn, bool Warn, int NoUndefined, bool stop) {
+int phDriver::parse(const fs::path &fn, bool Warn, int NoUndefined, bool stop) {
     Warnings = Warn;
     no_undefined = NoUndefined;
     filename = strdup(fn.c_str());
@@ -30,7 +36,7 @@ int phDriver::parse(const std::string &fn, bool Warn, int NoUndefined, bool stop
     parser.set_debug_level (trace_parsing);
     int res = parser.parse ();
     if(*yynerrs>0) res = 1;
-    if(nwarn>0) error("there were " + ToString(nwarn) + " warnings\n");
+    if(nwarn>0) error("there were " + stringutil::ToString(nwarn) + " warnings\n");
     scan_end ();
 
     checkinit();
@@ -38,7 +44,7 @@ int phDriver::parse(const std::string &fn, bool Warn, int NoUndefined, bool stop
     return res;
 }
 
-int phDriver::parse(const char* buffer, int len, std::string fromfilename, 
+int phDriver::parse(const char* buffer, int len, const fs::path fromfilename, 
                     bool Warn, int NoUndefined, bool stop) {
     Warnings = Warn;
     no_undefined = NoUndefined;
@@ -94,7 +100,7 @@ void phDriver::ERROR(std::string m, const yy::location& l) {
     }
 }
 
-void phDriver::scan_begin(std::string fn) {
+void phDriver::scan_begin(const fs::path &fn) {
     extern int yy_flex_debug;
     yy_flex_debug = trace_scanning;
     if (fn == "-") 

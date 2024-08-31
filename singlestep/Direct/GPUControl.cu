@@ -43,7 +43,45 @@ to the rest of the code, because it needs CUDA.
 */
 
 #include "config.h"
-#include "header.cpp"
+
+// TODO: these are from header.cpp and may not all be needed
+#include <iostream>
+#include <iomanip>
+#include <fstream>
+#include <cstdio>
+#include <cstdlib>
+#include <cassert>
+#include <cstring>
+#include <cmath>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <vector>
+#include <algorithm>
+#include <float.h>
+#include <complex>
+#include <omp.h>
+#include <sys/mman.h>
+#include <sched.h>
+#include <pthread.h>
+
+#include <sys/time.h>
+#include <errno.h>
+#include <string.h>
+#include <fcntl.h>
+
+#include <ctype.h>
+#include <sys/select.h>
+#include <stdlib.h>
+
+#include <stdint.h>
+#include <unistd.h>
+#include <filesystem>
+
+using uint32 = uint32_t;
+using int32 = int32_t;
+using uint64 = uint64_t;
+using int64 = int64_t;
 
 
 #ifdef __INTEL_COMPILER
@@ -58,6 +96,8 @@ to the rest of the code, because it needs CUDA.
 
 #include <fmt/format.h>
 #include <fmt/std.h>
+
+namespace fs = std::filesystem;
 
 #ifdef HAVE_LIBNUMA
 #include <numaif.h>

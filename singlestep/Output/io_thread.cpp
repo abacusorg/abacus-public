@@ -16,32 +16,34 @@
 
 #define ioassertf(_mytest,...) do { \
     if (!(_mytest)) { \
-            IOLOG(0,"Failed Assertion: %s\n", #_mytest); IOLOG(0,__VA_ARGS__); \
-        fprintf(stderr,"Failed Assertion: %s\n", #_mytest); \
-        fpprint(std::cerr, __VA_ARGS__); \
+            IOLOG(0,"Failed Assertion: {:s}\n", #_mytest); IOLOG(0,__VA_ARGS__); \
+        fmt::print(stderr,"Failed Assertion: {:s}\n", #_mytest); \
+        fmt::print(stderr, __VA_ARGS__); \
         CrashIO(); \
     }} while(0)
 
 
 class alignas(CACHE_LINE_SIZE) iothread {
 public:
-    iothread(char *logfn, int _threadnum, int _io_core) {
-        threadnum = _threadnum;
+    iothread(const fs::path &_logfn, int _threadnum, int _io_core)
+        : threadnum(_threadnum)
+        {
+
+        fs::path logfn(_logfn);
 
         // Make the FIFO files
         // Note: we could move from ring buffers and FIFOs to a simple tbb:concurrent_bounded_queue,
         // as with the GPU module.  The current implementation is overkill since we don't need inter-process communication.
         pid_t pid = getpid();
-        STDLOG(0,"Using pid %d in IO\n",pid);
-        sprintf(IO_CMD_PIPE, "/tmp/iocmd_abacus.%d.%d", pid, threadnum);
-        sprintf(IO_ACK_PIPE, "/tmp/ioack_abacus.%d.%d", pid, threadnum);
+        STDLOG(0,"Using pid {:d} in IO\n",pid);
+        IO_CMD_PIPE = fmt::format("/tmp/iocmd_abacus.{:d}.{:d}", pid, threadnum);
+        IO_ACK_PIPE = fmt::format("/tmp/ioack_abacus.{:d}.{:d}", pid, threadnum);
         remove_io_pipes();
         make_io_pipes();
 
-        std::string _logfn = logfn;
-        _logfn += "." + std::to_string(1ULL*threadnum);
+        logfn += fmt::format(".{:d}", threadnum);
 
-        iolog.open(_logfn); 	// TODO: Probably need an error check
+        iolog.open(logfn); 	// TODO: Probably need an error check
 
         int no_dio = !allow_directio_global;
         size_t diskbuffer = ((size_t) 128) << 10;  // 4 << 20 = 4 MB
@@ -57,8 +59,8 @@ public:
         STDLOG(0,"IO thread started!\n");
 
         // Open the pipes from the client side
-        io_cmd = open(IO_CMD_PIPE, O_WRONLY);
-        io_ack = open(IO_ACK_PIPE, O_RDONLY);
+        io_cmd = open(IO_CMD_PIPE.c_str(), O_WRONLY);
+        io_ack = open(IO_ACK_PIPE.c_str(), O_RDONLY);
         STDLOG(0,"Done initializing IO\n");
     }
 
@@ -106,7 +108,7 @@ public:
 
 private:
     // FIFO file names
-    char IO_CMD_PIPE[1024], IO_ACK_PIPE[1024];
+    fs::path IO_CMD_PIPE, IO_ACK_PIPE;
 
     int fifo_cmd, fifo_ack;
     int io_cmd, io_ack;
@@ -255,15 +257,15 @@ private:
 
         if(io_core >= 0){
             set_core_affinity(io_core);
-            STDLOG(0, "IO thread assigned to core %d\n", io_core);
+            STDLOG(0, "IO thread assigned to core {:d}\n", io_core);
         }
         else{
             STDLOG(0, "IO thread not bound to core\n");
         }
 
         IOLOG(0,"Opening IO pipes\n");
-        fifo_cmd = open(IO_CMD_PIPE, O_RDONLY);
-        fifo_ack = open(IO_ACK_PIPE, O_WRONLY);
+        fifo_cmd = open(IO_CMD_PIPE.c_str(), O_RDONLY);
+        fifo_ack = open(IO_ACK_PIPE.c_str(), O_WRONLY);
         int highfd = fifo_cmd;
         fd_set set;
 
@@ -377,12 +379,12 @@ private:
         int ret_val;
 
         errno = 0;
-        ret_val = mkfifo(IO_CMD_PIPE, 0666);
+        ret_val = mkfifo(IO_CMD_PIPE.c_str(), 0666);
         assertf((ret_val!=-1)||(errno==EEXIST),
             "Error creating pipe IO_CMD_PIPE\n");
 
         errno = 0;
-        ret_val = mkfifo(IO_ACK_PIPE, 0666);
+        ret_val = mkfifo(IO_ACK_PIPE.c_str(), 0666);
         assertf((ret_val!=-1)||(errno==EEXIST),
             "Error creating pipe IO_ACK_PIPE\n");
     }
@@ -390,16 +392,8 @@ private:
     void remove_io_pipes(void) {
         // Must remove old files
         STDLOG(0,"Deleting io pipe files\n");
-        int ret = 0;
-        if (FileExists(IO_ACK_PIPE)) {
-            ret = remove(IO_ACK_PIPE);
-        }
-        assertf(ret == 0, "Error removing pipe IO_ACK_PIPE=\"%s\"\n", IO_ACK_PIPE);
-
-        if (FileExists(IO_CMD_PIPE)) {
-            ret = remove(IO_CMD_PIPE);
-        }
-        assertf(ret == 0, "Error removing pipe IO_CMD_PIPE=\"%s\"\n", IO_CMD_PIPE);
+        fs::remove(IO_ACK_PIPE);
+        fs::remove(IO_CMD_PIPE);
     }
 };
 
@@ -415,7 +409,7 @@ int niothreads;
 FILE **filepointers;
 int nfilepointers;
 
-void IO_Initialize(char *logfn, int NumTypes) {
+void IO_Initialize(const fs::path &logfn, int NumTypes) {
     nfilepointers = NumTypes;
     filepointers = new FILE*[nfilepointers];
     for(int i = 0; i < nfilepointers; i++){
@@ -455,7 +449,7 @@ void IO_Terminate() {
 
     // Write the checksum files to their respective directories
     for(auto &diriter : FileChecksums){
-        const std::string &dir = diriter.first;
+        const fs::path dir = diriter.first;
         auto &_allcrc = diriter.second;
 
         // Sort this directory's checksums by filename
@@ -479,9 +473,9 @@ void IO_Terminate() {
 
 // Return the ID of the IO thread that will handle this directory
 // Threads are one-indexed
-int GetIOThread(const char* dir){
+int GetIOThread(const fs::path &dir){
     for(int i = 0; i < P.nIODirs; i++){
-        if(strcmp(dir, P.IODirs[i]) == 0){
+        if(dir == P.IODirs[i]){
             return P.IODirThreads[i];
         }
     }
@@ -491,7 +485,7 @@ int GetIOThread(const char* dir){
 
 
 // Here are the actual interfaces for writing an arena
-void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, const char *filename,
+void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, const fs::path &filename,
     off_t fileoffset, int blocking) {
 
     STDLOG(3,"Using IO_thread module to read file {}, blocking {:d}\n", filename, blocking);
@@ -500,7 +494,7 @@ void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, const c
     iothreads[GetIOThread(ior.dir) - 1]->request(ior);
 }
 
-void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, const char *filename,
+void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, const fs::path &filename,
         off_t fileoffset, int deleteafter, int blocking, int do_checksum, int use_fp) {
 
     STDLOG(3,"Using IO_thread module to write file {}, blocking {:d}, use_fp {:d}\n", filename, blocking, use_fp);
@@ -508,8 +502,8 @@ void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, const 
     FILE *fp = NULL;
     if(use_fp){
         if(filepointers[arenatype] == NULL){
-            filepointers[arenatype] = fopen(filename, "wb");
-            assertf(filepointers[arenatype] != NULL, "Failed to open file pointer for %s\n", filename);
+            filepointers[arenatype] = fopen(filename.c_str(), "wb");
+            assertf(filepointers[arenatype] != NULL, "Failed to open file pointer for {}\n", filename);
         }
 
         fp = filepointers[arenatype];

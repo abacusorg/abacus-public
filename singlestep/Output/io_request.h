@@ -72,7 +72,7 @@ class iorequest {
     iorequest(
         char    *_memory,
         uint64     _sizebytes,
-        const char    *_filename,
+        const fs::path    &_filename,
         int     _command,
         int     _arenatype,
         int     _arenaslab,
@@ -86,12 +86,13 @@ class iorequest {
 
         memory = _memory;
         sizebytes = _sizebytes;
-        strncpy(filename, _filename, 512);
+        const fs::path absfname = fs::absolute(_filename);
+        strncpy(filename, absfname.c_str(), 512);
 
         if(_fp != NULL){
             io_method = IO_LIGHTCONE;
         } else {
-            if(is_path_on_ramdisk(filename) || !allow_directio_global)
+            if(is_path_on_ramdisk(absfname) || !allow_directio_global)
                 io_method = IO_FOPEN;
             else
                 io_method = IO_DIRECT;
@@ -99,8 +100,9 @@ class iorequest {
 
         // Get the directory of the file for logging purposes
         // Believe it or not, dirname modifies its argument
-        containing_dirname(filename, dir);
-        split_path(filename, fulldir, justname);
+        strncpy(dir, absfname.parent_path().filename().c_str(), 512);
+        strncpy(fulldir, absfname.parent_path().c_str(), 512);
+        strncpy(justname, absfname.filename().c_str(), 512);
 
         command = _command;
         arenatype = _arenatype;

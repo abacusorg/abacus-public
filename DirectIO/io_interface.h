@@ -38,18 +38,18 @@ int allow_directio_global = 1;    // Set to 0 if we're using a ramdisk, or a net
 void IO_SetIOCompleted(int arenatype, int arenaslab);
 void IO_DeleteArena(int arenatype, int arenaslab);
 
-void IO_Initialize(char *logfn);
+void IO_Initialize(const fs::path &logfn);
 void IO_Terminate();
 
 void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab,
-    const char *fn, off_t fileoffset, int blocking);
+    const fs::path &fn, off_t fileoffset, int blocking);
     // This prototype reads sizebytes into the location *ram, from file *fn
     // starting from an offset fileoffset.
     // If blocking is set, then don't return until it's done!
     // Otherwise, return immediately if the I/O module allows it.
     // If arena>=0, call SetIOCompleted
 
-void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, const char *fn,
+void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, const fs::path &fn,
     off_t fileoffset, int deleteafter, int blocking, int do_checksum, int use_fp);
     // This prototype writes sizebytes from the location *ram, to file *fn
     // starting from an offset fileoffset.

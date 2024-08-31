@@ -43,9 +43,8 @@ void MakeAnalyticDerivatives(int maxorder, int innerradius) {
                 AnalyticDerivatives[a][b][c] = 0;
 
     int tmporder, tmpinneradius;
-    char fname[1024];
-    sprintf(fname,"AD32_%03d.dat",innerradius);
-    printf("reading derivatives from %s\n", fname);
+    fs::path fname = fmt::format("AD32_{:03d}.dat", innerradius);
+    fmt::print("reading derivatives from {:s}\n", fname);
     ifstream fin(fname,ios::in);
     if(!fin.is_open()) {
         fprintf(stderr,"couldn't open \"%s\"\n",fname);

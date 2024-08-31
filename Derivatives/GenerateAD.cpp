@@ -157,9 +157,8 @@ int main(void) {
 
         MakeAnalyticDerivatives(order, innerradius);
 
-        char fname[1024];
-        sprintf(fname,"AD%02d_%03d.dat",order,innerradius);
-        cout << "fname = " << fname << endl;
+        fs::path fname = fmt::format("AD{:02d}_{:03d}.dat",order,innerradius);
+        fmt::print("fname = {}\n", fname);
         ofstream fout(fname,ios::out);
         fout.precision(qd_real::_ndigits);
         

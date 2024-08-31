@@ -17,7 +17,7 @@
 class ParallelConvolution { 
 public:     
 	// ParallelConvolution();
-    ParallelConvolution(int _cpd, int _order, char MultipoleDirectory[1024], int _create_MT_file = 0);
+    ParallelConvolution(int _cpd, int _order, const fs::path &MultipoleDirectory, int _create_MT_file = 0);
     ~ParallelConvolution(void);
 		
 	void AllocMT_two();	
@@ -49,7 +49,7 @@ public:
 
 private:
 	
-	const char * mt_file; 
+	fs::path mt_file; 
 	int create_MT_file = 0; 
 	
 	//int OverwriteConvState;
@@ -109,8 +109,8 @@ private:
 	ReadDirect *RD;
 	
 	
-	void MultipoleFN(int slab, char * const fn);
-	void TaylorFN(int slab, char * const fn);
+	fs::path MultipoleFN(int slab);
+	fs::path TaylorFN(int slab);
 	
 	void LoadDerivatives(int z);
 	void Swizzle_to_zmxy();

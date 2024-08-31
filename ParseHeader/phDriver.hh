@@ -1,10 +1,13 @@
 #ifndef __PHDRIVER_HH__
 # define __PHDRIVER_HH__
 
-# include <string>
-# include <map>
-# include "stringutil.hh"
+#include <filesystem>
+#include <string>
+#include <map>
+#include "stringutil.hh"
 #include "phParser.tab.hh"
+
+namespace fs = std::filesystem;
 
 // variable types for "type", below
 enum { BAD, INTEGER, FLOAT, DOUBLE, STRING, LOGICAL, LONG };
@@ -81,13 +84,13 @@ public:
      
     // external interface
     void ResetParser(void);
-    void InstallSym(const char *name, void *ptr, int *len, int type, int dim, int stride, bool init);
-    int parse (const std::string &fname, bool Warn, int NoUndefined, bool stop);
-    int parse (const char* buffer, int len, std::string fromfilename, 
+    void InstallSym(const std::string &name, void *ptr, int *len, PHType type, int dim, int stride, bool init);
+    int parse (const fs::path &fname, bool Warn, int NoUndefined, bool stop);
+    int parse (const char* buffer, int len, const fs::path fromfilename, 
                      bool Warn, int NoUndefined, bool stop);
 
     // Handling the scanner.
-    void scan_begin(std::string fn);
+    void scan_begin(const fs::path &fn);
     void scan_begin(const char *buffer, int len);
     void scan_end ();
 
@@ -147,7 +150,7 @@ public:
     VAL_STACK val_stack[MAX_STK];
     SYMENT *zonespec[MAX_STK];
 
-    std::string filename;
+    fs::path filename;
     int trace_parsing;
     int trace_scanning;
     bool Debug;

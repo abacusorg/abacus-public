@@ -57,7 +57,7 @@ AppendArena *get_PID_AA_by_format(const char* format){
     return PID_AA;
 }
 
-void WriteHeaderFile(const char* fn){
+void WriteHeaderFile(const fs::path &fn){
 	std::ofstream headerfile;
 	headerfile.open(fn);
 	headerfile << P.header();

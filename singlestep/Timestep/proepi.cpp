@@ -205,7 +205,7 @@ int * total_slabs_all = NULL;
 #include "node_slabs.cpp"
 
 // FFTW Wisdom
-char wisdom_file[1024];
+fs::path wisdom_file;
 int wisdom_exists;
 void init_fftw();
 void finish_fftw();
@@ -284,9 +284,7 @@ void Prologue(Parameters &P, int MakeIC, int NoForces) {
 
     STDLOG(2,"Setting up IO\n");
 
-    char logfn[1050];
-    sprintf(logfn,"%s/step%04d%s.iolog",
-        WriteState.LogDirectory, WriteState.FullStepNumber, NodeString);
+    fs::path logfn = WriteState.LogDirectory / fmt::format("step{:04d}{:s}.iolog", WriteState.FullStepNumber, NodeString);
     allow_directio_global = P.AllowDirectIO;
     STDLOG(1,"Setting global AllowDirectIO = {:d}\n", P.AllowDirectIO);
     IO_Initialize(logfn, SB->NumTypes);
@@ -365,11 +363,8 @@ void Epilogue(Parameters &P, bool MakeIC) {
 
     if(ReadState.DoBinning){
         STDLOG(1,"Outputting Binned Density\n");
-        char denfn[1024];
         // TODO: Should this be going to ReadState or WriteState or Output?
-        int ret = snprintf(denfn, 1024, "%s/density%s",P.ReadStateDirectory, NodeString);
-        assert(ret >= 0 && ret < 1024);
-        FILE * densout = fopen(denfn,"wb");
+        FILE * densout = fopen((P.ReadStateDirectory / fmt::format("density{:s}", NodeString)).c_str(),"wb");
         fwrite(density,sizeof(FLOAT),P.PowerSpectrumN1d*P.PowerSpectrumN1d*P.PowerSpectrumN1d,densout);
         fclose(densout);
         delete density; density = 0;
@@ -441,9 +436,9 @@ void Epilogue(Parameters &P, bool MakeIC) {
 
 void init_fftw(){
     // Import FFTW wisdom, before SlabMultipoles or anything that does FFT planning
-    sprintf(wisdom_file, "%s/fftw_%d.wisdom", P.WorkingDirectory, P.cpd);
-    wisdom_exists = fftw_import_wisdom_from_filename(wisdom_file);
-    STDLOG(1, "Wisdom import from file \"%s\" returned %d (%s).\n", wisdom_file, wisdom_exists, wisdom_exists == 1 ? "success" : "failure");
+    wisdom_file = P.WorkingDirectory / fmt::format("fftw_{:d}.wisdom", P.cpd);
+    wisdom_exists = fftw_import_wisdom_from_filename(wisdom_file.c_str());
+    STDLOG(1, "Wisdom import from file \"{}\" returned {:d} ({:s}).\n", wisdom_file, wisdom_exists, wisdom_exists == 1 ? "success" : "failure");
 }
 
 void finish_fftw(){
@@ -456,10 +451,9 @@ void finish_fftw(){
         
         if(MPI_rank_z == MPI_size_z-1){
             STDLOG(1, "Sending wisdom over MPI\n");
-            char *wis = fftw_export_wisdom_to_string();
-            if(wis != NULL){
-                size_t wislen = strlen(wis);
-                MPI_Send(wis, (int) wislen, MPI_CHAR, 0, 0, comm_1d_z);
+            std::string wis(fftw_export_wisdom_to_string());
+            if(!wis.empty()){
+                MPI_Send(wis, (int) wis.size(), MPI_CHAR, 0, 0, comm_1d_z);
                 free(wis);
             } else {
                 // Some fftw implementations do not use wisdom
@@ -566,9 +560,7 @@ void setup_log(){
     std::setvbuf(stderr,(char *)_IONBF,0,0);
 
     stdlog_threshold_global = P.LogVerbosity;
-    char logfn[1050];
-    sprintf(logfn,"%s/step%04d%s.log",
-        WriteState.LogDirectory, WriteState.FullStepNumber, NodeString);
+    fs::path logfn = WriteState.LogDirectory / fmt::format("step{:04d}{:s}.log", WriteState.FullStepNumber, NodeString);
     stdlog.open(logfn);
     STDLOG_TIMESTAMP;
     STDLOG(0, "Log established with verbosity {:d}.\n", stdlog_threshold_global);
@@ -583,13 +575,12 @@ void load_read_state(int MakeIC){
 
     // Note we don't have STDLOG yet here; any reporting about ReadState should go in check_read_state()
 
-    char rstatefn[1050];
-    sprintf(rstatefn, "%s/state", P.ReadStateDirectory);
+    fs::path rstatefn = P.ReadStateDirectory / "state";
 
     if(MakeIC){
         // By this point, we should have cleaned up any old state directories
-        if(access(rstatefn,0) != -1){
-            QUIT("Read state file \"%s\" was found, but this is supposed to be an IC step. Terminating.\n", rstatefn);
+        if(fs::exists(rstatefn)){
+            QUIT("Read state file \"{}\" was found, but this is supposed to be an IC step. Terminating.\n", rstatefn);
         }
 
         // So that this number is the number of times forces have been computed.
@@ -605,8 +596,8 @@ void load_read_state(int MakeIC){
     } else {
         // We're doing a normal step
         // Check that the read state file exists
-        if(access(rstatefn,0) == -1){
-            QUIT("Read state file \"%s\" is inaccessible and this is not an IC step. Terminating.\n", rstatefn);
+        if(!fs::is_regular_file(rstatefn)){
+            QUIT("Read state file \"{}\" is inaccessible and this is not an IC step. Terminating.\n", rstatefn);
         }
 
         ReadState.read_from_file(P.ReadStateDirectory);
@@ -615,7 +606,7 @@ void load_read_state(int MakeIC){
     // InitWriteState wants to use STDLOG, but we need WriteState.FullStepNumber to set up the log filename
     // So bootstrap that here.
     WriteState.FullStepNumber = ReadState.FullStepNumber + 1;
-    snprintf(WriteState.LogDirectory, 1024, "%s/step%04d", P.LogDirectory, WriteState.FullStepNumber);
+    WriteState.LogDirectory = P.LogDirectory / fmt::format("step{:04d}", WriteState.FullStepNumber);
 }
 
 void check_read_state(const int MakeIC){
@@ -631,7 +622,7 @@ void check_read_state(const int MakeIC){
 }
 
 // A few actions that we need to do before choosing the timestep
-void InitWriteState(int MakeIC, const char *pipeline, const char *parfn){
+void InitWriteState(int MakeIC, const std::string pipeline, const fs::path parfn){
     // Even though we do this in BuildWriteState, we want to have the step number
     // available when we choose the time step.
     assert(WriteState.FullStepNumber == ReadState.FullStepNumber+1);  // already did this in load_read_state()
@@ -659,11 +650,9 @@ void InitWriteState(int MakeIC, const char *pipeline, const char *parfn){
     strcpy(WriteState.ParameterFileName, parfn);
 
     // Check if WriteStateDirectory/state exists, and fail if it does
-    char wstatefn[1050];
-    int ret = snprintf(wstatefn, 1050, "%s/state", P.WriteStateDirectory);
-    assert(ret >= 0 && ret < 1050);
-    if(access(wstatefn,0) !=-1 && !WriteState.OverwriteState)
-        QUIT("WriteState \"%s\" exists and would be overwritten. Please move or delete it to continue.\n", wstatefn);
+    fs::path wstatefn = P.WriteStateDirectory / "state";
+    if(fs::exists(wstatefn) && !WriteState.OverwriteState)
+        QUIT("WriteState \"{}\" exists and would be overwritten. Please move or delete it to continue.\n", wstatefn);
 }
 
 
@@ -940,7 +929,7 @@ void InitGroupFinding(int MakeIC){
 }
 
 // Check whether "d" is actually a global directory, and thus not eligible for deletion
-int IsTrueLocalDirectory(const char* d){
+int IsTrueLocalDirectory(const fs::path &d){
     if(samefile(d, P.WorkingDirectory) ||
         samefile(d, P.ReadStateDirectory) ||
         samefile(d, P.WriteStateDirectory) ||
@@ -958,26 +947,9 @@ int IsTrueLocalDirectory(const char* d){
 // In the parallel code, that means this function is responsible for creating all node-local directories
 // This also deletes existing state directories if MakeIC is invoked
 void SetupLocalDirectories(const int MakeIC){
-    /* TODO: probably deprecated
-    // Resume from a backed-up state
-    if(!MakeIC){
-        // If BackupDirectory exists and LocalReadStateDirectory does not
-        // then we should set [Local]ReadStateDirectory to BackupDirectory
-        // Need to set both because can't risk an inconsistent Read and LocalRead state!
-
-        if(CheckFileExists(P.BackupDirectory) == 2
-            && CheckFileExists(P.LocalReadStateDirectory) != 2){
-            fprintf(stderr, "Local read state dir \"%s\" not found; reading from BackupDirectory \"%s\"\n",
-                P.LocalReadStateDirectory, P.BackupDirectory);
-
-            sprintf(P.LocalReadStateDirectory, "%s/read", P.BackupDirectory);
-            sprintf(P.ReadStateDirectory, "%s/read", P.BackupDirectory);
-        }
-    }*/
-
     // TODO: might want to delete old derivatives directory here,
     // but the risk of accidentally deleting the global derivatives is very high
-    char *dirs[] = {P.LocalWorkingDirectory,
+    fs::path dirs[] = {P.LocalWorkingDirectory,
                     P.LocalReadStateDirectory,
                     P.LocalWriteStateDirectory,
                     P.TaylorDirectory,
@@ -986,22 +958,20 @@ void SetupLocalDirectories(const int MakeIC){
                     P.MultipoleDirectory2
                 };
 
-    for(int i = 0; i < sizeof(dirs)/sizeof(char*); i++){
-        const char *d = dirs[i];
-
-        if(strcmp(d, STRUNDEF) != 0 && strlen(d) > 0){
+    for(const auto& d : dirs){
+        if(d != STRUNDEF && !d.empty()){
             // The following functions don't care if the directory already exists or not
             if(MakeIC && IsTrueLocalDirectory(d)){
-                RemoveDirectories(d);
-                STDLOG(1, "Removed directory \"%s\"\n", d);
+                fs::remove_all(d);
+                STDLOG(1, "Removed directory \"{}\"\n", d);
             }
 
-            if(d == P.LocalWriteStateDirectory && strcmp(P.StateIOMode, "overwrite") == 0) {
-                CreateSymlink(P.LocalReadStateDirectory, P.LocalWriteStateDirectory);
+            if(d == P.LocalWriteStateDirectory && P.StateIOMode == "overwrite") {
+                fs::remove(P.LocalWriteStateDirectory);
+                fs::create_directory_symlink(P.LocalReadStateDirectory, P.LocalWriteStateDirectory);
             } else {
-                int res = CreateDirectories(d);
-                assertf(res == 0, "Creating directory \"%s\" failed for reason %s!\n", d, strerror(errno));
-                STDLOG(1, "Created directory \"%s\"\n", d);
+                fs::create_directories(d);
+                STDLOG(1, "Created directory \"{}\"\n", d);
             }
         }
     }
@@ -1018,14 +988,12 @@ void MoveLocalDirectories(){
 
     if(IsTrueLocalDirectory(P.LocalReadStateDirectory)){
         STDLOG(1, "Removing read directory\n");
-        int res = RemoveDirectories(P.LocalReadStateDirectory);
-        assertf(res == 0, "Failed to remove read directory!\n");
+        fs::remove_all(P.LocalReadStateDirectory);
     }
 
     if(IsTrueLocalDirectory(P.LocalWriteStateDirectory)){
         STDLOG(1, "Moving write directory to read\n");
-        int res = rename(P.LocalWriteStateDirectory, P.LocalReadStateDirectory);
-        assertf(res == 0, "Failed to rename write to read!\n");
+        fs::rename(P.LocalWriteStateDirectory, P.LocalReadStateDirectory);
     }
 }
 
@@ -1119,12 +1087,7 @@ void FinalizeWriteState() {
     // But a-priori there's no good way to know which nodes/slabs will have LC particles,
     // Now that we've done the reduction, we know if any LC particles were written, thus rank 0 can write the header
     if(WriteState.np_lightcone && MPI_rank == 0){
-        char dir[32];
-        sprintf(dir, "Step%04d", ReadState.FullStepNumber);
-        
-        std::string headerfn = "";
-        headerfn = headerfn + P.LightConeDirectory + "/" + dir + "/header";
-        LightCone::WriteHeaderFile(headerfn.c_str());
+        LightCone::WriteHeaderFile(P.LightConeDirectory / fmt::format("step{:04d}", ReadState.FullStepNumber) / "header");
     }
 
     return;

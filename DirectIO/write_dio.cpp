@@ -12,21 +12,21 @@ int WriteDirect::wropenflags(void) {
         return O_CREAT|O_WRONLY|O_DIRECT|O_ASYNC|O_LARGEFILE;
 }
 
-int WriteDirect::wropenfd(char *fn, int writeflags) {
+int WriteDirect::wropenfd(const fs::path &fn, int writeflags) {
     errno = 0;
-    int fd = open(fn, writeflags, 0666);
+    int fd = open(fn.c_str(), writeflags, 0666);
     if(fd == -1)
-        fprintf(stderr, "Failed to open \"%s\" with writeflags %d\n", fn, writeflags);
+        fmt::print(stderr, "Failed to open \"{}\" with writeflags {:d}\n", fn, writeflags);
     FAILERRNO;
     assert(fd!=-1);
     return fd;
 }
 
-void WriteDirect::BlockingWrite_Append_Aligned(char *fn, char *x, size_t length) {
+void WriteDirect::BlockingWrite_Append_Aligned(const fs::path &fn, char *x, size_t length) {
     size_t lengthblocks = length/4096;
     assert( lengthblocks * 4096 == length );
 
-    size_t filesize = fsize(fn);
+    size_t filesize = fs::file_size(fn);
     size_t filesizeblocks = filesize/4096;
     assert( filesizeblocks * 4096 == filesize );
 
@@ -68,9 +68,9 @@ void WriteDirect::BlockingWrite_Append_Aligned(char *fn, char *x, size_t length)
     close(fd);
 }
 
-void WriteDirect::BlockingAppendfwrite( char *fn, char *x, size_t length ) {
-    //size_t filesize = fsize(fn);
-    FILE *fp = fopen(fn,"ab"); // appending
+void WriteDirect::BlockingAppendfwrite(const fs::path &fn, char *x, size_t length ) {
+    //size_t filesize = fs::file_size(fn);
+    FILE *fp = fopen(fn.c_str(),"ab"); // appending
     assert(fp!=NULL);
     errno = 0;
     size_t byteswritten = fwrite( x,  sizeof(char), length, fp );
@@ -96,12 +96,12 @@ void WriteDirect::BlockingAppendPointer( FILE *f, char *x, size_t length) {
     assert(byteswritten == length);
 }
 
-void WriteDirect::BlockingAppendDirect(char *fn, char *x, size_t length) {
+void WriteDirect::BlockingAppendDirect(const fs::path &fn, char *x, size_t length) {
     size_t bytesleft = length;
     size_t offset = 0;
 
     // How many bytes do we need to write to bring the file to a 4096 boundary?
-    size_t fs = fsize(fn);
+    size_t fs = fs::file_size(fn);
     size_t nonaligneddiskbytes = (4096-(fs%4096))%4096;
 
     if(nonaligneddiskbytes) {
@@ -113,7 +113,7 @@ void WriteDirect::BlockingAppendDirect(char *fn, char *x, size_t length) {
 
     if(bytesleft) {
         // if there's more to write, the disk file should already have been aligned
-        assert( fsize(fn)%4096 == 0 );
+        assert( fs::file_size(fn)%4096 == 0 );
 
         size_t remainingblocks = bytesleft/4096;
         size_t alignedbytes = 4096*remainingblocks;
@@ -126,11 +126,11 @@ void WriteDirect::BlockingAppendDirect(char *fn, char *x, size_t length) {
     }
 }
 
-void WriteDirect::BlockingAppend(char *fn, char *x, size_t length) {
+void WriteDirect::BlockingAppend(const fs::path &fn, char *x, size_t length) {
     WriteDirect::BlockingAppend(fn, x, length, !allow_directio);
 }
 
-void WriteDirect::BlockingAppend(char *fn, char *x, size_t length, int no_dio) {
+void WriteDirect::BlockingAppend(const fs::path &fn, char *x, size_t length, int no_dio) {
     if(no_dio || !allow_directio)
         BlockingAppendfwrite(fn,x,length);
     else

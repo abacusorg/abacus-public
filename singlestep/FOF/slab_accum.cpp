@@ -465,8 +465,8 @@ class SlabAccum {
 
     /// Write all of the data to a file, making this contiguous 
     /// and in pencil order.  
-    void dump_to_file(char fname[]) {
-	FILE *fp = fopen(fname, "wb");
+    void dump_to_file(const fs::path &fname) {
+	FILE *fp = fopen(fname.c_str(), "wb");
 	for (int j=0; j<cpd; j++) {
 	    fwrite(pencils[j].data, sizeof(T), pencils[j]._size, fp);
 	}
@@ -475,11 +475,11 @@ class SlabAccum {
 
     /// Write the CellAccum of the data to a file, making this contiguous 
     /// and in pencil order.  
-    void dump_cells_to_file(char fname[]) {
-	FILE *fp = fopen(fname, "w");
+    void dump_cells_to_file(const fs::path &fname) {
+	FILE *fp = fopen(fname.c_str(), "w");
 	for (int j=0; j<cpd; j++) {
 	    for (int k=0; k<zwidth; k++) {
-		fprintf(fp, "%d %d:  %d %d\n",
+		fmt::print(fp, "{:d} {:d}:  {:d} {:d}\n",
 			j,k, cells[j*zwidth+k].start, cells[j*zwidth+k].size());
 	    }
 	}

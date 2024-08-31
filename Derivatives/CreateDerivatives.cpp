@@ -93,10 +93,9 @@ void FormDerivatives(int inner_radius, int order, int far_radius, int slabnumber
             // If we were asked to do only one slab, skip each iteration of this loop until you reach the desired slab within the home box. 
 
         // Check if the desired file already exists.  If so, skip the computation in this loop.
-        char fn[1024];
-        sprintf(fn,"slabderiv_%llu_%d_%d_%d_%d__%d",CPD,order,inner_radius,far_radius, 0, k);
+        fs::path fn = fmt::format("slabderiv_{:d}_{:d}_{:d}_{:d}_{:d}__{:d}",CPD,order,inner_radius,far_radius, 0, k);
         FILE *fp;
-        fp = fopen(fn,"rb");
+        fp = fopen(fn.c_str(),"rb");
         if(fp!=NULL) {
             // Yes, the file already exists!  Don't repeat the work, so skip this iteration of the loop..
             fclose(fp);
@@ -136,7 +135,7 @@ void FormDerivatives(int inner_radius, int order, int far_radius, int slabnumber
         }
                 
         // Store FDSlab (containing derivatives tensor for the given slab) to disk. 
-        fp = fopen(fn,"wb");
+        fp = fopen(fn.c_str(),"wb");
         assert(fp!=NULL);
         fwrite(&(FDSlab[0]), sizeof(double), rml*CompressedMultipoleLengthXY, fp); 
         fclose(fp);
@@ -164,10 +163,9 @@ void MergeDerivatives(int inner_radius, int order, int far_radius, double *FarDe
 
     for(int k=0;k<=CPDHALF;k++) {
                 // Fetch FDSlab from disk
-                char fn[1024];
-                sprintf(fn,"slabderiv_%llu_%d_%d_%d_%d__%d",CPD,order,inner_radius,far_radius, 0, k);
+                fs::path fn = fmt::format("slabderiv_{:d}_{:d}_{:d}_{:d}_{:d}__{:d}",CPD,order,inner_radius,far_radius, 0, k);
                 FILE *fp;
-                fp = fopen(fn,"rb");
+                fp = fopen(fn.c_str(),"rb");
                 assert(fp!=NULL);
                 ULLI sizeread = fread(&(FDSlab[0]), sizeof(double), rml*CompressedMultipoleLengthXY, fp); 
                 assert(sizeread == rml*CompressedMultipoleLengthXY);
@@ -194,10 +192,9 @@ void MergeDerivatives(int inner_radius, int order, int far_radius, double *FarDe
 void CreateFourierFiles(int order, int inner_radius, int far_radius) {
     for(int z=0;z<(CPD+1)/2;z++) {
         FILE *fp;
-        char fn[1024];
+        fs::path fn = fmt::format("fourierspace_{:d}_{:d}_{:d}_{:d}_{:d}",CPD,order,inner_radius,far_radius,z);
         int cpd = CPD;
-        sprintf(fn,"fourierspace_%d_%d_%d_%d_%d",cpd,order,inner_radius,far_radius,z);
-        fp = fopen(fn,"w");
+        fp = fopen(fn.c_str(),"w");
         assert(fp!=NULL);
         fclose(fp);
     }
@@ -293,19 +290,17 @@ void CreateFourierFiles(int order, int inner_radius, int far_radius) {
 //         int mba = bm.rmap(b,a,c);
 //
 //         FILE *fpfar;
-//         char fpfar_fn[1024];
+//         fs::path fpfar_fn = "farderivatives";
 //
 //                 //Open and unpack farderivatives file.
-//         sprintf(fpfar_fn,"farderivatives");
-//
-//         fpfar = fopen(fpfar_fn,"rb");
+//         fpfar = fopen(fpfar_fn.c_str(),"rb");
 //         assert(fpfar!=NULL);
 //         fseek(fpfar, mab*CompressedMultipoleLengthXYZ*sizeof(double)  , SEEK_SET );
 //         sizeread = fread(&(FarDerivatives_ab[0]), sizeof(double), CompressedMultipoleLengthXYZ, fpfar);
 //         assert(sizeread == CompressedMultipoleLengthXYZ);
 //         fclose(fpfar);
 //
-//         fpfar = fopen(fpfar_fn,"rb");
+//         fpfar = fopen(fpfar_fn.c_str(),"rb");
 //         assert(fpfar!=NULL);
 //         fseek(fpfar, mba*CompressedMultipoleLengthXYZ*sizeof(double) , SEEK_SET );
 //         sizeread = fread(&(FarDerivatives_ba[0]), sizeof(double), CompressedMultipoleLengthXYZ, fpfar);
@@ -410,9 +405,8 @@ void CreateFourierFiles(int order, int inner_radius, int far_radius) {
 //                         tmpreal[ RINDEXY(x,y) ] = imag(conj(tmpD[x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z]));
 //
 //             FILE *fp;
-//             char fn[1024];
-//             sprintf(fn,"fourierspace_%d_%d_%d_%d_%d",cpd,order,inner_radius,far_radius,z);
-//             fp = fopen(fn,"r+b");
+//             fs::path fn = fmt::format("fourierspace_{:d}_{:d}_{:d}_{:d}_{:d}",cpd,order,inner_radius,far_radius,z);
+//             fp = fopen(fn.c_str(),"r+b");
 //             assert(fp!=NULL);
 //             fseek(fp, m*CompressedMultipoleLengthXY*sizeof(double), SEEK_SET );
 //             fwrite( &(tmpreal[0]), sizeof(double), CompressedMultipoleLengthXY, fp);
@@ -561,19 +555,16 @@ void Part2(int order, int inner_radius, int far_radius, int MultipoleStart) {
         }
 
         FILE *fpfar;
-        char fpfar_fn[1024];
-
-                //Open and unpack farderivatives file.
-        sprintf(fpfar_fn,"farderivatives_%llu_%d_%d_%d",CPD,order,inner_radius,far_radius);
-
-        fpfar = fopen(fpfar_fn,"rb");
+        fs::path fpfar_fn = fmt::format("farderivatives_{:d}_{:d}_{:d}_{:d}",CPD,order,inner_radius,far_radius);
+        //Open and unpack farderivatives file.
+        fpfar = fopen(fpfar_fn.c_str(),"rb");
         assert(fpfar!=NULL);
         fseek(fpfar, mab*CompressedMultipoleLengthXYZ*sizeof(double)  , SEEK_SET );
         sizeread = fread(&(FarDerivatives_ab[0]), sizeof(double), CompressedMultipoleLengthXYZ, fpfar);
         assert(sizeread == CompressedMultipoleLengthXYZ);
         fclose(fpfar);
 
-        fpfar = fopen(fpfar_fn,"rb");
+        fpfar = fopen(fpfar_fn.c_str(),"rb");
         assert(fpfar!=NULL);
         fseek(fpfar, mba*CompressedMultipoleLengthXYZ*sizeof(double) , SEEK_SET );
         sizeread = fread(&(FarDerivatives_ba[0]), sizeof(double), CompressedMultipoleLengthXYZ, fpfar);
@@ -801,9 +792,8 @@ END OLD CODE */
         for(int z=0;z<(CPD+1)/2;z++) {
             // We loop over files
             FILE *fp;
-            char fn[1024];
-            sprintf(fn,"fourierspace_%d_%d_%d_%d_%d",cpd,order,inner_radius,far_radius,z);
-            fp = fopen(fn,"r+b");
+            fs::path fn = fmt::format("fourierspace_{:d}_{:d}_{:d}_{:d}_{:d}",cpd,order,inner_radius,far_radius,z);
+            fp = fopen(fn.c_str(),"r+b");
             assert(fp!=NULL);
             for (int j=0; j<nMult; j++) {
                 int thisMult = MultipoleCount-nMult+j;
@@ -882,22 +872,18 @@ int main(int argc, char **argv) {
     int rml = (order+1)*(order+1);
 
     //check if the derivatives tensor we're about to calculate already stored on disk? If so, don't repeat the work! 
-    char fn[1024];
-    sprintf(fn,"fourierspace_%d_%d_%d_%d_%d",cpd,order,inner_radius,far_radius, (cpd+1)/2-1);
+    fs::path fn = fmt::format("fourierspace_{:d}_{:d}_{:d}_{:d}_{:d}",cpd,order,inner_radius,far_radius, (cpd+1)/2-1);
     // This is the last file
 
     int MultipoleStart;
-    FILE *fp = fopen(fn,"rb");
-    fprintf(stderr, "Trying to find derivativesfile=%s on disk\n", fn);
+    FILE *fp = fopen(fn.c_str(),"rb");
+    fmt::print(stderr, "Trying to find derivativesfile={} on disk\n", fn);
     if(fp==NULL) {
         // Derivatives don't exist
         MultipoleStart = 0;
     } else {
         // Derivatives files do exist
-        struct stat st;
-        int ret = stat(fn, &st);
-        assert(ret==0);
-        MultipoleStart = floor(st.st_size/(CompressedMultipoleLengthXY)/sizeof(double));
+        MultipoleStart = floor(fs::file_size(fn)/(CompressedMultipoleLengthXY)/sizeof(double));
         // This uses the file size to determine how many multipoles were completed in the last z file
         if (MultipoleStart==rml) {
             printf("Derivatives already present \n");
@@ -927,9 +913,8 @@ int main(int argc, char **argv) {
         
     
     FILE *fpfar;
-    char fpfar_fn[1024];
-    sprintf(fpfar_fn,"farderivatives_%llu_%d_%d_%d",CPD,order,inner_radius,far_radius);
-    fpfar = fopen(fpfar_fn,"rb");
+    fs::path fpfar_fn = fmt::format("farderivatives_{:d}_{:d}_{:d}_{:d}",CPD,order,inner_radius,far_radius);
+    fpfar = fopen(fpfar_fn.c_str(),"rb");
         
     if (fpfar == NULL){    
         // Next we merge the individual files, effectively doing a big transpose

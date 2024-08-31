@@ -16,7 +16,7 @@ public:
     DirectIO(void)  { } 
     ~DirectIO(void) {  }
 
-    void directreadfd(char *x,  uint64 sizebytes, off_t fileoffset, uint64 memoryoffset, const char *fn) { 
+    void directreadfd(char *x,  uint64 sizebytes, off_t fileoffset, uint64 memoryoffset, const fs::path &fn) { 
     
         FILE *fp;
         fp = fopen(fn,"rb");
@@ -35,7 +35,7 @@ public:
 
     }
  
-    void directwritefd( char *x, uint64 sizebytes, off_t fileoffset, uint64 memoryoffset, const char *fn) { 
+    void directwritefd( char *x, uint64 sizebytes, off_t fileoffset, uint64 memoryoffset, const fs::path &fn) { 
         // write appending 
 
         FILE *fp;

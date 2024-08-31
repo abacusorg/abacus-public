@@ -122,7 +122,7 @@ class GroupFindingControl {
     #ifdef STANDALONE_FOF
         grouplog = &stdlog;
     #else
-        std::string glogfn = P.LogDirectory;
+        fs::path glogfn = P.LogDirectory;
         glogfn += "/lastrun"; glogfn += NodeString; glogfn += ".groupstats";
         grouplog = new std::ofstream();
         grouplog->open(glogfn);

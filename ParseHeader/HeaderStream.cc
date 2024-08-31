@@ -6,7 +6,11 @@
 #include <assert.h>
 #include "ParseHeader.hh"
 
-HeaderStream::HeaderStream(std::string fn) {
+#include <fmt/format.h>
+#include <fmt/ostream.h>
+#include <fmt/std.h>
+
+HeaderStream::HeaderStream(const fs::path &fn) {
     name = fn;
     buffer = (char *) NULL;
     bufferlength = 0;
@@ -90,7 +94,7 @@ void HeaderStream::ReadHeader(void) {
     buffer[bufferlength-1] = 0x0;
 }
 
-FILE* OpenForWrite(std::string fn, bool overwrite) {
+FILE* OpenForWrite(const fs::path &fn, bool overwrite) {
     if(fn.empty()) {
         std::cerr << "OpenForWrite: filename is empty\n";
         exit(1);
@@ -115,14 +119,8 @@ FILE* OpenForWrite(std::string fn, bool overwrite) {
     return fp;
 }
 
-void OpenStreamForWrite(std::ofstream& outfile, std::string fn, bool overwrite) {
-    if(fn.empty()) {
-        std::cerr << "OpenForWrite: filename is empty\n";
-        exit(1);
-    }
-
-    outfile.open(fn.c_str());
-    if(outfile.is_open()) {
+void OpenStreamForWrite(std::ofstream& outfile, const fs::path &fn, bool overwrite) {
+    if(fs::exists(fn)) {
         if(!overwrite) {
             std::cerr << "OpenForWrite:  file \"" + fn +
                 "\" exists and overwrite == false\n";
@@ -132,7 +130,7 @@ void OpenStreamForWrite(std::ofstream& outfile, std::string fn, bool overwrite) 
             outfile.close();
     }
 
-    outfile.open(fn.c_str(), std::fstream::app);
+    outfile.open(fn, std::fstream::app);
     if(!outfile.is_open()) {
         std::cerr << "OpenForWrite:  cannot open filename \"" + fn + "\"\n";
         exit(1);

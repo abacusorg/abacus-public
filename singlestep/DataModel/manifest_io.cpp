@@ -278,10 +278,9 @@ void *ManifestSendThread(void *p) {
 
 void *ManifestReceiveThread(void *p) {
     Manifest *m = (Manifest *)p;
-    char fname[1024];
-    sprintf(fname, "%s/manifest_done%s", P.WriteStateDirectory, m->RecNodeString);
+    const fs::path fname = P.WriteStateDirectory / fmt::format("manifest_done{:s}", m->RecNodeString);
 
-    while (FileExists(fname)==0) usleep(10000);
+    while (fs::exists(fname)) usleep(10000);
     	// Wait until the file exists
     m->Receive();
     return NULL;
@@ -408,10 +407,8 @@ void Manifest::QueueToSend(int finished_slab) {
 void Manifest::Send() {
     Transmit.Start();
     // TODO: Send the ManifestCore.  Maybe wait for handshake?
-    char fname[1024];
     size_t retval;
-    sprintf(fname, "%s/manifest%s", P.WriteStateDirectory, NodeString);
-    FILE *fp = fopen(fname, "wb");
+    FILE *fp = fopen( (P.WriteStateDirectory / ("manifest" + NodeString)).c_str(), "wb");
     bytes = fwrite(&m, sizeof(ManifestCore), 1, fp)*sizeof(ManifestCore);
     STDLOG(1,"Sending the Manifest Core to {}\n", fname);
 
@@ -441,8 +438,7 @@ void Manifest::Send() {
     completed = 2;
     // TODO: Can terminate the communication thread after this.
     // Touch a file to indicate that we're done
-    sprintf(fname, "%s/manifest_done%s", P.WriteStateDirectory, NodeString);
-    fp=fopen(fname,"w");
+    fp=(fopen(P.WriteStateDirectory / ("manifest_done" + NodeString)).c_str(),"w");
     fclose(fp);
     Transmit.Stop();
 }
@@ -470,9 +466,8 @@ inline int Manifest::Check() {
 
     if (blocking==0) return; 	// We're doing this by a thread
     if (completed>0) return;	// We've already been here once
-    char fname[1024];
-    sprintf(fname, "%s/manifest_done%s", P.WriteStateDirectory, RecNodeString);
-    if (FileExists(fname)==0) return;
+    fs::path fname = P.WriteStateDirectory / fmt::format("manifest_done{:s}", RecNodeString);
+    if (fs::exists(fname)) return;
     	// The signal file doesn't yet exist, so try again later
     // Otherwise, we're ready to go
     STDLOG(2,"Check indicates we are ready to Receive the Manifest\n");
@@ -485,10 +480,9 @@ inline int Manifest::Check() {
 void Manifest::Receive() {
     Transmit.Start();
     // TODO: Receive the Manifest and overload the variables in *this.
-    char fname[1024];
     size_t retval;
-    sprintf(fname, "%s/manifest%s", P.WriteStateDirectory, RecNodeString);
-    FILE *fp = fopen(fname, "rb");
+    fs::path fname = P.WriteStateDirectory / fmt::format("manifest{:s}", RecNodeString);
+    FILE *fp = fopen(fname.c_str(), "rb");
     bytes += fread(&m, sizeof(ManifestCore), 1, fp)*sizeof(ManifestCore);
     STDLOG(1,"Reading Manifest Core from {}\n", fname);
 

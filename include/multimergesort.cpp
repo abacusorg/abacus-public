@@ -476,7 +476,7 @@ int main() {
     
     // or: read from a file
     //const char* fn = "ilparticles.dat";
-    //N = fsize(fn)/sizeof(unsigned int);
+    //N = fs::file_size(fn)/sizeof(unsigned int);
     int Iter = 10;
     
     MyMergeType *il = new MyMergeType[N];

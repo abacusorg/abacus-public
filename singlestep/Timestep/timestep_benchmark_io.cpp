@@ -43,15 +43,15 @@ void FinishBenchmarkIOAction(int slab) {
     // Ignore details about ramdisk and just write, I guess
     // TODO: the more canonical way to do this would be something like multipole recovery
     SB->WriteArena(CellInfoSlab, slab, IO_DELETE, IO_NONBLOCKING, 
-                    SB->WriteSlabPath(MergeCellInfoSlab,slab).c_str());
+                    SB->WriteSlabPath(MergeCellInfoSlab,slab));
     SB->WriteArena(PosSlab, slab, IO_DELETE, IO_NONBLOCKING, 
-                    SB->WriteSlabPath(MergePosSlab,slab).c_str());
+                    SB->WriteSlabPath(MergePosSlab,slab));
     SB->WriteArena(VelSlab, slab, IO_DELETE, IO_NONBLOCKING, 
-                    SB->WriteSlabPath(MergeVelSlab,slab).c_str());
+                    SB->WriteSlabPath(MergeVelSlab,slab));
     SB->WriteArena(AuxSlab, slab, IO_DELETE, IO_NONBLOCKING, 
-                    SB->WriteSlabPath(MergeAuxSlab,slab).c_str());
+                    SB->WriteSlabPath(MergeAuxSlab,slab));
     SB->WriteArena(TaylorSlab, slab, IO_DELETE, IO_NONBLOCKING, 
-                    SB->WriteSlabPath(MultipoleSlab,slab).c_str());
+                    SB->WriteSlabPath(MultipoleSlab,slab));
 }
 
 void timestepBenchmarkIO(int nslabs) {

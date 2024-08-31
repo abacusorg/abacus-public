@@ -3,7 +3,7 @@
 // This will output the proper CUDA error strings in the event that a CUDA host call returns an error
 #define checkCudaErrors(err)           __checkCudaErrors (err, __FILE__, __LINE__)
 
-inline void __checkCudaErrors( cudaError err, const char *file, const int line )
+inline void __checkCudaErrors( cudaError err, const fs::path &file, const int line )
 {
     if( cudaSuccess != err) {
         int dev=0; cudaGetDevice(&dev);
@@ -16,7 +16,7 @@ inline void __checkCudaErrors( cudaError err, const char *file, const int line )
 // This will output the proper error string when calling cudaGetLastError
 #define checkLastCuda(msg)      __checkLastCuda (__FILE__, __LINE__)
 
-inline void __checkLastCuda(const char *file, const int line )
+inline void __checkLastCuda(const fs::path &file, const int line )
 {       
     cudaError_t err = cudaGetLastError(); 
     if( cudaSuccess != err) { 

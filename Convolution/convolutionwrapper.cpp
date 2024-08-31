@@ -74,10 +74,10 @@ namespace cuda{
 
 #include <fenv.h>
 
-void dumpstats(OutofCoreConvolution *OCC, char *fn) {
+void dumpstats(OutofCoreConvolution *OCC, const fs::path &fn) {
 
     FILE *fp;
-    fp = fopen(fn,"w");
+    fp = fopen(fn.c_str(),"w");
     assert(fp!=NULL);
 
 
@@ -339,8 +339,7 @@ int main(int argc, char ** argv){
 	    stdlog_threshold_global = P.LogVerbosity;
         // TODO: put log in step-numbered dir
         // Conv needs to learn the step number first
-	    char logfn[1050];
-	    sprintf(logfn,"%s/last%s.convlog", P.LogDirectory, NodeString);
+        fs::path logfn = P.LogDirectory / fmt::format("last{:s}.convlog", NodeString);
 	    stdlog.open(logfn);
 	    STDLOG(1,"Read parameter file\n");
 	    Setup.Stop();
@@ -450,9 +449,8 @@ int main(int argc, char ** argv){
         
         OCC.CS.ConvolveWallClock = ConvolutionWallClock.Elapsed();
         
-	    char timingfn[1050];
-	    sprintf(timingfn,"%s/last%s.convtime",P.LogDirectory,NodeString);
-		
+        fs::path timingfn = P.LogDirectory / fmt::format("last{:s}.convtime", NodeString);
+
 		
 	    FinalizeParallel();  // This may be the last synchronization point?
 		
@@ -462,14 +460,13 @@ int main(int argc, char ** argv){
 
         // Delete the Taylors if this was profiling mode
         if(CP.ProfilingMode == 2){
-            char cmd[1050];
-            sprintf(cmd, "rm -f %s/Taylor_????", CP.runtime_TaylorDirectory);
-            int ret = system(cmd);
-            assertf(ret == 0, "Command \"%s\" failed\n", cmd);
+            for(int i = 0; i < P.cpd; i++){
+                fs::remove(CP.runtime_TaylorDirectory / fmt::format("Taylor_{:04d}", i));
+            }
             if(CP.StripeConvState){
-                sprintf(cmd, "rm -f %s/Taylor_????", CP.runtime_TaylorDirectory2);
-                ret = system(cmd);
-                assertf(ret == 0, "Command \"%s\" failed\n", cmd);
+                for(int i = 0; i < P.cpd; i++){
+                    fs::remove(CP.runtime_TaylorDirectory2 / fmt::format("Taylor_{:04d}", i));
+                }
             }
         }
         exit(0);

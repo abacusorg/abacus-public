@@ -262,7 +262,7 @@ class GlobalGroupSlab {
     void FindSubGroups();
     void SimpleOutput();
     void HaloOutput();
-    void WriteGroupHeaderFile(const char* fn);
+    void WriteGroupHeaderFile(const fs::path& fn);
     uint64 L0TimeSliceOutput(FLOAT unkick_factor);
     void MarkL0(const std::vector<LinkID>&);
 };
@@ -1227,9 +1227,8 @@ void GlobalGroupSlab::FindSubGroups() {
 void GlobalGroupSlab::SimpleOutput() {
     // This just writes two sets of ASCII files to see the outputs,
     // but it also helps to document how the global group information is stored.
-    char fname[200];
-    sprintf(fname, "/tmp/out.group.%03d", slab);
-    FILE *fp = fopen(fname,"w");
+    fs::path fname = "/tmp/out.group." + fmt::format("{:03d}", slab);
+    FILE *fp = fopen(fname.c_str(),"w");
     for (int j=0; j<cpd; j++)
         for (int k=0; k<zwidth; k++)  // local k
             for (int n=0; n<globalgroups[j][k].size(); n++)
@@ -1237,8 +1236,8 @@ void GlobalGroupSlab::SimpleOutput() {
                                 globalgroups[j][k][n].np, slab, j, k);
     fclose(fp);
 
-    sprintf(fname, "/tmp/out.halo.%03d", slab);
-    fp = fopen(fname,"w");
+    fname = "/tmp/out.halo." + fmt::format("{:03d}", slab);
+    fp = fopen(fname.c_str(),"w");
     for (int j=0; j<cpd; j++)
         for (int k=0; k<zwidth; k++)  // local k
             for (int n=0; n<L1halos[j][k].size(); n++) {
@@ -1253,23 +1252,22 @@ void GlobalGroupSlab::SimpleOutput() {
 
     // Remember that these positions are relative to the first-cell position,
     // which is why we include that cell ijk in the first outputs
-    sprintf(fname, "/tmp/out.pos.%03d", slab);
-    fp = fopen(fname,"w");
+    fname = "/tmp/out.pos." + fmt::format("{:03d}", slab);
+    fp = fopen(fname.c_str(),"w");
     for (uint64 p=0; p<np; p++)
-        fprintf(fp, "%f %f %f %d\n", pos[p].x, pos[p].y, pos[p].z, (int)aux[p].pid());
+        fmt::print(fp, "{:f} {:f} {:f} {:d}\n", pos[p].x, pos[p].y, pos[p].z, (int)aux[p].pid());
     fclose(fp);
 }
 
 #if 0
 void GlobalGroupSlab::HaloOutput() {
-    char fname[200];
-    sprintf(fname, "/tmp/out.binhalo.%03d", slab);
+    fs::path fname = "/tmp/out.binhalo." + fmt::format("{:03d}", slab);
     L1halos.dump_to_file(fname);
 
-    sprintf(fname, "/tmp/out.L1rv.%03d", slab);
+    fname = "/tmp/out.L1rv." + fmt::format("{:03d}", slab);
     HaloRV.dump_to_file(fname);
 
-    sprintf(fname, "/tmp/out.L1pid.%03d", slab);
+    fname = "/tmp/out.L1pid." + fmt::format("{:03d}", slab);
     HaloPIDs.dump_to_file(fname);
 }
 
@@ -1287,13 +1285,9 @@ void GlobalGroupSlab::HaloOutput() {
     STDLOG(0,"Beginning halo output for slab {:d}\n", slab);
 
     // This will create the directory if it doesn't exist (and is parallel safe)
-    char dir[32];
-    sprintf(dir, "Step%04d_z%5.3f", ReadState.FullStepNumber, ReadState.Redshift);
-    CreateSubDirectory(P.GroupDirectory, dir);
-
-    std::string headerfn = "";
-    headerfn = headerfn + P.GroupDirectory + "/" + dir + "/header";
-    WriteGroupHeaderFile(headerfn.c_str());
+    fs::path dir = P.GroupDirectory / fmt::format("Step{:04d}_z{:5.3f}", ReadState.FullStepNumber, ReadState.Redshift);
+    fs::create_directory(dir);
+    WriteGroupHeaderFile(dir / "header");
 
     if (ReadState.DoSubsampleOutput){
          // Write out the pos/vel of the taggable particles in L1 halos
@@ -1334,7 +1328,7 @@ void GlobalGroupSlab::HaloOutput() {
     return;
 }
 
-void GlobalGroupSlab::WriteGroupHeaderFile(const char* fn){
+void GlobalGroupSlab::WriteGroupHeaderFile(const fs::path& fn){
     std::ofstream headerfile;
     headerfile.open(fn);
     headerfile << P.header();

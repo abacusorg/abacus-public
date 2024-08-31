@@ -161,7 +161,7 @@ public:
         return;
     }
 
-    int read_slab_pack14(const char fname[], int slab, double taggable_frac) {
+    int read_slab_pack14(const fs::path &fname, int slab, double taggable_frac) {
         // We are going to allocate space for the particles and cells, so 
         // pass a pointer to this slab's pointers.
         // Return the number of particles actually read.
@@ -170,12 +170,10 @@ public:
         cell_header cellhead;
         pack14 particle;
 
-        FILE *fp = fopen(fname,"rb");
+        FILE *fp = fopen(fname.c_str(),"rb");
         assert(fp!=NULL);
 
-        struct stat st;
-        assert(stat(fname,&st)==0);
-        int max = st.st_size/14;     // This includes the header, but we don't care if
+        int max = fs::file_size(fname)/14;     // This includes the header, but we don't care if
             // we overallocate a bit.
 
         assert(posslab[slab]==NULL);   // We shouldn't overwrite something

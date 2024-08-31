@@ -14,8 +14,8 @@ public:
     }
     ~WriteDirect(void) { if(alignedbuffer!=NULL) free(alignedbuffer); }
 
-    void BlockingAppend( char *fn, char *x, size_t length );
-    void BlockingAppend( char *fn, char *x, size_t length, int no_dio);
+    void BlockingAppend( const fs::path &fn, char *x, size_t length );
+    void BlockingAppend( const fs::path &fn, char *x, size_t length, int no_dio);
     void BlockingAppend( FILE *f, char *x, size_t length);
 
 private:
@@ -24,13 +24,13 @@ private:
     char *alignedbuffer;
 
     int wropenflags(void);
-    int wropenfd(char *fn, int writeflags);
+    int wropenfd(const fs::path &fn, int writeflags);
 
-    void BlockingWrite_Append_Aligned(char *fn, char *x, size_t length);
+    void BlockingWrite_Append_Aligned(const fs::path &fn, char *x, size_t length);
     size_t min(size_t a, size_t b) { if(a<b) return a; return b; }
 
-    void BlockingAppendDirect( char *fn, char *x, size_t length);
-    void BlockingAppendfwrite( char *fn, char *x, size_t length);
+    void BlockingAppendDirect( const fs::path &fn, char *x, size_t length);
+    void BlockingAppendfwrite( const fs::path &fn, char *x, size_t length);
     void BlockingAppendPointer( FILE *f, char *x, size_t length);
 
     int allow_directio;

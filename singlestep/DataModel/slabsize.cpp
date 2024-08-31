@@ -111,7 +111,7 @@ class SlabSize {
     }
 
     // Read and write from files.  Return 0 if ok.
-    int read(char *fname) {
+    int read(const fs::path &fname) {
         FILE *fp; 
         fp = fopen(fname.c_str(), "r");
         assertf(fp!=NULL, "Couldn't open SlabSize read file {}\n", fname);
@@ -132,13 +132,13 @@ class SlabSize {
         return 0;
     }
 
-    int write(char *fname) {
+    int write(const fs::path &fname) {
         FILE *fp;
-        fp = fopen(fname, "w");
-        assertf(fp!=NULL, "Couldn't open SlabSize write file %s\n", fname);
-        fprintf(fp, "%ld,%ld\n", cpd, num_zsplit);
+        fp = fopen(fname.c_str(), "w");
+        assertf(fp!=NULL, "Couldn't open SlabSize write file {}\n", fname);
+        fmt::print(fp, "{:d},{:d}\n", cpd, num_zsplit);
         for (int j = 0; j < cpd*num_zsplit; j++) {
-            fprintf(fp, "%ld,%ld\n", newsizes[j], newsizes_with_ghost[j]);
+            fmt::print(fp, "{:d},{:d}\n", newsizes[j], newsizes_with_ghost[j]);
         }
         fclose(fp);
         return 0;

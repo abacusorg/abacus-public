@@ -1,3 +1,6 @@
+#ifndef __HEADER__
+#define __HEADER__
+
 // First include global definitions from ./configure
 #include "config.h"
 
@@ -20,6 +23,7 @@
 #include <sys/mman.h>
 #include <sched.h>
 #include <pthread.h>
+#include <filesystem>
 
 #include <sys/time.h>
 #include <errno.h>
@@ -38,6 +42,8 @@
 // TODO: use compiled lib rather than header-only
 #include <fmt/std.h>
 #include <fmt/ostream.h>
+
+namespace fs = std::filesystem;
 
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>

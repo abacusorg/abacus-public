@@ -67,7 +67,7 @@ int ParallelConvolution::Zstart(int rank) {
 // ParallelConvolution::ParallelConvolution(){}
 /// The constructor.  This should open the MTfile as read/write or allocate
 /// space if it doesn't exist.
-ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDirectory[1024], int _create_MT_file)
+ParallelConvolution::ParallelConvolution(int _cpd, int _order, const fs::path &MultipoleDirectory, int _create_MT_file)
     : mpi_limiter(P.MPICallRateLimit_ms)
 
     { //TODO NAM does this always assume convolution overwrite mode? 
@@ -372,9 +372,8 @@ void ParallelConvolution::LoadDerivatives(int z) {
 	const char *fnfmt = "%s/fourierspace%s%s_%d_%d_%d_%d_%d";
 	
     // note the derivatives are stored in z-slabs, not x-slabs
-    char fn[1024];
-    sprintf(fn, fnfmt,
-            P.DerivativesDirectory,
+    fs::path fn = P.DerivativesDirectory / fmt::format(
+			"fourierspace{:s}{:s}_{:d}_{:d}_{:d}_{:d}_{:d}"
 			f32str, twoDstr,
             (int) cpd, order, P.NearFieldRadius,
             P.DerivativeExpansionRadius, z_file);
@@ -837,11 +836,6 @@ void ParallelConvolution::dumpstats() {
     if (convtimebuffer==NULL) return;
 
     FILE *fp = fmemopen(convtimebuffer, CONVTIMEBUFSIZE, "w");
-
-    //FILE *fp;
-    //fp = fopen(fn,"w");
-    //assert(fp!=NULL);
-
 
     double accountedtime  = CS.ConvolutionArithmetic;
            accountedtime += CS.ForwardZFFTMultipoles + CS.InverseZFFTTaylor;

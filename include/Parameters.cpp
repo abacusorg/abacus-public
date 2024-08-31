@@ -49,10 +49,10 @@ public:
 
     int  DirectNewtonRaphson;  // 0 or 1 
 
-    char DerivativesDirectory[1024];
+    fs::path DerivativesDirectory;
 
-    char InitialConditionsDirectory[1024];   // The initial condition file name
-    char ICFormat[1024];                // The format of the IC files
+    fs::path InitialConditionsDirectory;   // The initial condition file name
+    std::string ICFormat;                // The format of the IC files
     int FlipZelDisp;                    // If non-zero and using ICFormat = Zeldovich, flip the Zeldovich displacements
     double ICPositionRange;                // The box size of the IC positions, 
             // in file units.  If ==0, then will default to BoxSize;
@@ -70,24 +70,24 @@ public:
          // This parameter applies only to the IC step.
          // Recommend either 4 or 0.
 
-    char ReadStateDirectory[1024];  // Where the input State lives
-    char WriteStateDirectory[1024]; // Where the output State lives
+    fs::path ReadStateDirectory;  // Where the input State lives
+    fs::path WriteStateDirectory; // Where the output State lives
 
     // The node-local directories in the parallel verison
     // These will be equal to the global directories if not given
-    char LocalWorkingDirectory[1024];        // node-local working directory
-    char LocalReadStateDirectory[1024];
-    char LocalWriteStateDirectory[1024];
+    fs::path LocalWorkingDirectory;        // node-local working directory
+    fs::path LocalReadStateDirectory;
+    fs::path LocalWriteStateDirectory;
 
-    char MultipoleDirectory[1024];
-    char TaylorDirectory[1024];
-    char MultipoleDirectory2[1024];  // for splitting even/odd multipoles
-    char TaylorDirectory2[1024];
-    char WorkingDirectory[1024];        // If Read/Write/Past not specified, where to put the states
-    char LogDirectory[1024];
-    char OutputDirectory[1024];     // Where the outputs go
-    char GroupDirectory[1024]; //Where the Group files go
-    char BackupDirectory[1024]; // The directory from which to restore backups (the Python code also writes backups here)
+    fs::path MultipoleDirectory;
+    fs::path TaylorDirectory;
+    fs::path MultipoleDirectory2;  // for splitting even/odd multipoles
+    fs::path TaylorDirectory2;
+    fs::path WorkingDirectory;        // If Read/Write/Past not specified, where to put the states
+    fs::path LogDirectory;
+    fs::path OutputDirectory;     // Where the outputs go
+    fs::path GroupDirectory; //Where the Group files go
+    fs::path BackupDirectory; // The directory from which to restore backups (the Python code also writes backups here)
     
     int OutputEveryStep; //Force timeslices to be output every step if 1
     char OutputFormat[1024];                // The format of the Output files
@@ -129,7 +129,7 @@ public:
 
     double LightConeOrigins[3*125];  // Same units as BoxSize
 
-    char LightConeDirectory[1024];
+    fs::path LightConeDirectory;
     int LightConeCheckAcrossWrap;  // If 1, check for light cone particles that cross the periodic wrap
     int LightConeBoxRepeats;  // The number of times to repeat the box in +/- x, y, z directions (0 = normal light cone)
 
@@ -149,7 +149,7 @@ public:
     #define MAX_IO_THREADS 16
     int IOCores[MAX_IO_THREADS];  // The cores that the IO threads will be bound to.  -1 means don't bind
     #define MAX_IODIRS 100
-    char **IODirs; //[MAX_IODIRS][1024];
+    fs::path IODirs[MAX_IODIRS];
     int nIODirs;
     int IODirThreads[MAX_IODIRS];
     
@@ -208,12 +208,12 @@ public:
     double getCacheSize(int tier){
         int cache_size = 0;
         FILE *fp = NULL;
-        char fn[1024];
+        fs::path fname;
 
         // find the last-level cache
         for(int i = 0; i<=tier; i++){
-            sprintf(fn, "/sys/devices/system/cpu/cpu0/cache/index%d/size", i);
-            fp = fopen(fn, "r");
+            fname = fmt::format("/sys/devices/system/cpu/cpu0/cache/index{:d}/size", i);
+            fp = fopen(fname.c_str(), "r");
             if(fp == NULL)
                 break;
             int nscan = fscanf(fp, "%dK", &cache_size);  // cache size in KiB
@@ -279,18 +279,17 @@ public:
         NumSlabsInsertListIC = 0.;
         installscalar("NumSlabsInsertListIC",NumSlabsInsertListIC,DONT_CARE);   
 
-        sprintf(ReadStateDirectory,STRUNDEF);
-        sprintf(WriteStateDirectory,STRUNDEF);
-        sprintf(WorkingDirectory,STRUNDEF);
-        sprintf(MultipoleDirectory,STRUNDEF);
-        sprintf(TaylorDirectory,STRUNDEF);
-        sprintf(MultipoleDirectory2,STRUNDEF);
-        sprintf(TaylorDirectory2,STRUNDEF);
-        sprintf(BackupDirectory,STRUNDEF);
-
-        sprintf(LocalWorkingDirectory,STRUNDEF);
-        sprintf(LocalReadStateDirectory,STRUNDEF);
-        sprintf(LocalWriteStateDirectory,STRUNDEF);
+        ReadStateDirectory = STRUNDEF;
+        WriteStateDirectory = STRUNDEF;
+        WorkingDirectory = STRUNDEF;
+        MultipoleDirectory = STRUNDEF;
+        TaylorDirectory = STRUNDEF;
+        MultipoleDirectory2 = STRUNDEF;
+        TaylorDirectory2 = STRUNDEF;
+        BackupDirectory = STRUNDEF;
+        LocalWorkingDirectory = STRUNDEF;
+        LocalReadStateDirectory = STRUNDEF;
+        LocalWriteStateDirectory = STRUNDEF;
 
         installscalar("ReadStateDirectory",ReadStateDirectory,DONT_CARE);  // Where the input State lives
         installscalar("WriteStateDirectory",WriteStateDirectory,DONT_CARE); // Where the output State lives
@@ -504,7 +503,7 @@ public:
     }
 
 
-    void ReadParameters(char *paramaterfile, int icflag);
+    void ReadParameters(const fs::path &paramaterfile, int icflag);
     void ValidateParameters(void);
     void register_vars();
 
@@ -575,53 +574,45 @@ void Parameters::ProcessStateDirectories(){
     strlower(Conv_IOMode);
 
     // Set read dir and write dir from working dir if they were not given
-    if (strcmp(WorkingDirectory,STRUNDEF) != 0){
-        if(strcmp(ReadStateDirectory,STRUNDEF) == 0){
-            int ret = snprintf(ReadStateDirectory, 1024, "%s/read",WorkingDirectory);
-            assert(ret >= 0 && ret < 1024);
+    if (WorkingDirectory != STRUNDEF){
+        if(ReadStateDirectory == STRUNDEF){
+            ReadStateDirectory = WorkingDirectory / "read";
         }
-        if(strcmp(WriteStateDirectory,STRUNDEF) == 0){
-            int ret = snprintf(WriteStateDirectory, 1024, "%s/write",WorkingDirectory);
-            assert(ret >= 0 && ret < 1024);
+        if(WriteStateDirectory == STRUNDEF){
+            WriteStateDirectory = WorkingDirectory / "write";
         }
     }
 
     // Set read dir and write dir from local working dir if they were not given
-    if (strcmp(LocalWorkingDirectory,STRUNDEF) != 0){
+    if (LocalWorkingDirectory != STRUNDEF){
         // append the rank to the LocalWorkingDirectory
         // LocalWorkingDirectory should not have a trailing slash
-        assert(strnlen(LocalWorkingDirectory, 1024) + strnlen(NodeString,64) < 1024);
-        strncat(LocalWorkingDirectory, NodeString, 64);
+        LocalWorkingDirectory += NodeString;
     } else {
-        int ret = snprintf(LocalWorkingDirectory, 1024, "%s%s",WorkingDirectory, NodeString);
-        assert(ret >= 0 && ret < 1024);
+        LocalWorkingDirectory = WorkingDirectory.string() + NodeString;
     }
     
 
-    if(strcmp(LocalReadStateDirectory,STRUNDEF) == 0){
-        int ret = snprintf(LocalReadStateDirectory, 1024, "%s/read",LocalWorkingDirectory);
-        assert(ret >= 0 && ret < 1024);
+    if(LocalReadStateDirectory == STRUNDEF){
+        LocalReadStateDirectory = LocalWorkingDirectory / "read";
     }
-    if(strcmp(LocalWriteStateDirectory,STRUNDEF) == 0){
-        int ret = snprintf(LocalWriteStateDirectory, 1024, "%s/write",LocalWorkingDirectory);
-        assert(ret >= 0 && ret < 1024);
+    if(LocalWriteStateDirectory == STRUNDEF){
+        LocalWriteStateDirectory = LocalWorkingDirectory / "write";
     }
 
-    if (strcmp(MultipoleDirectory,STRUNDEF) == 0){
+    if (MultipoleDirectory == STRUNDEF){
         // not given
-        int ret = snprintf(MultipoleDirectory, 1024, "%s/multipole", LocalWorkingDirectory);
-        assert(ret >= 0 && ret < 1024);
+        MultipoleDirectory = LocalWorkingDirectory / "multipole";
     }
 
-    if (strcmp(TaylorDirectory,STRUNDEF) == 0){
+    if (TaylorDirectory == STRUNDEF){
         // not given
-        int ret = snprintf(TaylorDirectory, 1024, "%s/taylor", LocalWorkingDirectory);
-        assert(ret >= 0 && ret < 1024);
+        TaylorDirectory = LocalWorkingDirectory / "taylor";
     }
 }
 
 
-void Parameters::ReadParameters(char *parameterfile, int icflag) {
+void Parameters::ReadParameters(const fs::path &parameterfile, int icflag) {
     hs = new HeaderStream(parameterfile);
     ReadHeader(*hs);
     hs->Close();
@@ -778,21 +769,20 @@ void Parameters::ValidateParameters(void) {
     }
 
     /*
-    ExpandPathName(DerivativesDirectory);
-    ExpandPathName(ReadStateDirectory);
-    ExpandPathName(WriteStateDirectory);
-    ExpandPathName(OutputDirectory);
-    ExpandPathName(MultipoleDirectory);
-    ExpandPathName(LogDirectory);
-    ExpandPathName(InitialConditionsDirectory);
+    DerivativesDirectory = fs::absolute(DerivativesDirectory);
+    ReadStateDirectory = fs::absolute(ReadStateDirectory);
+    WriteStateDirectory = fs::absolute(WriteStateDirectory);
+    OutputDirectory = fs::absolute(OutputDirectory);
+    MultipoleDirectory = fs::absolute(MultipoleDirectory);
+    LogDirectory = fs::absolute(LogDirectory);
+    InitialConditionsDirectory = fs::absolute(InitialConditionsDirectory);
 
-    CheckDirectoryExists(DerivativesDirectory);
-    CheckDirectoryExists(ReadStateDirectory);
-    CheckDirectoryExists(WriteStateDirectory);
-    CheckDirectoryExists(OutputDirectory);
-    CheckDirectoryExists(LogDirectory);
-
-    CheckDirectoryExists(InitialConditionsDirectory);
+    assert(fs::is_directory(DerivativesDirectory));
+    assert(fs::is_directory(ReadStateDirectory));
+    assert(fs::is_directory(WriteStateDirectory));
+    assert(fs::is_directory(OutputDirectory));
+    assert(fs::is_directory(LogDirectory));
+    assert(fs::is_directory(InitialConditionsDirectory));
     */
 
     if (ForceOutputDebug) {
@@ -834,7 +824,7 @@ void Parameters::ValidateParameters(void) {
 #endif
 
     if(NumZRanks > 1){
-        strncat(DerivativesDirectory, "/2D", 1024);
+        DerivativesDirectory /= "2D";
     }
 }
 

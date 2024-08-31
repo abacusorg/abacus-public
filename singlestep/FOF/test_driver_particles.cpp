@@ -134,7 +134,7 @@ class CellParticles {
 	return;
     }
 
-    void ReadParticles(int _cpd, const char fname[], posstruct offset) {
+    void ReadParticles(int _cpd, const fs::path &fname, posstruct offset) {
         // Read a bunch of particle positions from a file.  Grid them up for use.
 	// Particles are assumed to be in the unit cell; will be wrapped.
 	// This will be an ASCII file; first 3 numbers on each line are used.
@@ -147,21 +147,20 @@ class CellParticles {
 	vel = (velstruct *)malloc(sizeof(velstruct)*np);
 	aux = (auxstruct *)malloc(sizeof(auxstruct)*np);
 	acc = (accstruct *)malloc(sizeof(accstruct)*np);
-	FILE *fp = fopen(fname,"r");
-	char line[200];
-	int k=0;
+	FILE *fp = fopen(fname.c_str(),"r");
+	std::string line;
+	int k = 0;
 	float tmp[3];
-	while (fgets(line, 200, fp)!=NULL) {
-	    assert(k<np);
-	    if (line[0]=='#') continue;
-	    int ret = sscanf(line, "%f %f %f", tmp, tmp+1, tmp+2);
-	    if (ret!=3) continue;
-	    pos[k] = posstruct(tmp[0], tmp[1], tmp[2]);
-	    pos[k] += offset;
-	    k++;
+	while (std::getline(fp, line)) {
+		assert(k < np);
+		if (line[0] == '#') continue;
+		int ret = std::sscanf(line.c_str(), "%f %f %f", tmp, tmp + 1, tmp + 2);
+		if (ret != 3) continue;
+		pos[k] = posstruct(tmp[0], tmp[1], tmp[2]);
+		pos[k] += offset;
+		k++;
 	}
 	np = k;
-	fclose(fp);
 	WrapAndIndex();
 	return;
     }

@@ -66,13 +66,13 @@ public:
     float runtime_MaxConvolutionRAMMB;
 
     // These directories should be accessed through the functions below
-    char runtime_MultipoleDirectory[1024];
-    char runtime_TaylorDirectory[1024];
-    char runtime_DerivativesDirectory[1024];
-    char runtime_MultipoleDirectory2[1024];
-    char runtime_TaylorDirectory2[1024];
-    char runtime_MultipolePrefix[1024];
-    char runtime_TaylorPrefix[1024];
+    fs::path runtime_MultipoleDirectory;
+    fs::path runtime_TaylorDirectory;
+    fs::path runtime_DerivativesDirectory;
+    fs::path runtime_MultipoleDirectory2;
+    fs::path runtime_TaylorDirectory2;
+    fs::path runtime_MultipolePrefix;
+    fs::path runtime_TaylorPrefix;
     
     uint64_t blocksize, zwidth, rml, CompressedMultipoleLengthXY;
 
@@ -99,28 +99,20 @@ public:
         delete[] total_slabs_all;
     }
 
-    void MultipoleFN(int slab, char * const fn){
-        int ret;
-
+    fs::path MultipoleFN(int slab){
         // We elsewhere generically support N threads, but here is where we assume 2
         if(StripeConvState && slab % 2 == 1)
-            ret = snprintf(fn, 1024, "%s/%s_%04d", runtime_MultipoleDirectory2, runtime_MultipolePrefix, slab);
+            return runtime_MultipoleDirectory2 / fmt::format("{}_{:04d}", runtime_MultipolePrefix, slab);
         else
-            ret = snprintf(fn, 1024, "%s/%s_%04d", runtime_MultipoleDirectory, runtime_MultipolePrefix, slab);
-
-        assert(ret >= 0 && ret < 1024);
+            return runtime_MultipoleDirectory / fmt::format("{}_{:04d}", runtime_MultipolePrefix, slab);
     }
 
-    void TaylorFN(int slab, char * const fn){
-        int ret;
-
+    fs::path TaylorFN(int slab){
         // We elsewhere generically support N threads, but here is where we assume 2
         if(StripeConvState && slab % 2 == 1)
-            ret = snprintf(fn, 1024, "%s/%s_%04d", runtime_TaylorDirectory2, runtime_TaylorPrefix, slab);
+            return runtime_TaylorDirectory2 / fmt::format("{}_{:04d}", runtime_TaylorPrefix, slab);
         else
-            ret = snprintf(fn, 1024, "%s/%s_%04d", runtime_TaylorDirectory, runtime_TaylorPrefix, slab);
-
-        assert(ret >= 0 && ret < 1024);
+            return runtime_TaylorDirectory / fmt::format("{}_{:04d}", runtime_TaylorPrefix, slab);
     }
 
     // For zwidth purposes, we'll need to know if the MT are on ramdisk

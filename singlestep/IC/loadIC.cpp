@@ -107,7 +107,7 @@ public:
         /*if(SB->IsSlabPresent(ICSlab,slab))
             fbytes = SB->SlabSizeBytes(ICSlab, slab);
         else*/
-        fbytes = fsize(SB->ReadSlabPath(ICSlab,slab).c_str());
+        fbytes = fs::file_size(SB->ReadSlabPath(ICSlab,slab));
 
         Npart = fbytes/sizeof(typename T::ICparticle);
         foffset = 0;

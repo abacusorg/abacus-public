@@ -203,10 +203,7 @@ void timestepIC(void) {
     assertf(IL->length==0,
         "Insert List not empty ({:d}) at the end of timestep().  Particles in IC files not sufficiently sorted?\n", IL->length);
     
-    char filename[1024];
-    int ret = snprintf(filename,1024,"%s/slabsize",P.WriteStateDirectory);
-    assert(ret >= 0 && ret < 1024);
-    SS->write(filename);
+    SS->write(P.WriteStateDirectory / "slabsize");
 
     STDLOG(1,"Completing timestepIC()\n");
     TimeStepWallClock.Stop();

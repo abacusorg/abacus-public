@@ -85,18 +85,15 @@ void Redlack::ApplyRedlack( int slab,
     TaylorRedlack.Stop();
 }
 
-void Redlack::WriteOutAuxiallaryVariables(char *writedirectory) {
+void Redlack::WriteOutAuxiallaryVariables(const fs::path &writedirectory) {
     FILE *fp;
-    char fn[1024];
 
-    sprintf(fn,"%s/redlack", writedirectory);
-    fp = fopen(fn,"wb");
+    fp = fopen((writedirectory / "redlack").c_str(),"wb");
     assert(fp!=NULL);
     fwrite(&(redlack[0]), sizeof(double), MAXCPD*3, fp);
     fclose(fp);
 
-    sprintf(fn,"%s/globaldipole", writedirectory);
-    fp = fopen(fn,"wb");
+    fp = fopen((writedirectory / "globaldipole").c_str(),"wb");
     assert(fp!=NULL);
     double3 gd = -globaldipole;
     fwrite(&(gd), sizeof(double3), 1, fp);
@@ -104,20 +101,17 @@ void Redlack::WriteOutAuxiallaryVariables(char *writedirectory) {
     fclose(fp);
 }
 
-void Redlack::ReadInAuxiallaryVariables(char *readdirectory) {
+void Redlack::ReadInAuxiallaryVariables(const fs::path &readdirectory) {
     FILE *fp;
-    char fn[1024];
-    int rv;
+    size_t rv;
 
-    sprintf(fn,"%s/redlack", readdirectory);
-    fp = fopen(fn,"rb");
+    fp = fopen((readdirectory / "redlack").c_str(),"rb");
     assert(fp!=NULL);
     rv = fread(redlack, sizeof(double), MAXCPD*3, fp);
     assert(rv==MAXCPD*3);
     fclose(fp);
 
-    sprintf(fn,"%s/globaldipole", readdirectory);
-    fp = fopen(fn,"rb");
+    fp = fopen((readdirectory / "globaldipole").c_str(),"rb");
     assert(fp!=NULL);
     rv = fread(&globaldipole, sizeof(double3), 1, fp);
     rv = rv && fread(&MassTotal, sizeof(double), 1, fp);

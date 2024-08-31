@@ -140,10 +140,10 @@ void PlanOutput(bool MakeIC) {
     // overwrite some ReadState elements.
     // We will call this output by the WriteState FullStepNumber, as that
     // is what is required for the velocities (and is the run writing the output).
-    strncpy(ReadState.ParameterFileName, WriteState.ParameterFileName, 1024);
-    strncpy(ReadState.CodeVersion, WriteState.CodeVersion, 1024);
-    strncpy(ReadState.MachineName, WriteState.MachineName, 1024);
-    strncpy(ReadState.RunTime,     WriteState.RunTime, 1024);
+    ReadState.ParameterFileName = WriteState.ParameterFileName;
+    ReadState.CodeVersion = WriteState.CodeVersion;
+    ReadState.MachineName = WriteState.MachineName;
+    ReadState.RunTime = WriteState.RunTime;
     ReadState.FullStepNumber = WriteState.FullStepNumber;
     
     ReadState.NodeRankX = WriteState.NodeRankX;
@@ -159,9 +159,7 @@ void PlanOutput(bool MakeIC) {
     // Now check whether we're asked to do a TimeSlice.
 	if (ReadState.DoTimeSliceOutput) {
 	    STDLOG(0,"Planning to output a TimeSlice\n");
-	    char slicedir[128];
-	    sprintf(slicedir,"slice%5.3f", ReadState.Redshift);
-	    CreateSubDirectory(P.OutputDirectory,slicedir);
+        fs::create_directory(P.OutputDirectory / fmt::format("slice{:5.3f}", ReadState.Redshift));
 	}
 
     //check if we should bin
@@ -289,11 +287,8 @@ int main(int argc, char **argv) {
     }
 
     if (!MakeIC && P.ProfilingMode){
-        STDLOG(0,"ProfilingMode is active. Removing the write state in %s\n",P.LocalWriteStateDirectory);
-        char command[1024];
-        int printret = snprintf(command, 1024, "rm -rf %s/*", P.LocalWriteStateDirectory);
-        assert(printret >= 0 && printret < 1024);
-        int ret = system(command);  // hacky!
+        STDLOG(0,"ProfilingMode is active. Removing the write state in {}\n",P.LocalWriteStateDirectory);
+        fs::remove_all(P.LocalWriteStateDirectory);
     }
 
     // Delete the read state and move write to read

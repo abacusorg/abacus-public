@@ -49,14 +49,11 @@ public:
 
         derivs_file_size = sizeof(DFLOAT)*rml*CP.CompressedMultipoleLengthXY;
 
+        ramdisk_MT = is_path_on_ramdisk(CP.runtime_MultipoleDirectory);
+        ramdisk_derivs = is_path_on_ramdisk(CP.runtime_DerivativesDirectory);
+
         // For simplicity, multipoles and taylors must be either both or neither on ramdisk
-        assert(is_path_on_ramdisk(CP.runtime_MultipoleDirectory) == is_path_on_ramdisk(CP.runtime_TaylorDirectory));
-
-        if(is_path_on_ramdisk(CP.runtime_MultipoleDirectory))
-            ramdisk_MT = 1;
-
-        if(is_path_on_ramdisk(CP.runtime_DerivativesDirectory))
-            ramdisk_derivs = 1;
+        assert(ramdisk_MT == is_path_on_ramdisk(CP.runtime_TaylorDirectory));
 
         alloc();
         alloc_derivs();
@@ -114,11 +111,8 @@ public:
 	            if (x % CP.niothreads != thread_num)
 	                continue;
 
-	            char fn[1024];
-
-	            char tfn[1024];    // used by non-overwriting ramdisk
-	            CP.MultipoleFN(x, fn);
-	            CP.TaylorFN(x, tfn);
+	            fs::path fn = CP.MultipoleFN(x);
+	            fs::path tfn = CP.TaylorFN(x);  // used by non-overwriting ramdisk
 
 
 	            // The convolve code expects the data from file x to be in mtblock[x+1]
@@ -126,7 +120,7 @@ public:
 
 	            if(ramdisk_MT){
 	                int shm_fd_flags;
-	                char *ramdisk_fn;
+	                fs::path ramdisk_fn;
 
 	                if(CP.OverwriteConvState){
 	                    shm_fd_flags = O_RDWR;
@@ -543,8 +537,7 @@ public:
             if (x % CP.niothreads != thread_num)
                 continue;
 
-            char fn[1024];
-            CP.TaylorFN(x, fn);
+            fs::path fn = CP.TaylorFN(x);
 
 			STDLOG(1, "Writing out to Taylor x-slab {:d} \n", x);	
 			
@@ -586,22 +579,20 @@ public:
      
         size_t size = derivs_file_size;
         
-        const char *fnfmt;
+        std::string fnfmt;
         if(sizeof(DFLOAT) == sizeof(float))
-            fnfmt = "%s/fourierspace_float32_%d_%d_%d_%d_%d";
+            fnfmt = "{}/fourierspace_float32_{:d}_{:d}_{:d}_{:d}_{:d}";
         else
-            fnfmt = "%s/fourierspace_%d_%d_%d_%d_%d";
+            fnfmt = "{}/fourierspace_{:d}_{:d}_{:d}_{:d}_{:d}";
         // note the derivatives are stored in z-slabs, not x-slabs
         for(int z=zstart; z < zstart+zwidth; z++) {
             // TODO: might be more efficient to chunk in blocks instead of stripes
             if (z % CP.niothreads != thread_num)
                 continue;
-            char fn[1024];
-            int ret = snprintf(fn, 1024, fnfmt,
-                    CP.runtime_DerivativesDirectory, 
+            fs::path fn = fmt::format(fnfmt,
+                    CP.runtime_DerivativesDirectory,
                     (int) cpd, CP.runtime_order, CP.runtime_NearFieldRadius, 
                     CP.runtime_DerivativeExpansionRadius, z);
-            assert(ret >= 0 && ret < 1024);
 
             if(!ramdisk_derivs){				
 				

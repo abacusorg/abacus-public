@@ -97,8 +97,8 @@ public:
     // The slab number will be wrapped.
     // Program will abort if one specifies a type not in this function;
     // this is a feature to block incorrect I/O.
-    std::string WriteSlabPath(int type, int slab);
-    std::string ReadSlabPath(int type, int slab);
+    fs::path WriteSlabPath(int type, int slab);
+    fs::path ReadSlabPath(int type, int slab);
 
     SlabBuffer(int _cpd, int _order, int num_lc) {
         NumTypes = LightCone0RV + 3*num_lc;
@@ -154,8 +154,8 @@ public:
     // Use of these lower-level interfaces is discouraged in favor of the above.
     void ReadArena(int type, int slab, int blocking);
     void WriteArena(int type, int slab, int deleteafter, int blocking);
-    void ReadArena(int type, int slab, int blocking, const char *fn);
-    void WriteArena(int type, int slab, int deleteafter, int blocking, const char *fn);
+    void ReadArena(int type, int slab, int blocking, const fs::path &fn);
+    void WriteArena(int type, int slab, int deleteafter, int blocking, const fs::path &fn);
 
     void DeAllocate(int type, int slab, int delete_file=0);
 
@@ -342,7 +342,7 @@ int SlabBuffer::WantChecksum(int type){
 }
 
 
-std::string SlabBuffer::WriteSlabPath(int type, int slab) {
+fs::path SlabBuffer::WriteSlabPath(int type, int slab) {
     slab = Grid->WrapSlab(slab);
 
     char slabnum[16];
@@ -359,9 +359,7 @@ std::string SlabBuffer::WriteSlabPath(int type, int slab) {
         int lcn = (type - LightCone0RV) / 3;
         int lct = (type - LightCone0RV) % 3;
         std::string lct_name = (lct == 0) ? "rv" : (lct == 1) ? "pid" : "heal";
-        ss << P.LightConeDirectory << "/Step" << stepnum << "/LightCone" << lcn << "_" << lct_name << NodeString;
-        s = ss.str();
-        return s;
+        return P.LightConeDirectory / ("Step" + stepstr) / fmt::format("LightCone{:d}_{:s}{:s}", lcn, lct_name, NodeString);
     }
 
     switch(type) {
@@ -369,10 +367,9 @@ std::string SlabBuffer::WriteSlabPath(int type, int slab) {
         case TaylorSlab     : {
             // Read odd taylors from TaylorDirectory2, if it's defined
             if (WriteState.StripeConvState && slab % 2 == 1) {
-                ss << P.TaylorDirectory2 << "/Taylor_" << slabnum;
-                break;
+                return P.TaylorDirectory2 / ("Taylor_" + slabstr);
             }
-            ss << P.TaylorDirectory << "/Taylor_"     << slabnum; break;
+            return P.TaylorDirectory / ("Taylor_"     + slabstr); break;
         }
 #endif
         case MultipoleSlab       : {
@@ -380,46 +377,45 @@ std::string SlabBuffer::WriteSlabPath(int type, int slab) {
 
             // Send odd multipoles to MultipoleDirectory2, if it's defined
             if (WriteState.StripeConvState && slab % 2 == 1) {
-                ss << P.MultipoleDirectory2 << "/Multipoles_" << slabnum;
+                return P.MultipoleDirectory2 / ("Multipoles_" + slabstr);
                 break;
             }
-            ss << P.MultipoleDirectory << "/Multipoles_" << slabnum; break;
+            return P.MultipoleDirectory / ("Multipoles_" + slabstr); break;
 
         }
-        case MergeCellInfoSlab   : { ss << P.LocalWriteStateDirectory << "/cellinfo_"   << slabnum; break; }
-        case MergePosSlab        : { ss << P.LocalWriteStateDirectory << "/position_"   << slabnum; break; }
-        case MergeVelSlab        : { ss << P.LocalWriteStateDirectory << "/velocity_"   << slabnum; break; }
-        case MergeAuxSlab        : { ss << P.LocalWriteStateDirectory << "/auxillary_"  << slabnum; break; }
-        case AccSlab             : { ss << P.OutputDirectory << "/acc/Step" << stepnum << "/acc_" << slabnum; break; }
-        case NearAccSlab         : { ss << P.OutputDirectory << "/acc/Step" << stepnum << "/nearacc_" << slabnum; break; }
-        case FarAccSlab          : { ss << P.OutputDirectory << "/acc/Step" << stepnum << "/faracc_" << slabnum; break; }
+        case MergeCellInfoSlab   : { return P.LocalWriteStateDirectory / ("cellinfo_"   + slabstr); break; }
+        case MergePosSlab        : { return P.LocalWriteStateDirectory / ("position_"   + slabstr); break; }
+        case MergeVelSlab        : { return P.LocalWriteStateDirectory / ("velocity_"   + slabstr); break; }
+        case MergeAuxSlab        : { return P.LocalWriteStateDirectory / ("auxillary_"  + slabstr); break; }
+        case AccSlab             : { return P.OutputDirectory / "acc" / ("Step" + stepstr) / ("acc_" + slabstr); break; }
+        case NearAccSlab         : { return P.OutputDirectory / "acc" / ("Step" + stepstr) / ("nearacc_" + slabstr); break; }
+        case FarAccSlab          : { return P.OutputDirectory / "acc" / ("Step" + stepstr) / ("faracc_" + slabstr); break; }
 
-        case L1halosSlab           : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_info_"           << slabnum; break;}
+        case L1halosSlab           : { return P.GroupDirectory / ("Step" + stepstr) / ("_z" + zstr) / ("halo_info_" + slabstr); break;}
 
-        case HaloPIDsSlabA    : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_pids_A_"    << slabnum; break;}
-        case HaloPIDsSlabB    : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_pids_B_"    << slabnum; break;}
-        case FieldPIDSlabA    : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/field_pids_A_"   << slabnum; break;}
-        case FieldPIDSlabB    : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/field_pids_B_"   << slabnum; break;}
+        case HaloPIDsSlabA    : { return P.GroupDirectory / ("Step" + stepstr) / ("_z" + zstr) / ("halo_pids_A_" + slabstr); break;}
+        case HaloPIDsSlabB    : { return P.GroupDirectory / ("Step" + stepstr) / ("_z" + zstr) / ("halo_pids_B_" + slabstr); break;}
+        case FieldPIDSlabA    : { return P.GroupDirectory / ("Step" + stepstr) / ("_z" + zstr) / ("field_pids_A_" + slabstr); break;}
+        case FieldPIDSlabB    : { return P.GroupDirectory / ("Step" + stepstr) / ("_z" + zstr) / ("field_pids_B_" + slabstr); break;}
 
-        case HaloRVSlabA : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_rv_A_"      << slabnum; break;}
-        case HaloRVSlabB : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/halo_rv_B_"      << slabnum; break;}
-        case FieldRVSlabA       : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/field_rv_A_"     << slabnum; break;}
-        case FieldRVSlabB       : { ss << P.GroupDirectory << "/Step" << stepnum << "_z" << redshift << "/field_rv_B_"     << slabnum; break;}
+        case HaloRVSlabA : { return P.GroupDirectory / ("Step" + stepstr) / ("_z" + zstr) / ("halo_rv_A_" + slabstr); break;}
+        case HaloRVSlabB : { return P.GroupDirectory / ("Step" + stepstr) / ("_z" + zstr) / ("halo_rv_B_" + slabstr); break;}
+        case FieldRVSlabA       : { return P.GroupDirectory / ("Step" + stepstr) / ("_z" + zstr) / ("field_rv_A_" + slabstr); break;}
+        case FieldRVSlabB       : { return P.GroupDirectory / ("Step" + stepstr) / ("_z" + zstr) / ("field_rv_B_"+ slabstr); break;}
 
-        case L0TimeSlice          : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".L0_pack9.dat"; break; }
-        case FieldTimeSlice            : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".field_pack9.dat"; break; }
-        case L0TimeSlicePIDs      : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".L0_pack9_pids.dat"; break; }
-        case FieldTimeSlicePIDs        : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".field_pack9_pids.dat"; break; }
+        case L0TimeSlice          : { return P.OutputDirectory / ("slice" + zstr) / (P.SimName + ".z" + zstr + ".slab" + slabstr + ".L0_pack9.dat"); break; }
+        case FieldTimeSlice            : { return P.OutputDirectory / ("slice" + zstr) / (P.SimName + ".z" + zstr + ".slab" + slabstr + ".field_pack9.dat"); break; }
+        case L0TimeSlicePIDs      : { return P.OutputDirectory / ("slice" + zstr) / (P.SimName + ".z" + zstr + ".slab" + slabstr + ".L0_pack9_pids.dat"); break; }
+        case FieldTimeSlicePIDs        : { return P.OutputDirectory / ("slice" + zstr) / (P.SimName + ".z" + zstr + ".slab" + slabstr + ".field_pack9_pids.dat"); break; }
 
         default:
             QUIT("Illegal type {:d} given to WriteSlabPath()\n", type);
     }
 
-    s = ss.str();
-    return s;
+    return "";
 }
 
-std::string SlabBuffer::ReadSlabPath(int type, int slab) {
+fs::path SlabBuffer::ReadSlabPath(int type, int slab) {
     slab = Grid->WrapSlab(slab);
 
     char slabnum[16];
@@ -434,33 +430,33 @@ std::string SlabBuffer::ReadSlabPath(int type, int slab) {
         case TaylorSlab     : {
             // Read odd taylors from TaylorDirectory2, if it's defined
             if (WriteState.StripeConvState && slab % 2 == 1) {
-                ss << P.TaylorDirectory2 << "/Taylor_" << slabnum;
+                return P.TaylorDirectory2 / ("Taylor_" + slabstr);
                 break;
             }
-            ss << P.TaylorDirectory << "/Taylor_"     << slabnum; break;
+            return P.TaylorDirectory / ("Taylor_" + slabstr); break;
         }
 
         // The Merge slabs are usually write slabs, but can be used as read slabs in multipole recovery mode
         case MergeCellInfoSlab :
-        case CellInfoSlab  : { ss << P.LocalReadStateDirectory << "/cellinfo_"   << slabnum; break; }
+        case CellInfoSlab  : { return P.LocalReadStateDirectory / ("cellinfo_"   + slabstr); break; }
 
         case MergePosSlab :
-        case PosSlab       : { ss << P.LocalReadStateDirectory << "/position_"   << slabnum; break; }
+        case PosSlab       : { return P.LocalReadStateDirectory / ("position_"   + slabstr); break; }
 
-        case VelSlab       : { ss << P.LocalReadStateDirectory << "/velocity_"   << slabnum; break; }
-        case AuxSlab       : { ss << P.LocalReadStateDirectory << "/auxillary_"  << slabnum; break; }
+        case VelSlab       : { return P.LocalReadStateDirectory / ("velocity_"   + slabstr); break; }
+        case AuxSlab       : { return P.LocalReadStateDirectory / ("auxillary_"  + slabstr); break; }
         
         // used for standalone FOF
-        case FieldTimeSlice     : { ss << WriteSlabPath(type, slab); break; }
-        case L0TimeSlice     : { ss << WriteSlabPath(type, slab); break; }
-        case FieldTimeSlicePIDs     : { ss << WriteSlabPath(type, slab); break; }
-        case L0TimeSlicePIDs     : { ss << WriteSlabPath(type, slab); break; }
+        case FieldTimeSlice     : { return WriteSlabPath(type, slab); break; }
+        case L0TimeSlice     : { return WriteSlabPath(type, slab); break; }
+        case FieldTimeSlicePIDs     : { return WriteSlabPath(type, slab); break; }
+        case L0TimeSlicePIDs     : { return WriteSlabPath(type, slab); break; }
         
         case ICSlab    : {
             if (P.NumZRanks > 1){
-                ss << P.InitialConditionsDirectory << "/2D/ic2D_" << slab;
+                return P.InitialConditionsDirectory / "2D" / fmt::format("ic2D_{:d}", slab);
             } else {
-                ss << P.InitialConditionsDirectory << "/ic_" << slab;
+                return P.InitialConditionsDirectory / fmt::format("ic_{:d}", slab);
             }
             break;
         }
@@ -469,8 +465,7 @@ std::string SlabBuffer::ReadSlabPath(int type, int slab) {
             QUIT("Illegal type {:d} given to ReadSlabPath()\n", type);
     }
 
-    s = ss.str();
-    return s;
+    return "";
 }
 
 uint64 SlabBuffer::ArenaSize(int type, int slab) {
@@ -510,16 +505,16 @@ uint64 SlabBuffer::ArenaSize(int type, int slab) {
             return ICFile::FromFormat(P.ICFormat, slab)->fbytes;
         }
         case FieldTimeSlice : {
-            return fsize(ReadSlabPath(FieldTimeSlice,slab).c_str());
+            return fs::file_size(ReadSlabPath(FieldTimeSlice,slab));
         }
         case L0TimeSlice : {
-            return fsize(ReadSlabPath(L0TimeSlice,slab).c_str());
+            return fs::file_size(ReadSlabPath(L0TimeSlice,slab));
         }
         case L0TimeSlicePIDs : {
-            return fsize(ReadSlabPath(L0TimeSlicePIDs,slab).c_str());
+            return fs::file_size(ReadSlabPath(L0TimeSlicePIDs,slab));
         }
         case FieldTimeSlicePIDs : {
-            return fsize(ReadSlabPath(FieldTimeSlicePIDs,slab).c_str());
+            return fs::file_size(ReadSlabPath(FieldTimeSlicePIDs,slab));
         }
         default            : QUIT("Illegal type {:d} given to ArenaSize()\n", type);
     }
@@ -552,7 +547,7 @@ char *SlabBuffer::AllocateSpecificSize(int type, int slab, uint64 sizebytes, int
     // Most slabs are happy with RAMDISK_AUTO
     ramdisk = IsRamdiskSlab(type, ramdisk);
 
-    std::string spath;
+    fs::path spath;
     switch(ramdisk){
         case RAMDISK_READSLAB:
             spath = ReadSlabPath(type, slab);
@@ -571,7 +566,7 @@ char *SlabBuffer::AllocateSpecificSize(int type, int slab, uint64 sizebytes, int
                 slab, type, sizebytes, ramdisk, AA->total_allocation/1024./1024./1024.);
 
     int id = TypeSlab2ID(type,slab);
-    AA->Allocate(id, sizebytes, ReuseID(type), ramdisk, ramdisk_fn);
+    AA->Allocate(id, sizebytes, ReuseID(type), ramdisk, spath);
 
     return GetSlabPtr(type, slab);
 }
@@ -597,8 +592,7 @@ void SlabBuffer::StoreArenaNonBlocking(int type, int slab) {
 }
 
 void SlabBuffer::WriteArena(int type, int slab, int deleteafter, int blocking){
-    std::string spath = WriteSlabPath(type,slab);
-    const char *path = spath.c_str();
+    fs::path spath = WriteSlabPath(type,slab);
     // Determine the actual, allocated Ramdisk type of the current slab
     // If it was allocated on Ramdisk, then the writing is already done by definition!
     if(AA->ArenaRamdiskType(TypeSlab2ID(type,slab)) != RAMDISK_NO){
@@ -616,7 +610,7 @@ void SlabBuffer::WriteArena(int type, int slab, int deleteafter, int blocking){
         return;
     }
 
-    WriteArena(type, slab, deleteafter, blocking, path);
+    WriteArena(type, slab, deleteafter, blocking, spath);
 }
 
 
@@ -629,8 +623,7 @@ void SlabBuffer::ReadArenaNonBlocking(int type, int slab) {
 }
 
 void SlabBuffer::ReadArena(int type, int slab, int blocking){
-    std::string spath = ReadSlabPath(type,slab);
-    const char *path = spath.c_str();
+    fs::path spath = ReadSlabPath(type,slab);
 
     // Determine the actual, allocated Ramdisk type of the current slab
     // If it was allocated from existing shared memory (i.e. RAMDISK_READSLAB),
@@ -641,7 +634,7 @@ void SlabBuffer::ReadArena(int type, int slab, int blocking){
         return;
     }
 
-    ReadArena(type, slab, blocking, path);
+    ReadArena(type, slab, blocking, spath);
 }
 
 void SlabBuffer::LoadArenaBlocking(int type, int slab) {
@@ -663,7 +656,7 @@ void SlabBuffer::LoadArenaNonBlocking(int type, int slab) {
 }
 
 
-void SlabBuffer::ReadArena(int type, int slab, int blocking, const char *fn) {
+void SlabBuffer::ReadArena(int type, int slab, int blocking, const fs::path &fn) {
     // This will read into an arena.
     // This always triggers a real read, even if the path is on the ramdisk!
     // The read is always ordered to be the full usable size of the arena.
@@ -723,7 +716,7 @@ void SlabBuffer::DeAllocate(int type, int slab, int delete_file) {
 
     if(delete_file){
         int intent = GetSlabIntent(type);
-        std::string path;
+        fs::path path;
         switch(intent){
             case READSLAB:
                 path = ReadSlabPath(type, slab);
@@ -737,15 +730,8 @@ void SlabBuffer::DeAllocate(int type, int slab, int delete_file) {
                 QUIT("Did not understand slab intent {:d}\n", intent);
         }
 
-        char buffer[1024];
-        strcpy(buffer, path.c_str());
-        char *tmp = dirname(buffer);
-
-        ExpandPathName(tmp);
-
-
-        if(!IsTrueLocalDirectory(tmp)){
-            STDLOG(2,"Not deleting slab file \"%s\" because it is in a global directory\n", path);
+        if(!IsTrueLocalDirectory(fs::absolute(path).parent_path())){
+            STDLOG(2,"Not deleting slab file \"{}\" because it is in a global directory\n", path);
             return;
         }
 

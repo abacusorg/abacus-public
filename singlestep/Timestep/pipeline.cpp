@@ -382,7 +382,7 @@ public:
                 nearacc[i] *= inv_eps3;
     #endif
             SB->WriteArena(AccSlab, slab, IO_KEEP, IO_BLOCKING,
-                SB->WriteSlabPath(NearAccSlab,slab).c_str());
+                SB->WriteSlabPath(NearAccSlab,slab));
 
     #ifdef DIRECTSINGLESPLINE
             // restore the original
@@ -779,10 +779,9 @@ public:
             if (P.StoreForces == 1 || (P.StoreForces == 3 && ReadState.DoTimeSliceOutput)) {
                 STDLOG(1,"Storing Forces in slab {:d}\n", slab);
                 if(this->raw_number_executed == 0){
-                    CreateSubDirectory(P.OutputDirectory, "acc");
-                    char dir[32];
-                    sprintf(dir, "Step%04d", ReadState.FullStepNumber);
-                    CreateSubDirectory((std::string(P.OutputDirectory) + "/acc").c_str(), dir);
+                    fs::path dir = P.OutputDirectory / "acc" / fmt::format("Step{:04d}", ReadState.FullStepNumber);
+                    fs::create_directories(dir);
+
                 }
                 SB->StoreArenaBlocking(AccSlab,slab);
             }

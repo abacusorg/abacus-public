@@ -9,6 +9,10 @@
 #include "ParseHeader.hh"
 #include "phDriver.hh"
 
+#include <fmt/base.h>
+#include <fmt/std.h>
+#include <fmt/ostream.h>
+
 ParseHeader::ParseHeader(void) {
     phdriver = new phDriver(1,1);
     phdriver->Debug = false;

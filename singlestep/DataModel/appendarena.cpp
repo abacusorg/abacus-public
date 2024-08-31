@@ -545,7 +545,7 @@ Sample use:
 
     SB->ResizeSlab(FieldTimeSlice, slab, AA.bytes_written());
 
-    char filename[1024]; 	// Make the file name!
+    fs::path filename = ?; 	// Make the file name!
     SB->WriteArena(FieldTimeSlice, slab, IO_DELETE, IO_NONBLOCKING, filename);
 
 #endif

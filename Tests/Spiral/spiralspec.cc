@@ -3,7 +3,7 @@ typedef struct {
     double3 kvec;
     double3 phase;
     double Across;
-    char datafile[1024];
+    fs::path datafile;
 } spiralparam;
 
 // and a second specialization

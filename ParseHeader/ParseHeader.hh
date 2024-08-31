@@ -3,6 +3,11 @@
 
 #include <stdio.h>
 #include <string>
+#include <filesystem>
+
+#include "phDriver.hh"
+
+namespace fs = std::filesystem;
 
 #define MUST_DEFINE true
 #define DONT_CARE false
@@ -10,7 +15,7 @@
 
 class HeaderStream {
 public:
-    HeaderStream(std::string fn);
+    HeaderStream(const fs::path &fn);
     virtual ~HeaderStream(void);
 
     void OpenForRead(void);
@@ -21,7 +26,7 @@ public:
 
     void FinalizeHeader(void);
 
-    std::string name;
+    fs::path name;
     char *buffer;
     int bufferlength;
     FILE *fp;
@@ -30,12 +35,12 @@ private:
     void GetHeaderLength(void);
 };
 
-void OpenStreamForWrite(std::ofstream& stream, std::string fn, bool overwrite);
-FILE* OpenForWrite(std::string fn, bool overwrite);
-void WriteHStream(FILE *fp, std::string m);
-void WriteHStream(FILE *fp, std::string m, std::string pre);
+void OpenStreamForWrite(std::ofstream& stream, const fs::path &fn, bool overwrite);
+FILE* OpenForWrite(const fs::path &fn, bool overwrite);
+void WriteHStream(FILE *fp, const std::string &m);
+void WriteHStream(FILE *fp, const std::string &m, const std::string &pre);
 void WriteHStream(FILE *fp, HeaderStream &in);
-void WriteHStream(FILE *fp, HeaderStream &in, std::string pre);
+void WriteHStream(FILE *fp, HeaderStream &in, const std::string &pre);
 void FinalizeHeader(FILE *fout);
 
 class phDriver;

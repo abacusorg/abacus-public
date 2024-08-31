@@ -309,10 +309,6 @@ void GatherTimings() {
     char *slabtimesbuffer = NULL;
 
     if(NFD){
-        //char fn[1024];
-        //int ret = snprintf(fn, 1024, "%s/lastrun%s.slabtimes",P.LogDirectory, NodeString);
-        //assert(ret >= 0 && ret < 1024);
-        //FILE* slabtimefile = fopen(fn,"wb");
         slabtimesbuffer = (char *) malloc(REPORT_BUFFER_SIZE);  //  allocate a 128 KB string buffer for the timings file
         FILE *slabtimesfp = fmemopen(slabtimesbuffer, REPORT_BUFFER_SIZE, "w");
         for(int i =0; i < P.cpd;i++){
@@ -669,23 +665,21 @@ void ReportTimings(){
     double denom, thistime;
     denom = TimeStepWallClock.Elapsed();
 
-    fprintf(reportfp, "\n");
+    fmt::print(reportfp, "\n");
     REPORT(0, "SingleStep TearDown", SingleStepTearDown.Elapsed());
-    fprintf(reportfp, " [not included in Total Wall Clock Time]\n");
+    fmt::print(reportfp, " [not included in Total Wall Clock Time]\n");
 
     // Not actually closing the file; just the file-like interface to the string buffer
     fclose(reportfp);
 
     // and write the whole buffer to disk
-    char timingfn[1050];
-    sprintf(timingfn,"%s/step%04d%s.time",
-        WriteState.LogDirectory, WriteState.FullStepNumber, NodeString);
-    FILE *timingfp = fopen(timingfn,"w");
-    assertf(timingfp != NULL, "Couldn't open timing file \"%s\"\n", timingfn);
+    fs::path timingfn = WriteState.LogDirectory / fmt::format("step{:04d}{:s}.time", WriteState.FullStepNumber, NodeString);
+    FILE *timingfp = fopen(timingfn.c_str(),"w");
+    assertf(timingfp != NULL, "Couldn't open timing file \"{}\"\n", timingfn);
     fputs(reportbuffer, timingfp);
 
     free(reportbuffer);
     fclose(timingfp);
 
-    STDLOG(0, "Wrote timings to %s\n", timingfn);
+    STDLOG(0, "Wrote timings to {}\n", timingfn);
 }

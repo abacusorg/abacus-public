@@ -18,12 +18,6 @@ void strnlwr(char *cstr, int len);
 // Lowercase a std::string
 void strlwr(std::string &str);
 
-// get the root of a filename
-std::string fileroot(std::string s);
-
-// glob expand a filename
-void get_absolute_pathname(std::string& name);
-
 // following for doing printf-style formats
 std::ostream& do_setformat(std::ostream& os, const char *fmt);
 

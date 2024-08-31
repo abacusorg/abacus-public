@@ -9,15 +9,15 @@ int ReadDirect::rdopenflags(void) {
         return O_RDONLY|O_DIRECT|O_LARGEFILE;
 }
 
-int ReadDirect::rdopenfd(char *fn, int readflags) {
+int ReadDirect::rdopenfd(const fs::path &fn, int readflags) {
     errno = 0;
-    int fd = open(fn, readflags, 0666);
+    int fd = open(fn.c_str(), readflags, 0666);
     FAILERRNO;
     assert(fd!=-1);
     return fd;
 }
 
-void ReadDirect::BlockingDirectReadAligned(char *fn, char *x, size_t length, off_t fileoffsetbytes) {
+void ReadDirect::BlockingDirectReadAligned(const fs::path &fn, char *x, size_t length, off_t fileoffsetbytes) {
     size_t lengthblocks = length/4096;          assert( lengthblocks * 4096 == length );
     off_t offsetblocks = fileoffsetbytes/4096; assert( offsetblocks * 4096 == fileoffsetbytes );
 
@@ -53,13 +53,13 @@ void ReadDirect::BlockingDirectReadAligned(char *fn, char *x, size_t length, off
     close(fd);
 }
 
-void ReadDirect::Blockingfread( char *fn, char *x, size_t length, off_t fileoffsetbytes) {
-    if (fileoffsetbytes + (off_t) length > fsize(fn)){
-        fprintf(stderr, "Trying to read offset %jd of length %jd from file %s of size %jd\n",(intmax_t) fileoffsetbytes, (intmax_t) length, fn, fsize(fn));
+void ReadDirect::Blockingfread(const fs::path &fn, char *x, size_t length, off_t fileoffsetbytes) {
+    if (fileoffsetbytes + (off_t) length > fs::file_size(fn)){
+        fmt::print(stderr, "Trying to read offset {:d} of length {:d} from file {} of size {:d}\n",(intmax_t) fileoffsetbytes, (intmax_t) length, fn, (intmax_t) fs::file_size(fn));
         assert(0);
     }
 
-    FILE *fp = fopen(fn,"rb");
+    FILE *fp = fopen(fn.c_str(),"rb");
     assert(fp!=NULL);
     errno = 0;
     fseek(fp,fileoffsetbytes, SEEK_SET);
@@ -76,8 +76,8 @@ void ReadDirect::Blockingfread( char *fn, char *x, size_t length, off_t fileoffs
     fclose(fp);
 }
 
-void ReadDirect::BlockingReadDirect(char *fn, char *x, size_t length, off_t fileoffsetbytes) {
-    assert( fileoffsetbytes + (off_t) length <= fsize(fn) ); // can't read off the end of the file
+void ReadDirect::BlockingReadDirect(const fs::path &fn, char *x, size_t length, off_t fileoffsetbytes) {
+    assert( fileoffsetbytes + (off_t) length <= fs::file_size(fn) ); // can't read off the end of the file
 
     size_t bytesleft = length;
     size_t memoryoffsetbytes = 0;
@@ -112,11 +112,11 @@ void ReadDirect::BlockingReadDirect(char *fn, char *x, size_t length, off_t file
     Blockingfread( fn, &(x[memoryoffsetbytes]), bytesleft, fob );
 }
 
-void ReadDirect::BlockingRead(char *fn, char *x, size_t length, off_t fileoffsetbytes) {
+void ReadDirect::BlockingRead(const fs::path &fn, char *x, size_t length, off_t fileoffsetbytes) {
     ReadDirect::BlockingRead(fn, x, length, fileoffsetbytes, !allow_directio);
 }
 
-void ReadDirect::BlockingRead(char *fn, char *x, size_t length, off_t fileoffsetbytes, int no_dio) {
+void ReadDirect::BlockingRead(const fs::path &fn, char *x, size_t length, off_t fileoffsetbytes, int no_dio) {
     if(no_dio || !allow_directio) 
         Blockingfread(fn,x,length,fileoffsetbytes);
     else

@@ -70,7 +70,7 @@ public:
 
    // PTimer *ArenaFree;
 
-    void Allocate(int id, uint64 s, int reuseid, int ramdisk = RAMDISK_NO, const char *ramdisk_fn=NULL);
+    void Allocate(int id, uint64 s, int reuseid, int ramdisk, const fs::path &ramdisk_fn);
     void DeAllocateArena(int id, int reuseID);
     void ResizeArena(int id, uint64 s);
 
@@ -303,7 +303,7 @@ void ArenaAllocator::report_current(){
 #define LB_OVERSIZE 1.01
 
 /// Allocating a new arena, reusing an old buffer if possible.
-void ArenaAllocator::Allocate(int id, uint64 s, int reuseID, int ramdisk, const char *ramdisk_fn) {
+void ArenaAllocator::Allocate(int id, uint64 s, int reuseID, int ramdisk, const fs::path &ramdisk_fn) {
     lb_mutex.lock();
     
     assertf(arena[id].present==0, "Error: Asking for Allocation of arena {:d} that already exists!\n", id);   // This is always a bad idea
@@ -383,7 +383,7 @@ void ArenaAllocator::Allocate(int id, uint64 s, int reuseID, int ramdisk, const 
             // But then we need to know what slab types are state and what are convolution state
             // Our DIO library always does this and we've never had problems
             if(ramdisk == RAMDISK_WRITESLAB)
-                unlink(ramdisk_fn);
+                fs::remove(ramdisk_fn);
 
             // We could think about letting the ArenaAllocator decide whether to make a new allocation
             // based on the (non)existence of a slab

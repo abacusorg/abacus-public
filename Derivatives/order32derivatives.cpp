@@ -23,9 +23,8 @@ Order32Derivatives::Order32Derivatives(int inner) : inner(inner)  {
                 AnalyticDerivatives[a][b][c] = 0;
 
     int tmporder, tmpinneradius;
-    char fname[1024];
-    sprintf(fname,"AD32_%03d.dat",inner);
-    printf("reading derivatives from %s\n", fname);
+    fs::path fname = fmt::format("AD32_{:03d}.dat",inner);
+    fmt::print("reading derivatives from {}\n", fname);
     ifstream fin(fname,ios::in);
     if(!fin.is_open()) {
         fprintf(stderr,"couldn't open \"%s\"\n",fname);

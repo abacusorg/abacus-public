@@ -15,29 +15,6 @@ void strlwr(std::string &str) {
     for(std::string::iterator i=str.begin(); i<str.end(); i++) 
         if(*i>='A' && *i<='Z') *i = *i + 'a' - 'A';
 }
-// Find the root in a filename, stripping off extension and directory, if present
-std::string fileroot(std::string s) {
-    std::string::size_type idx = s.rfind('.');
-    if(idx != std::string::npos) {
-        s = s.substr(0,idx);
-    }
-    idx = s.rfind('/');
-    if(idx != std::string::npos)
-        s = s.substr(idx+1,s.length());
-    return s;
-}
-
-// glob expand a filename
-void get_absolute_pathname(std::string& name) {
-  wordexp_t p;
-  char** w;
-  wordexp( name.c_str(), &p, 0 );
-  w = p.we_wordv;
-  name.clear();
-  for (size_t i=0; i<p.we_wordc;i++ ) name.append(w[i]);
-  wordfree( &p );
-}
-
 
 std::ostream& do_setformat(std::ostream& os, const char *fmt) {
     int i = 0;

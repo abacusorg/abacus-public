@@ -19,16 +19,14 @@ void ReadNodeSlabs(int get_all_nodes = 0, int * first_slabs_all = NULL, int * to
         // So one should use MPI_rank_x and MPI_size_x in this function
 
         int neighbor = (MPI_rank_x+1)%MPI_size_x;
-        char fname[1024];
         int value, last_slab;
 		
 		int *last_slabs = new int[MPI_size_x];
 			
 
-        sprintf(fname, "%s/nodeslabs", P.ReadStateDirectory); //NAM DE TODO have convolution look at MultipoleDirectory for node x domain. Check 0th step --> what comes first, singlestep or convolve? 
-        FILE *fp;
-        fp = fopen(fname,"r");
-        // assertf(fp!=NULL, "Couldn't find nodeslabs file %s\n", fname);
+        //NAM DE TODO have convolution look at MultipoleDirectory for node x domain. Check 0th step --> what comes first, singlestep or convolve? 
+        FILE *fp = fopen((P.ReadStateDirectory / "nodeslabs").c_str(),"r");
+        // assertf(fp!=NULL, "Couldn't find nodeslabs file {}\n", fname);
         if (fp==NULL) {
 
 			int offset = 17;
@@ -109,11 +107,10 @@ void WriteNodeSlabs() {
         MPI_Reduce(MPI_rank_x != 0 ? first : MPI_IN_PLACE, first, MPI_size_x, MPI_INT, MPI_SUM, 0, comm_1d_x);
 
         if (MPI_rank_x==0) {
-            char fname[1024];
-			char mname[1024];
 			
-            sprintf(fname, "%s/nodeslabs", P.WriteStateDirectory); //NAM DE TODO consider putting another copy in multipole directory so convolve can look at it. 
-			sprintf(mname, "%s/nodeslabs", P.MultipoleDirectory);
+            //NAM DE TODO consider putting another copy in multipole directory so convolve can look at it. 
+            fs::path fname = P.WriteStateDirectory / "nodeslabs";
+            fs::path mname = P.MultipoleDirectory / "nodeslabs";
 			
             FILE *fp, *fm; 
             fp = fopen(fname.c_str(),"w"); fm = fopen(mname.c_str(), "w");

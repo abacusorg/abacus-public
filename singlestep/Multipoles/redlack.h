@@ -22,8 +22,8 @@ public:
     void ComputeRedlack(void);
     void convolve_one_RG_direction(double *MassSlab, double *redlack);
 
-    void ReadInAuxiallaryVariables(char *readdirectory);
-    void WriteOutAuxiallaryVariables(char *writedirectory);
+    void ReadInAuxiallaryVariables(const fs::path &readdirectory);
+    void WriteOutAuxiallaryVariables(const fs::path &writedirectory);
 
     int wrapcellindex(int x); 
 

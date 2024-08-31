@@ -327,9 +327,9 @@ OutofCoreConvolution::OutofCoreConvolution(ConvolutionParameters &_CP) : CP(_CP)
     CS.runtime_ConvolutionCacheSizeMB = CP.runtime_ConvolutionCacheSizeMB;
     CS.runtime_ConvolutionL1CacheSizeMB = CP.runtime_ConvolutionL1CacheSizeMB;
 
-    CheckDirectoryExists(CP.runtime_TaylorDirectory);
-    CheckDirectoryExists(CP.runtime_MultipoleDirectory);
-    CheckDirectoryExists(CP.runtime_DerivativesDirectory);
+    assert(fs::is_directory(CP.runtime_TaylorDirectory));
+    assert(fs::is_directory(CP.runtime_MultipoleDirectory));
+    assert(fs::is_directory(CP.runtime_DerivativesDirectory));
     
     cpd = CP.runtime_cpd;
     order = CP.runtime_order;
@@ -345,18 +345,15 @@ OutofCoreConvolution::OutofCoreConvolution(ConvolutionParameters &_CP) : CP(_CP)
     // Check that all the multipole files exist
     // This is to prevent losing Taylors by accidentally convolving after an interrupted singlestep
     for(int i = first_slab_on_node; i < first_slab_on_node + total_slabs_on_node; i++) {
-        char fn[1024];
-        CP.MultipoleFN(i % cpd, fn);
-        assertf(CheckFileExists(fn) == 0, "Multipole file \"%s\" does not exist! Aborting convolve.\n", fn);
+        fs::path fn = CP.MultipoleFN(i % cpd);
+        assertf(fs::is_regular_file(fn), "Multipole file \"{}\" does not exist! Aborting convolve.\n", fn);
     }
 
     // Create the Taylor files, erasing them if they existed
     for(int i = first_slab_on_node; i < first_slab_on_node + total_slabs_on_node; i++) {
-        char fn[1024];
-        CP.TaylorFN(i % cpd, fn);
-        FILE *f = fopen(fn, "wb");
-        assert(f != NULL);
-        fclose(f);
+        fs::path fn = CP.TaylorFN(i % cpd);
+        std::ofstream f(fn, std::ios::binary);
+        assert(f.is_open());
     }
 
     size_t sdb = CP.runtime_DIOBufferSizeKB;
@@ -462,12 +459,9 @@ void OutofCoreConvolution::Convolve() {
 void OutofCoreConvolution::RenameMultipolesToTaylors(){
     assert(CP.OverwriteConvState);
 
-    char mfn[1024], tfn[1024];
     for(int x = first_slab_on_node; x < first_slab_on_node + total_slabs_on_node; x++){
-        CP.MultipoleFN(x % cpd, mfn);
-        CP.TaylorFN(x % cpd, tfn);
-
-        int res = rename(mfn, tfn);
-        assertf(res == 0, "Failed to rename multipoles file \"%s\" to taylors file \"%s\".", mfn, tfn);
+        fs::path mfn = CP.MultipoleFN(x % cpd);
+        fs::path tfn = CP.TaylorFN(x % cpd);
+        fs::rename(mfn, tfn);
     }
 }

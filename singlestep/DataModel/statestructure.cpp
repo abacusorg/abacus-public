@@ -35,7 +35,7 @@ public:
     int cpd_state;
     int order_state;
     
-    char ParameterFileName[1024];   // State must contain a pointer to the Parameter file
+    fs::path ParameterFileName;   // State must contain a pointer to the Parameter file
     char CodeVersion[1024];
     char OutputFormatVersion[1024];
     char RunTime[1024];
@@ -147,15 +147,15 @@ public:
 
     char Pipeline[64];
 
-    char LogDirectory[1024];  // step-numbered log directory
+    fs::path LogDirectory;  // step-numbered log directory
 
     int64 np_lightcone;
 
     int GhostRadius;
 
-    void read_from_file(const char *fn);
-    void write_to_file(const char *dir, const char *fname);
-    void write_to_file(const char *dir) { write_to_file(dir,""); }
+    void read_from_file(const fs::path &fn);
+    void write_to_file(const fs::path &dir, const fs::path &fname);
+    void write_to_file(const fs::path &dir) { write_to_file(dir,""); }
     
     State();
     
@@ -304,9 +304,8 @@ public:
     }
 
 
-void State::read_from_file(const char *fn) {
-    char statefn[1050];
-    sprintf(statefn,"%s/state",fn);
+void State::read_from_file(const fs::path &fn) {
+    fs::path statefn = fn / "state";
     HeaderStream hs(statefn);
     ReadHeader(hs);
     hs.Close();
@@ -410,20 +409,17 @@ void State::make_output_header() {
 
 #undef WPR
 #undef WPRS
-#define WPR(X,XSYM) fprintf(statefp, PRQUOTEME(%26s = %XSYM\n), PRQUOTEME(X), X); 
-#define WPRS(X,XSYM) fprintf(statefp, "%26s = \"%s\" \n", PRQUOTEME(X), X); 
-// #define WPR(X,XSYM) fprintf(statefp, PRQUOTEME(X = %XSYM\n), X)
-// #define WPRS(X,XSYM) fprintf(statefp, PRQUOTEME(X) " = \"%s\" \n", X)
+#define WPR(X,XSYM) fmt::print(statefp, PRQUOTEME({:>26s} = {:XSYM}\n), PRQUOTEME(X), X); 
+#define WPRS(X,XSYM) fmt::print(statefp, "{:>26s} = \"{}\" \n", PRQUOTEME(X), X); 
 
-void State::write_to_file(const char *dir, const char *suffix) {
-    char statefn[1050];
-    sprintf(statefn,"%s/state%s",dir, suffix);
+void State::write_to_file(const fs::path &dir, const fs::path &suffix) {
+    fs::path statefn = (dir / "state").string() + suffix.string();
     FILE *statefp;
-    statefp = fopen(statefn,"wb");
-    assertf(statefp!=NULL, "Couldn't open file %s to write state\n", statefn);
+    statefp = fopen(statefn.c_str(),"wb");
+    assertf(statefp!=NULL, "Couldn't open file {} to write state\n", statefn);
 
-    WPR(np_state                       , llu);
-    WPR(np_with_ghost_state            , llu);
+    WPR(np_state                       , ISYM);
+    WPR(np_with_ghost_state            , ISYM);
     WPR(np_subA_state                  , ISYM);
     WPR(np_subB_state                  , ISYM);
     WPR(cpd_state                      , ISYM);

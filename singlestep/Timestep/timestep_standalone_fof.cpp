@@ -11,7 +11,7 @@ lot of infrastructure from there.
 
 #include "read_pack14.cpp"
 
-const char* StandaloneFOF_slice_dir;
+fs::path StandaloneFOF_slice_dir;
 int StandaloneFOFLoadSlabPrecondition(int slab) {
     if(slab > Finish.last_slab_executed + 2*GFC->GroupRadius + FETCHAHEAD)
         return 0;
@@ -19,26 +19,16 @@ int StandaloneFOFLoadSlabPrecondition(int slab) {
 }
 
 void StandaloneFOFLoadSlabAction(int slab) {
-    char fnameL0[1024], fnamefield[1024];
-    char fnameL0pid[1024], fnamefieldpid[1024];
+    fs::path fnamefield = StandaloneFOF_slice_dir / fmt::format("{:s}.z{:5.3f}.slab{:04d}.field.dat", P.SimName, ReadState.Redshift, slab);
+    fs::path fnameL0 = StandaloneFOF_slice_dir / fmt::format("{:s}.z{:5.3f}.slab{:04d}.L0.dat", P.SimName, ReadState.Redshift, slab);
+    fs::path fnamefieldpid = StandaloneFOF_slice_dir / fmt::format("{:s}.z{:5.3f}.slab{:04d}.field_.dat", P.SimName, ReadState.Redshift, slab);
+    fs::path fnameL0pid = StandaloneFOF_slice_dir / fmt::format("{:s}.z{:5.3f}.slab{:04d}.L0.dat", P.SimName, ReadState.Redshift, slab);
     
-    int ret = snprintf(fnamefield, 1024, "%s/%s.z%5.3f.slab%04d.field.dat", StandaloneFOF_slice_dir, P.SimName, ReadState.Redshift, slab);
-    assert(ret >= 0 && ret < 1024);
-    
-    ret = snprintf(fnameL0, 1024, "%s/%s.z%5.3f.slab%04d.L0.dat", StandaloneFOF_slice_dir, P.SimName, ReadState.Redshift, slab);
-    assert(ret >= 0 && ret < 1024);
-    
-    ret = snprintf(fnamefieldpid, 1024, "%s/%s.z%5.3f.slab%04d.field_.dat", StandaloneFOF_slice_dir, P.SimName, ReadState.Redshift, slab);
-    assert(ret >= 0 && ret < 1024);
-    
-    ret = snprintf(fnameL0pid, 1024, "%s/%s.z%5.3f.slab%04d.L0.dat", StandaloneFOF_slice_dir, P.SimName, ReadState.Redshift, slab);
-    assert(ret >= 0 && ret < 1024);
-    
-    STDLOG(1,"Load Slab %d from \"%s\", \"%s\"\n", slab, fnameL0, fnamefield);
+    STDLOG(1,"Load Slab {:d} from \"{}\", \"{}\"\n", slab, fnameL0, fnamefield);
 
-    size_t s = fsize(fnamefield);
+    size_t s = fs::file_size(fnamefield);
     SB->AllocateSpecificSize(FieldTimeSlice, slab, s);
-    s = fsize(fnameL0);
+    s = fs::file_size(fnameL0);
     SB->AllocateSpecificSize(L0TimeSlice, slab, s);
     // We will read the raw pack14 asynchronously with SB
     // then unpack it in a separate dependency
@@ -90,7 +80,7 @@ void StandaloneFOFFinishAction(int slab) {
 }
 
 
-void timestepStandaloneFOF(const char* slice_dir) {
+void timestepStandaloneFOF(const fs::path &slice_dir) {
     STDLOG(0,"Initiating timestepStandaloneFOF()\n");
     TimeStepWallClock.Clear();
     TimeStepWallClock.Start();

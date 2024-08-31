@@ -1,8 +1,13 @@
 #include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
+#include <filesystem>
 #include "threevector.hh"
+
+#include <fmt/format.h>
+
 using namespace std;
+namespace fs = std::filesystem;
 
 #define TWOPI (2*M_PI)
 
@@ -167,8 +172,8 @@ void GenSpiral( long long int n1d, double ainitial, double across, double3 *pp, 
     SP.Create(pp, vv, id, np, ainitial, across, fsmooth);
 }
 
-void writespiral(char *fn, double3 * pos, double3 * vel, long long int np){
-	FILE *outfile = fopen(fn,"wb");
+void writespiral(const fs::path &fn, double3 * pos, double3 * vel, long long int np){
+	FILE *outfile = fopen(fn.c_str(),"wb");
 	for(long long int i = 0; i < np; i++){
 		fwrite(pos+i,1,sizeof(double3),outfile);
 		fwrite(vel+i,1,sizeof(double3),outfile);
