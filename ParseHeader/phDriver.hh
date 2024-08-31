@@ -10,7 +10,10 @@
 namespace fs = std::filesystem;
 
 // variable types for "type", below
-enum { BAD, INTEGER, FLOAT, DOUBLE, STRING, LOGICAL, LONG };
+enum class PHType { BAD, INTEGER, FLOAT, DOUBLE, STRING, LOGICAL, LONG, PATH };
+
+// types for values
+enum class ValType { INTEGER, FLOAT, DOUBLE, STRING, LOGICAL };
 
 // Tell Flex the lexer's prototype ...
 # define YY_DECL                                   \
@@ -26,7 +29,7 @@ typedef long long int LLint;
 // value stack -- these are the kinds of values which are
 // assigned when the parser assembles a val_stack
 typedef struct val_stack {
-    int type;
+    ValType type;
     struct {
         unsigned u;
         LLint l;
@@ -43,16 +46,17 @@ typedef union {
     LLint *l;
     float *f;
     double *d;
-    char *s;
+    std::string *s;
+    fs::path *p;
 } PVAL;
 
 // parser symbol table entry
 typedef struct {
     char *name;
-    int type;
+    PHType type;
     PVAL pval;
     PVAL pvalorig;
-    int stride;
+    int stride;  // TODO: should stride always be 1 if we're using container types?
     int dim;
     int nvals;
     int *nvals_user;
@@ -69,13 +73,6 @@ typedef struct filestack {
 #define NSYMS 1000
 #define MAX_STK 1000
 
-// types for values
-#define VALINTEGER 1
-#define VALFLOAT 2
-#define VALDOUBLE 3
-#define VALSTRING 4
-#define VALLOGICAL 5
-
 // Conducting the whole scanning and parsing of Calc++.
 class phDriver {
 public:
@@ -85,7 +82,7 @@ public:
     // external interface
     void ResetParser(void);
     void InstallSym(const std::string &name, void *ptr, int *len, PHType type, int dim, int stride, bool init);
-    int parse (const fs::path &fname, bool Warn, int NoUndefined, bool stop);
+    int parse (const fs::path fname, bool Warn, int NoUndefined, bool stop);
     int parse (const char* buffer, int len, const fs::path fromfilename, 
                      bool Warn, int NoUndefined, bool stop);
 
@@ -99,7 +96,7 @@ public:
     void error (const std::string& m);
 
     void ERROR(std::string m, const yy::location& l);
-    void WARNING(std::string m, const yy::location& l);
+    void PHWARNING(std::string m, const yy::location& l);
     void DEBUGOUT(std::string m, const yy::location& l);
     void MESSAGE(std::string m, const yy::location& l);
 
@@ -110,7 +107,7 @@ public:
 
     // grammer utilies
     SYMENT *lookup(const char *id, int check);
-    void TypeValError(int type, int val, const yy::location& l);
+    void TypeValError(PHType type, ValType val, const yy::location& l);
     void stuffit(SYMENT **spec, VAL_STACK *list, int len, int varzone, const yy::location& l);
         
     // grammer actions
@@ -150,7 +147,7 @@ public:
     VAL_STACK val_stack[MAX_STK];
     SYMENT *zonespec[MAX_STK];
 
-    fs::path filename;
+    std::string filename;
     int trace_parsing;
     int trace_scanning;
     bool Debug;

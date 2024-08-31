@@ -25,10 +25,10 @@ phDriver::phDriver (int _Warnings, int _No_Undefined)
      
 phDriver::~phDriver () { }
 
-int phDriver::parse(const fs::path &fn, bool Warn, int NoUndefined, bool stop) {
+int phDriver::parse(const fs::path fn, bool Warn, int NoUndefined, bool stop) {
     Warnings = Warn;
     no_undefined = NoUndefined;
-    filename = strdup(fn.c_str());
+    filename = fn;
     StopOnError = stop;
 
     scan_begin(fn);
@@ -56,7 +56,7 @@ int phDriver::parse(const char* buffer, int len, const fs::path fromfilename,
     parser.set_debug_level (trace_parsing);
     int res = parser.parse ();
     if(*yynerrs>0) res = 1;
-    if(nwarn>0) error("there were " + ToString(nwarn) + " warnings\n");
+    if(nwarn>0) error("there were " + stringutil::ToString(nwarn) + " warnings\n");
 //    scan_end (); // no file to close!
   
     checkinit();
@@ -84,7 +84,7 @@ void phDriver::DEBUGOUT(std::string m, const yy::location& l) {
     }
 }
 
-void phDriver::WARNING(std::string m, const yy::location& l) {
+void phDriver::PHWARNING(std::string m, const yy::location& l) {
     if(Warnings) {
         nwarn++;
         error(l, std::string("Warning: ") + m);
@@ -93,7 +93,7 @@ void phDriver::WARNING(std::string m, const yy::location& l) {
 
 void phDriver::ERROR(std::string m, const yy::location& l) {
     (*yynerrs)++;
-    error(l, std::string("ERROR ") + ToString((*yynerrs))+ string(": ") + m);
+    error(l, std::string("ERROR ") + stringutil::ToString((*yynerrs))+ string(": ") + m);
     if(StopOnError) {
         error(string("there were errors and StopOnError was true; exiting..."));
         exit(1);
@@ -151,18 +151,37 @@ newentry:
         symtab[i].pval.d = (double *) NULL;
         symtab[i].pvalorig.d = (double *) NULL;
         *symtab[i].init = 1;
-        symtab[i].type = -1;                   // don't care 
+        symtab[i].type = PHType::BAD;                   // don't care 
         return (&symtab[i]);
     }
     else
         return(NULL);
 }
 
-void phDriver::TypeValError(int type, int val, const yy::location& yylloc) {
-    static char typenames[6][8]={"no good","integer","float","double","string","logical"};
-    
-    ERROR(string("attempt to set variable of type ") + ToString(typenames[type]) + 
-          string(" to value of type ") + ToString(typenames[val]), yylloc);
+void phDriver::TypeValError(PHType type, ValType val, const yy::location& yylloc) {
+    std::string typeStr;
+    std::string valStr;
+
+    switch (type) {
+        case PHType::LONG: typeStr = "LONG"; break;
+        case PHType::DOUBLE: typeStr = "DOUBLE"; break;
+        case PHType::FLOAT: typeStr = "FLOAT"; break;
+        case PHType::INTEGER: typeStr = "INTEGER"; break;
+        case PHType::LOGICAL: typeStr = "LOGICAL"; break;
+        case PHType::STRING: typeStr = "STRING"; break;
+        case PHType::PATH: typeStr = "PATH"; break;
+        case PHType::BAD: typeStr = "BAD"; break;
+    }
+
+    switch (val) {
+        case ValType::INTEGER: valStr = "INTEGER"; break;
+        case ValType::DOUBLE: valStr = "DOUBLE"; break;
+        case ValType::FLOAT: valStr = "FLOAT"; break;
+        case ValType::LOGICAL: valStr = "LOGICAL"; break;
+        case ValType::STRING: valStr = "STRING"; break;
+    }
+
+    ERROR("attempt to set variable of type " + typeStr + " to value of type " + valStr, yylloc);
 }
 
 #define STUFF(type, varsym, valsym, stride)                             \
@@ -176,8 +195,8 @@ void phDriver::TypeValError(int type, int val, const yy::location& yylloc) {
     pf->nvals++;                                                        \
     if(pf->nvals>pf->dim) {                                             \
         ERROR(string("number of values (") +                            \
-          ToString(pf->nvals) + string(") exceeds dimension for ") +      \
-          string(pf->name) + string("[") + ToString(pf->dim) +            \
+          stringutil::ToString(pf->nvals) + string(") exceeds dimension for ") +      \
+          string(pf->name) + string("[") + stringutil::ToString(pf->dim) +            \
               string("]"), yylloc);                                     \
     }                                                                   \
     *pf->init = 1;                                                      \
@@ -200,117 +219,128 @@ void phDriver::stuffit(SYMENT **spec, VAL_STACK *list, int len, int varzone,
         if(pf->pval.d) {
             switch (list[i].type) {
         
-            case VALINTEGER:
+            case ValType::INTEGER:
                 switch (pf->type) {
-                case LONG:
+                case PHType::LONG:
                     STUFF(LLint, l, l, stride);
                     break;
-                case DOUBLE:
+                case PHType::DOUBLE:
                     STUFF(double, d, l, stride);
                     break;
-                case FLOAT:
+                case PHType::FLOAT:
                     STUFF(float, f, l, stride);
                     break;
-                case INTEGER:
+                case PHType::INTEGER:
                     STUFF(int, i, l, stride);
                     if(llabs(list[i].value.l)>std::numeric_limits<int>::max())
                         ERROR(string("attempt to store too large a value: ") + 
-                              ToString(list[i].value.l) + string(" in an int variable: ") +
+                              stringutil::ToString(list[i].value.l) + string(" in an int variable: ") +
                               string(pf->name), yylloc);
                     break;
-                case LOGICAL:
-                case STRING:
+                case PHType::LOGICAL:
+                case PHType::STRING:
+                case PHType::PATH:
                     TypeValError(pf->type,list[i].type, yylloc);
                     break;
-                default:
+                case PHType::BAD:
                     ERROR(string("stuffit: logic failure!"), yylloc);
                     exit(1);
                 }
                 break;
         
-            case VALDOUBLE:
+            case ValType::DOUBLE:
                 switch (pf->type) {
-                case LONG:
+                case PHType::LONG:
                     STUFF(LLint, l, d, stride);
-                    WARNING(string("truncating a float: ") + ToString(list[i].value.d) +
+                    PHWARNING(string("truncating a float: ") + stringutil::ToString(list[i].value.d) +
                             string(" to a long long int for \"") + string(pf->name) + 
                             string("\"."), yylloc);
                     break;
-                case DOUBLE:
+                case PHType::DOUBLE:
                     STUFF(double, d, d, stride);
                     break;
-                case FLOAT:
+                case PHType::FLOAT:
                     STUFF(float, f, d, stride);
                     if(fabs(list[i].value.d)>std::numeric_limits<float>::max()) {
                         ERROR(string("attempt to store too large a value: ") +
-                              ToString(list[i].value.d) + string(" in an float variable: ") +
+                              stringutil::ToString(list[i].value.d) + string(" in an float variable: ") +
                               string(pf->name), yylloc);
                     }
                     break;
-                case INTEGER:
+                case PHType::INTEGER:
                     STUFF(int, i, d, stride);
-                    WARNING(string("truncating a float: ") + ToString(list[i].value.d) + 
+                    PHWARNING(string("truncating a float: ") + stringutil::ToString(list[i].value.d) + 
                             string(" to an int for \"") + string(pf->name) + string("\"."), yylloc);
                     break;
-                case LOGICAL:
-                case STRING:
+                case PHType::LOGICAL:
+                case PHType::STRING:
+                case PHType::PATH:
                     TypeValError(pf->type,list[i].type, yylloc);
                     break;
-                default:
-                    ERROR(string("stuffit: logic failure!"), yylloc); 
-                    exit(1);
-                }
-                break;
-        
-            case VALLOGICAL:
-                switch (pf->type) {
-                case LOGICAL:
-                    STUFF(unsigned, u, u, stride);
-                    break;
-                case STRING:
-                case LONG:
-                case DOUBLE:
-                case FLOAT:
-                case INTEGER:
-                    TypeValError(pf->type,list[i].type, yylloc);
-                    break;
-                default:
+                case PHType::BAD:
                     ERROR(string("stuffit: logic failure!"), yylloc);
                     exit(1);
                 }
                 break;
         
-            case VALSTRING:
+            case ValType::LOGICAL:
                 switch (pf->type) {
-                case STRING:
-                    strcpy(pf->pval.s,list[i].value.s);
+                case PHType::LOGICAL:
+                    STUFF(unsigned, u, u, stride);
+                    break;
+                case PHType::STRING:
+                case PHType::PATH:
+                case PHType::LONG:
+                case PHType::DOUBLE:
+                case PHType::FLOAT:
+                case PHType::INTEGER:
+                    TypeValError(pf->type,list[i].type, yylloc);
+                    break;
+                case PHType::BAD:
+                    ERROR(string("stuffit: logic failure!"), yylloc);
+                    exit(1);
+                }
+                break;
+        
+            case ValType::STRING:
+                switch (pf->type) {
+                case PHType::STRING:
+                    // This is copying the char * into the std::string
+                    *(pf->pval.s) = list[i].value.s;
                     pf->pval.s += pf->stride;
                     pf->nvals++;
                     if(pf->nvals>pf->dim) {
                         ERROR(string("number of values (") + 
-                              ToString(pf->nvals) + string(") exceeds dimension for ") +
-                              string(pf->name) + string("[") + ToString(pf->dim) +
+                              stringutil::ToString(pf->nvals) + string(") exceeds dimension for ") +
+                              string(pf->name) + string("[") + stringutil::ToString(pf->dim) +
                               string("]"), yylloc);
                     }
                     *pf->init = 1;
                     break;
-                case LONG:
-                case DOUBLE:
-                case FLOAT:
-                case INTEGER:
-                case LOGICAL:
+                case PHType::PATH:
+                    // This is copying the char * into the fs::path
+                    *(pf->pval.p) = list[i].value.s;
+                    pf->pval.s += pf->stride;
+                    pf->nvals++;
+                    if(pf->nvals>pf->dim) {
+                        ERROR(string("number of values (") + 
+                              stringutil::ToString(pf->nvals) + string(") exceeds dimension for ") +
+                              string(pf->name) + string("[") + stringutil::ToString(pf->dim) +
+                              string("]"), yylloc);
+                    }
+                    *pf->init = 1;
+                    break;
+                case PHType::LONG:
+                case PHType::DOUBLE:
+                case PHType::FLOAT:
+                case PHType::INTEGER:
+                case PHType::LOGICAL:
                     TypeValError(pf->type,list[i].type, yylloc);
                     break;
-                default:
+                case PHType::BAD:
                     ERROR(string("stuffit: logic failure!"), yylloc);
                     exit(1);
                 }
-                break;
-        
-            default:
-                ERROR(string("stuffit: bad type: ") + 
-                    ToString(list[i].type), yylloc);
-            exit(1);
                 break;
             }
         }
@@ -337,17 +367,18 @@ void phDriver::checkinit(void) {
 void phDriver::InitSymtab(void) {
     int i;
 
-    if(Debug) std::cerr << "initializing symtab...";
+    if(Debug) fmt::print(std::cerr, "initializing symtab...");
     init_symtab = 0;
     for(i=0; i<NSYMS; i++) {
         symtab[i].name = (char *) NULL;
-        symtab[i].type = -1;
+        symtab[i].type = PHType::BAD;
         symtab[i].pval.d = (double *) NULL;
         symtab[i].pvalorig.d = (double *) NULL;
         symtab[i].stride = 0;
         symtab[i].init = (int *) NULL;
         symtab[i].dim = 0;
-        symtab[i].nvals;
+        symtab[i].nvals = 0;
+        symtab[i].nvals_user = (int *) NULL;
         symtab[i].mapped = (char *) NULL;
     }
 }
@@ -368,9 +399,10 @@ void phDriver::ResetParser(void) {
         if(symtab[i].init != NULL){ free(symtab[i].init); symtab[i].init = NULL; }
         symtab[i].pval.d = (double *) NULL;
         symtab[i].pvalorig.d = (double *) NULL;
-        symtab[i].type = -1;                   // don't care
+        symtab[i].type = PHType::BAD;                   // don't care
         symtab[i].dim = 0;
         symtab[i].nvals = 0;
+        symtab[i].nvals_user = (int *) NULL;
     }
 
     check_flag=0;
@@ -383,64 +415,71 @@ void phDriver::ResetParser(void) {
 }
 
 // install a variable in the symbol table and initialize its entry
-void phDriver::InstallSym(const char *name, void *ptr, int *len, int type, int dim, int stride, bool init) {
+void phDriver::InstallSym(const std::string &name, void *ptr, int *len, PHType type, int dim, int stride, bool init) {
     SYMENT *sym;
     int i;
 
     if(init_symtab==1) InitSymtab();
 
-    sym = lookup(name,1);
+    sym = lookup(name.c_str(),1);
     if(sym) {
-        std::cerr << string("symbol \"") + string(sym->name) + string("\" is already defined.");
+        fmt::print(std::cerr, "symbol \"{}\" is already defined.\n", sym->name);
         exit(1);
     }
   
-    sym = lookup(name,0);
+    sym = lookup(name.c_str(),0);
     switch (type) {
-    case INTEGER:
-        if(Debug) std::cerr << string("installing an int: \"") + string(name) + string("\"\n");
+    case PHType::INTEGER:
+        if(Debug) fmt::print(std::cerr, "installing an int: \"{}\"\n", name);
         sym->pval.i = (int *)ptr;
         sym->pvalorig.i = (int *)ptr;
         sym->stride = stride;
         break;
     
-    case LONG:
-        if(Debug) std::cerr << string("installing a long long: \"") + string(name) + string("\"\n");
+    case PHType::LONG:
+        if(Debug) fmt::print(std::cerr, "installing a long long: \"{}\"\n", name);
         sym->pval.l = (LLint *)ptr;
         sym->pvalorig.l = (LLint *)ptr;
         sym->stride = stride;
         break;
     
-    case FLOAT: 
-        if(Debug) std::cerr << string("installing a float: \"") + string(name) + string("\"\n");
+    case PHType::FLOAT: 
+        if(Debug) fmt::print(std::cerr, "installing a float: \"{}\"\n", name);
         sym->pval.f = (float *)ptr;
         sym->pvalorig.f = (float *)ptr;
         sym->stride = stride;
         break;
         
-    case DOUBLE:
-        if(Debug) std::cerr << string("installing a double: \"") + string(name) + string("\"\n");
+    case PHType::DOUBLE:
+        if(Debug) fmt::print(std::cerr, "installing a double: \"{}\"\n", name);
         sym->pval.d = (double *)ptr;
         sym->pvalorig.d = (double *)ptr;
         sym->stride = stride;
         break;
     
-    case STRING:
-        if(Debug) std::cerr << string("installing a string: \"") + string(name) + string("\"\n");
-        sym->pval.s = (char *)ptr;
-        sym->pvalorig.s = (char *)ptr;
-        sym->stride = stride; // for a string array, stride = string length 
+    case PHType::STRING:
+        if(Debug) fmt::print(std::cerr, "installing a string: \"{}\"\n", name);
+        sym->pval.s = (std::string *)ptr;
+        sym->pvalorig.s = (std::string *)ptr;
+        sym->stride = stride;
+        break;
+
+    case PHType::PATH:
+        if(Debug) fmt::print(std::cerr, "installing a path: \"{}\"\n", name);
+        sym->pval.p = (fs::path *)ptr;
+        sym->pvalorig.p = (fs::path *)ptr;
+        sym->stride = stride;
         break;
     
-    case LOGICAL:
-        if(Debug) std::cerr << string("installing a boolean: \"") + string(name) + string("\"\n");
+    case PHType::LOGICAL:
+        if(Debug) fmt::print(std::cerr, "installing a boolean: \"{}\"\n", name);
         sym->pval.u = (unsigned *)ptr;
         sym->pvalorig.u = (unsigned *)ptr;
         sym->stride = stride;
         break;
     
     default:
-        std::cerr << string("bad type for \"") + string(name) + string("\"\n");
+        fmt::print(std::cerr, "bad type for \"{}\"\n", name);
         exit(1);
         break;
     }
@@ -502,7 +541,7 @@ int phDriver::InstallVCounter(char *val, const yy::location& yylloc) {
     SYMENT *psym = lookup(val,0);
     DEBUGOUT(string("installing vcounter: \"") + string(psym->name) + string("\"."), yylloc);
     if(psym->pval.i == (int *) NULL) {
-        ERROR(string("unknown symbol for vcounter \"") + ToString(psym->name) +
+        ERROR(string("unknown symbol for vcounter \"") + stringutil::ToString(psym->name) +
               string("\""), yylloc);
         return 0;
     }
@@ -523,8 +562,8 @@ int phDriver::ProcessEOS(const yy::location& yylloc) {
                 ERROR(string("inconsistent number of elements in previous list:\n") + 
                       string("         element counter \"") + 
                       string(zonecounter_psym_old->name) + 
-                      string("\", ") + ToString(nzprs_old) + string(" elements previously, ") + 
-                      ToString(*nzones_prs) + string(" found here."), yylloc);
+                      string("\", ") + stringutil::ToString(nzprs_old) + string(" elements previously, ") + 
+                      stringutil::ToString(*nzones_prs) + string(" found here."), yylloc);
                 return 0;
             }
         }
@@ -589,13 +628,13 @@ void phDriver::ReSetID_List(char *val) {
 
 void phDriver::AddToValStack(LLint c) {
     val_stack[pp_len].value.l = c;
-    val_stack[pp_len].type = VALINTEGER;
+    val_stack[pp_len].type = ValType::INTEGER;
     pp_len++;
 }
 
 void phDriver::AddToValStack(double c) {
     val_stack[pp_len].value.d = c;
-    val_stack[pp_len].type = VALDOUBLE;
+    val_stack[pp_len].type = ValType::DOUBLE;
     pp_len++;
 }
 
@@ -604,13 +643,13 @@ void phDriver::AddToValStack(bool c) {
         val_stack[pp_len].value.u = 1;
     else
         val_stack[pp_len].value.u = 0;
-    val_stack[pp_len].type = VALLOGICAL;
+    val_stack[pp_len].type = ValType::LOGICAL;
     pp_len++;
 }
 
 void phDriver::AddToValStack(char *c) {
     val_stack[pp_len].value.s = strdup(c);
-    val_stack[pp_len].type = VALSTRING;
+    val_stack[pp_len].type = ValType::STRING;
     pp_len++;
 }
 
@@ -618,14 +657,14 @@ void phDriver::AddToValStack(char *c) {
 void phDriver::ReSetValStack(LLint c) {
     pp_len = 0;
     val_stack[pp_len].value.l = c;
-    val_stack[pp_len].type = VALINTEGER;
+    val_stack[pp_len].type = ValType::INTEGER;
     pp_len++;
 }
 
 void phDriver::ReSetValStack(double c) {
     pp_len = 0;
     val_stack[pp_len].value.d = c;
-    val_stack[pp_len].type = VALDOUBLE;
+    val_stack[pp_len].type = ValType::DOUBLE;
     pp_len++;
 }
 
@@ -635,52 +674,55 @@ void phDriver::ReSetValStack(bool c) {
         val_stack[pp_len].value.u = 1;
     else
         val_stack[pp_len].value.u = 0;
-    val_stack[pp_len].type = VALLOGICAL;
+    val_stack[pp_len].type = ValType::LOGICAL;
     pp_len++;
 }
 
 void phDriver::ReSetValStack(char *c) {
     pp_len = 0;
     val_stack[pp_len].value.s = strdup(c);
-    val_stack[pp_len].type = VALSTRING;
+    val_stack[pp_len].type = ValType::STRING;
     pp_len++;
 }
 
 void phDriver::DumpAllValues(void) {
     for (int i=0; i<NSYMS; i++) {
         if (symtab[i].name==0) break;
-        fprintf(stderr,"symbol %s ", symtab[i].name);
+        fmt::print(stderr,"symbol {:s} ", symtab[i].name);
         if(symtab[i].dim==1) 
-            fprintf(stderr,"(scalar)\n");
+            fmt::print(stderr,"(scalar)\n");
         else
-            fprintf(stderr,"(vector)\n");
+            fmt::print(stderr,"(vector)\n");
         switch(symtab[i].type) {
-        case LOGICAL:
+        case PHType::LOGICAL:
             for(int j=0; j<symtab[i].nvals; j++)
-                fprintf(stderr,"       %u\n", symtab[i].pvalorig.u[j]);
+                fmt::print(stderr,"       {:d}\n", symtab[i].pvalorig.u[j]);
             break;
-        case INTEGER:
+        case PHType::INTEGER:
             for(int j=0; j<symtab[i].nvals; j++)
-                fprintf(stderr,"       %d\n", symtab[i].pvalorig.i[j]);
+                fmt::print(stderr,"       {:d}\n", symtab[i].pvalorig.i[j]);
             break;
-        case FLOAT:
+        case PHType::FLOAT:
             for(int j=0; j<symtab[i].nvals; j++)
-                fprintf(stderr,"       %e\n", symtab[i].pvalorig.f[j]);
+                fmt::print(stderr,"       {:e}\n", symtab[i].pvalorig.f[j]);
             break;
-        case DOUBLE:
+        case PHType::DOUBLE:
             for(int j=0; j<symtab[i].nvals; j++)
-                fprintf(stderr,"       %le\n", symtab[i].pvalorig.d[j]);
+                fmt::print(stderr,"       {:e}\n", symtab[i].pvalorig.d[j]);
             break;
-        case LONG:
+        case PHType::LONG:
             for(int j=0; j<symtab[i].nvals; j++)
-                fprintf(stderr,"       %lld\n", symtab[i].pvalorig.l[j]);
+                fmt::print(stderr,"       {:d}\n", symtab[i].pvalorig.l[j]);
             break;
-        case STRING:
+        case PHType::STRING:
             for(int j=0; j<symtab[i].nvals; j++)
-                fprintf(stderr,"       %s\n", (char *)(symtab[i].pvalorig.s + j*symtab[i].stride));
+                fmt::print(stderr,"       {:s}\n", *(symtab[i].pvalorig.s + j*symtab[i].stride));
+            break;
+        case PHType::PATH:
+            for(int j=0; j<symtab[i].nvals; j++)
+                fmt::print(stderr,"       {:s}\n", (symtab[i].pvalorig.p + j*symtab[i].stride)->string());
             break;
         }
-
     }
 }
 

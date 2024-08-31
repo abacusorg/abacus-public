@@ -205,7 +205,7 @@ include                 BEGIN(incl);
                             location_stack[include_level++] = *yylloc;
                             if(include_level>=MAX_INCLUDE_STACK) {
                                 driver.MESSAGE(std::string("ERROR: exceeded maximum include stack depth: ") +
-                                               ToString(MAX_INCLUDE_STACK) + std::string("."), *yylloc);
+                                               stringutil::ToString(MAX_INCLUDE_STACK) + std::string("."), *yylloc);
                                 exit(1);
                             }
                             file_name_string.assign(tmp);
@@ -265,7 +265,7 @@ token_type screen(char* intext, int len) {
     char *text;
     text = strdup(intext);
     // text = strndup(intext, len);
-    strnlwr(text, len);
+    stringutil::strnlwr(text, len);
     len_key_table = (int) (sizeof(key_table)/sizeof(key_table[0]));
     
     for (i = 0; i < len_key_table; i++) {

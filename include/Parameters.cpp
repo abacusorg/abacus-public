@@ -237,7 +237,7 @@ public:
         installscalar("Order",order,MUST_DEFINE);
 
         installscalar("NearFieldRadius",NearFieldRadius,MUST_DEFINE);    // Radius of cells in the near-field
-        installvector("SofteningLength", &SofteningLength, LEN_DONTNEED, 2, 0, MUST_DEFINE); // Softening length in the same units as BoxSize
+        installscalar("SofteningLength", SofteningLength, MUST_DEFINE); // Softening length in the same units as BoxSize
         installscalar("DerivativeExpansionRadius", DerivativeExpansionRadius,MUST_DEFINE);
         MAXRAMMB = getRAMSize();
         installscalar("MAXRAMMB", MAXRAMMB, DONT_CARE);

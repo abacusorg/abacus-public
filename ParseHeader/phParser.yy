@@ -97,13 +97,13 @@ gen_stmt
                 | FLOATval value_list EOS
                   {
                     driver.ERROR(string("syntax error, unexpected value \"") + 
-                                 ToString($1) + string("\", expecting 'identifier ='"), @1);
+                                 stringutil::ToString($1) + string("\", expecting 'identifier ='"), @1);
                   }
 
                 | INTval value_list EOS
                   {
                     driver.ERROR(string("syntax error, unexpected value \"") + 
-                                 ToString($1) + string("\", expecting 'identifier ='"), @1);
+                                 stringutil::ToString($1) + string("\", expecting 'identifier ='"), @1);
                   }
 
 		| EOS

@@ -4,6 +4,7 @@
 #include <wordexp.h>
 #include "stringutil.hh"
 
+namespace stringutil {
 
 // lowercase a char *
 void strnlwr(char *cstr, int len) {
@@ -135,12 +136,14 @@ fmtT fmt(const char *t) {
     return sep;
 }
 
+} // namespace stringutil
+
 
 #ifdef TEST
 int main(void) {
 
     std::string text("Hello There!");
-    strlwr(text);
+    stringutil::strlwr(text);
     std::cout << text << "\n";
 
     double x = 17.45;

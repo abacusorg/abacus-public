@@ -1,8 +1,6 @@
 ROOT_DIR := ..
 include $(ROOT_DIR)/common.mk
 
-CPPFLAGS += -O1
-
 LEX = flex
 YACC = bison
 

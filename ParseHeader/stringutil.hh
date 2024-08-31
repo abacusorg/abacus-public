@@ -4,6 +4,8 @@
 #include <sstream>
 #include <cstdlib>
 
+namespace stringutil {
+
 // format anything which knows how to format itself into a std::string
 template <typename T>
 std::string ToString(T x) {
@@ -28,5 +30,7 @@ typedef struct fmtT{
 std::basic_ostream<char>& operator<<(std::basic_ostream<char>& os, const fmtT& sep);
 
 fmtT fmt(const char *t);
+
+}
 
 #endif // __STRINGUTIL_H__
