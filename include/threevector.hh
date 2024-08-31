@@ -341,9 +341,9 @@ operator / ( const ThreeVector<T>& lhs, const U rhs ) {
 }
 
 // three most common cases
-typedef ThreeVector<double> double3;
-typedef ThreeVector<float> float3;
-typedef ThreeVector<int> integer3;
+using double3 = ThreeVector<double>;
+using float3 = ThreeVector<float>;
+using integer3 = ThreeVector<int>;
 
 #ifdef _OPENMP
 #pragma omp declare reduction(+:float3:omp_out += omp_in) initializer(omp_priv = float3())

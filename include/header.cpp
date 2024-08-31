@@ -45,28 +45,33 @@
 
 namespace fs = std::filesystem;
 
+using uint32 = uint32_t;
+using int32 = int32_t;
+using uint64 = uint64_t;
+using int64 = int64_t;
+
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
 
-typedef std::complex<double> Complex;
+using Complex = std::complex<double>;
 
 // So that we can easily adjust to double precision for kinematics
 #ifdef DOUBLEPRECISION
-#define FLOAT double
-#define FLOAT3 double3
+using FLOAT = double;
+using FLOAT3 = double3;
 #else 
-#define FLOAT float 
-#define FLOAT3 float3
+using FLOAT = float;
+using FLOAT3 = float3;
 #endif
 
 // dtype for Multipoles/Taylors and Derivatives on disk
 // might eventually be used for computations as well
 #ifdef DOUBLEPRECISION
-typedef std::complex<double> MTCOMPLEX;
-typedef double DFLOAT;
+using MTCOMPLEX = std::complex<double>;
+using DFLOAT = double ;
 #else
-typedef std::complex<float> MTCOMPLEX;
-typedef float DFLOAT;
+using MTCOMPLEX = std::complex<float>;
+using DFLOAT = float;
 #endif
 
 #define LIKELY(x) __builtin_expect((x),1)
