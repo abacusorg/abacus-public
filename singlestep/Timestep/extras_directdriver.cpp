@@ -45,7 +45,7 @@ void NearFieldDriver::CheckGPUCPU(int slabID){
     }
     free(a_cpu);
     
-    STDLOG(1,"GPU-CPU comparison passed for slab %d\n", slabID);
+    STDLOG(1,"GPU-CPU comparison passed for slab {:d}\n", slabID);
 }
 
 void NearFieldDriver::ExecuteSlabCPU(int slabID){
@@ -68,7 +68,7 @@ void NearFieldDriver::ExecuteSlabCPU(int slabID, int * predicate){
     #pragma omp parallel for schedule(dynamic,1) reduction(+:DI_slab,NSink_CPU_slab)
     for(int y = 0; y < P.cpd; y++){
         int g = omp_get_thread_num();
-        //STDLOG(1,"Executing directs on pencil y=%d in slab %d, in OMP thread %d on CPU %d (nprocs: %d)\n", y, slabID, g, sched_getcpu(), omp_get_num_procs());
+        //STDLOG(1,"Executing directs on pencil y={:d} in slab {:d}, in OMP thread {:d} on CPU {:d} (nprocs: {:d})\n", y, slabID, g, sched_getcpu(), omp_get_num_procs());
         for(int z = 0; z < P.cpd; z++){
             if(predicate != NULL && !predicate[y*P.cpd +z]) continue;
             

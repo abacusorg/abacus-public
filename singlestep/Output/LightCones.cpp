@@ -78,10 +78,10 @@ void InitializeLightCones(){
     assertf(P.NLightCones % 3 == 0, "LightConeOrigins must be specified as a list of 3-tuples\n");
     P.NLightCones /= 3;
 
-    STDLOG(2, "Initializing Light Cones with %d observers\n", P.NLightCones);
+    STDLOG(2, "Initializing Light Cones with {:d} observers\n", P.NLightCones);
 
 #ifdef USE_LC_AUX_BITS
-    assertf(P.NLightCones <= NUM_LC_AUX_BITS, "Parameter file requests %d light cones, but AUX data model supports only %d\n", P.NLightCones, NUM_LC_AUX_BITS);
+    assertf(P.NLightCones <= NUM_LC_AUX_BITS, "Parameter file requests {:d} light cones, but AUX data model supports only {:d}\n", P.NLightCones, NUM_LC_AUX_BITS);
 #endif
     LCOrigin = new double3[P.NLightCones];
     for(int i = 0; i < P.NLightCones; i++){
@@ -178,7 +178,7 @@ size_t makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
           // Nothing to be done, so don't risk divide by zero.
     
     OutputLightConeSetup.Start();
-    STDLOG(4, "Making light cone %d for slab %d\n", lcn, slab);
+    STDLOG(4, "Making light cone {:d} for slab {:d}\n", lcn, slab);
 
     LightCone LC(lcn, P.LightConeCheckAcrossWrap, P.LightConeBoxRepeats);
 
@@ -340,7 +340,7 @@ size_t makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
                                 cc= 0*cc;
                             #endif
 
-                            // STDLOG(4, "LC: Particles in current cell: %d\n", c.count());
+                            // STDLOG(4, "LC: Particles in current cell: {:d}\n", c.count());
                             for (int p=0;p<c.count();p++) {
                                 if(!c.aux[p].lightconedone(mask) || boundary_offset != integer3(0.)){
                                     // This particle isn't already in the light cone,
@@ -376,7 +376,7 @@ size_t makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
                                         /*
                                         if (c.aux[p].lightconedone(mask)) {
                                             doubletagged++;
-                                            STDLOG(1,"Double tag: (%6.4f %6.4f %6.4f) = %10.7f vs %10.7f %10.7f\n",
+                                            STDLOG(1,"Double tag: ({:6.4f} {:6.4f} {:6.4f}) = {:10.7f} vs {:10.7f} {:10.7f}\n",
                                                 pos.x, pos.y, pos.z, (pos-LC.origin).norm(), LC.rmin, LC.rmax);
                                         }
                                         */
@@ -404,7 +404,7 @@ size_t makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
     OutputLightConeSearch.Stop();
     OutputLightConeTeardown.Start();
 
-    STDLOG(2,"Lightcone %d opened %d cells and found %d particles (%d subsampled) in slab %d.  %d double tagged\n",
+    STDLOG(2,"Lightcone {:d} opened {:d} cells and found {:d} particles ({:d} subsampled) in slab {:d}.  {:d} double tagged\n",
             lcn,slabtotalcell,slabtotal,slabtotalsub,slab, doubletagged);
     WriteState.np_lightcone += slabtotal;
     if(slabtotal) {

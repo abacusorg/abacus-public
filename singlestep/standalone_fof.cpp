@@ -34,14 +34,14 @@
 
     setup_log(); // STDLOG and assertf now available
     STDLOG(0,"Beginning standalone_fof\n");
-    STDLOG(0,"Read Parameter file %s\n", argv[2]);
+    STDLOG(0,"Read Parameter file {:s}\n", argv[2]);
     char hostname[1024];
     gethostname(hostname,1024);
-    STDLOG(0,"Host machine name is %s\n", hostname);
+    STDLOG(0,"Host machine name is {:s}\n", hostname);
 
-    STDLOG(1,"Slab header indicates CPD %d, ppd %d\n", P.cpd, (int) ReadState.ppd);
-    STDLOG(1,"Using group radius %d and MinL1HaloNP %d\n", P.GroupRadius, P.MinL1HaloNP);
-    STDLOG(1,"Running with %d threads\n", omp_get_max_threads());
+    STDLOG(1,"Slab header indicates CPD {:d}, ppd {:d}\n", P.cpd, (int) ReadState.ppd);
+    STDLOG(1,"Using group radius {:d} and MinL1HaloNP {:d}\n", P.GroupRadius, P.MinL1HaloNP);
+    STDLOG(1,"Running with {:d} threads\n", omp_get_max_threads());
      
     bool MakeIC = false;
      

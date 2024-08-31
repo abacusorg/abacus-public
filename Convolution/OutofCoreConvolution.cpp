@@ -149,7 +149,7 @@ void OutofCoreConvolution::BlockConvolve(void) {
 		
     	if (zblock + zwidth >= (cpd + 1)/2) zwidth = (cpd+1)/2 - zblock;
 		
-		STDLOG(1, "Starting z %d to %d\n", zblock, zblock + zwidth);	
+		STDLOG(1, "Starting z {:d} to {:d}\n", zblock, zblock + zwidth);	
         ReadDiskMultipolesAndDerivs(zblock); 
 		
 		
@@ -166,15 +166,15 @@ void OutofCoreConvolution::BlockConvolve(void) {
 		int MPI_rank = -1; //for debugging. 
 #endif
 		
-		STDLOG(1, "zblock %d, zwidth %d, zstart %d, zend %d\n", zblock, zwidth, zstart, zend);	
+		STDLOG(1, "zblock {:d}, zwidth {:d}, zstart {:d}, zend {:d}\n", zblock, zwidth, zstart, zend);	
 		
         for(int z = zstart; z < zend; z++) {
 			
-			STDLOG(1, "Swizzling multipoles for z %d\n", z);	
+			STDLOG(1, "Swizzling multipoles for z {:d}\n", z);	
 			
 			SwizzleMultipoles(z - zblock);
 			
-			STDLOG(1, "Done with swizzling multipoles for z %d\n", z);	
+			STDLOG(1, "Done with swizzling multipoles for z {:d}\n", z);	
 			
 			
             Complex *Mtmp = &( PlaneBuffer[0] );
@@ -245,7 +245,7 @@ void OutofCoreConvolution::BlockConvolve(void) {
             #endif
             InverseZFFTTaylor.Stop();
 			
-			STDLOG(1, "Done with fftws for z %d\n", z);	
+			STDLOG(1, "Done with fftws for z {:d}\n", z);	
 			
 #endif // DO_NOTHING
 			
@@ -253,7 +253,7 @@ void OutofCoreConvolution::BlockConvolve(void) {
 
             SwizzleTaylors(z - zblock);
 			
-			STDLOG(1, "Done with swizzling taylors for z %d\n", z);	
+			STDLOG(1, "Done with swizzling taylors for z {:d}\n", z);	
 			
 		
         }

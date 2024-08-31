@@ -64,8 +64,8 @@ STimer TimeStepWallClock;
 
 void InitializeForceRadius(int NoForces){
     FORCE_RADIUS = NoForces ? 0 : P.NearFieldRadius;
-    assertf(FORCE_RADIUS >= 0, "Illegal FORCE_RADIUS: %d\n", FORCE_RADIUS);
-    STDLOG(0,"Adopting FORCE_RADIUS = %d\n", FORCE_RADIUS);
+    assertf(FORCE_RADIUS >= 0, "Illegal FORCE_RADIUS: {:d}\n", FORCE_RADIUS);
+    STDLOG(0,"Adopting FORCE_RADIUS = {:d}\n", FORCE_RADIUS);
 
     // The IL will use this to size itself
     if(MPI_size_z > 1) NeighborRecvEvent::receive_ahead = 3;
@@ -76,8 +76,8 @@ void InitializeForceRadius(int NoForces){
 // This happens much later, after outputs and group finding are planned
 void InitializePipelineWidths(int MakeIC){
     GROUP_RADIUS = GFC != NULL ? P.GroupRadius : 0;
-    assertf(GROUP_RADIUS >= 0, "Illegal GROUP_RADIUS: %d\n", GROUP_RADIUS);
-    STDLOG(0,"Adopting GROUP_RADIUS = %d\n", GROUP_RADIUS);
+    assertf(GROUP_RADIUS >= 0, "Illegal GROUP_RADIUS: {:d}\n", GROUP_RADIUS);
+    STDLOG(0,"Adopting GROUP_RADIUS = {:d}\n", GROUP_RADIUS);
 
     // The 2LPT pipeline is short (no group finding). We can afford to wait an extra slab to allow for large IC displacements
     FINISH_WAIT_RADIUS = (MakeIC || LPTStepNumber()) > 0 ? 2 : 1;
@@ -108,7 +108,7 @@ void InitializePipelineWidths(int MakeIC){
         "Not enough slabs on node to finish any slabs!\n");
 #endif
 
-    STDLOG(0,"Adopting FINISH_WAIT_RADIUS = %d\n", FINISH_WAIT_RADIUS);
+    STDLOG(0,"Adopting FINISH_WAIT_RADIUS = {:d}\n", FINISH_WAIT_RADIUS);
 }
 
 void timestep(int NoForces) {
@@ -122,7 +122,7 @@ void timestep(int NoForces) {
 
     int nslabs = P.cpd;
     int first = first_slab_on_node;  // First slab to load
-    STDLOG(1,"First slab to load will be %d\n", first);
+    STDLOG(1,"First slab to load will be {:d}\n", first);
 
     #ifdef ONE_SIDED_GROUP_FINDING
         int first_outputslab = FORCE_RADIUS + 2*GROUP_RADIUS + (int)(GROUP_RADIUS > 0);
@@ -133,7 +133,7 @@ void timestep(int NoForces) {
         first_outputslab = max(FINISH_WAIT_RADIUS,first_outputslab);
     }
 
-    STDLOG(1, "first_outputslab = %d, first_outputslab + FINISH_WAIT_RADIUS = %d\n", first_outputslab, first_outputslab + FINISH_WAIT_RADIUS);
+    STDLOG(1, "first_outputslab = {:d}, first_outputslab + FINISH_WAIT_RADIUS = {:d}\n", first_outputslab, first_outputslab + FINISH_WAIT_RADIUS);
 
 
     FetchSlabs          = new         FetchSlabsDep(nslabs, first);
@@ -277,12 +277,12 @@ void timestep(int NoForces) {
         IL->DumpParticles();
 
     assertf(IL->length==0,
-        "Insert List not empty (%d) at the end of timestep().  Time step too big?\n", IL->length);
+        "Insert List not empty ({:d}) at the end of timestep().  Time step too big?\n", IL->length);
 
     STDLOG(1,"Finished timestep SlabDependency loop!\n");
 
     if (GFC != NULL) assertf(GFC->GLL->length==0,
-	"GroupLinkList not empty (%d) at the end of timestep.  Global group finding didn't run properly.\n", GFC->GLL->length);
+	"GroupLinkList not empty ({:d}) at the end of timestep.  Global group finding didn't run properly.\n", GFC->GLL->length);
 
     uint64 total_n_output = ((OutputDep *) Output)->n_output;  // TODO: how should we do field access while preserving the ability to NoOp?
     if(GFC != NULL)
@@ -313,11 +313,11 @@ void timestep(int NoForces) {
 
     #endif
     if (MPI_rank==0)
-        assertf( merged_primaries == P.np, "Merged slabs contain %d particles instead of %d!\n", merged_primaries, P.np);
+        assertf( merged_primaries == P.np, "Merged slabs contain {:d} particles instead of {:d}!\n", merged_primaries, P.np);
 
 
     if(ReadState.DoTimeSliceOutput && MPI_rank==0){
-        assertf(total_n_output == P.np, "TimeSlice output contains %d particles instead of %d!\n", total_n_output, P.np);
+        assertf(total_n_output == P.np, "TimeSlice output contains {:d} particles instead of {:d}!\n", total_n_output, P.np);
 	}
 
     STDLOG(1,"Completing timestep()\n");

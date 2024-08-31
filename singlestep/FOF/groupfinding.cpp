@@ -6,7 +6,7 @@ We include this file in the program, and it includes the rest.
 // #define GLOG(verbosity,...) { if (verbosity<=stdlog_threshold_global) { \
 //         LOG(*grouplog,__VA_ARGS__); grouplog->flush(); } }
 
-#define GLOG(verbosity,...) { if (verbosity<=stdlog_threshold_global) fprintf(reportfp,__VA_ARGS__); }
+#define GLOG(verbosity,...) { if (verbosity<=stdlog_threshold_global) fmt::print(reportfp,__VA_ARGS__); }
 
 
 #include "fof_sublist.cpp"
@@ -137,7 +137,7 @@ class GroupFindingControl {
         #else
             sprintf(onoff, "off");
         #endif
-        STDLOG(0,"Group finding sizeof(FOFloat)=%d, sizeof(FLOAT)=%d, AVXFOF is %s\n", sizeof(FOFloat), sizeof(FLOAT), onoff);
+        STDLOG(0,"Group finding sizeof(FOFloat)={:d}, sizeof(FLOAT)={:d}, AVXFOF is {:s}\n", sizeof(FOFloat), sizeof(FLOAT), onoff);
 
         cpd = _cpd; 
         zstart = _zstart;
@@ -148,17 +148,17 @@ class GroupFindingControl {
         #ifdef SPHERICAL_OVERDENSITY
             SOdensity1 = _level1;
             SOdensity2 = _level2;
-            STDLOG(0,"Planning for L1/2 group finding with SO: %f and %f\n", 
+            STDLOG(0,"Planning for L1/2 group finding with SO: {:f} and {:f}\n", 
                 SOdensity1, SOdensity2);
         #else
             linking_length_level1 = _level1;
             linking_length_level2 = _level2;
-            STDLOG(0,"Planning for L1/2 group finding with FOF: %f and %f\n", 
+            STDLOG(0,"Planning for L1/2 group finding with FOF: {:f} and {:f}\n", 
                 linking_length_level1, linking_length_level2);
         #endif
         FOFhalfcell = FOF_RESCALE/2.0*CP->invcpd;     // The half cell size
         SOpartition = FOFhalfcell*2.0*sqrt(3.0)/3.0;  // The radial binning
-        STDLOG(1,"SO parameters: FOFhalfcell = %f, SOpartition = %f\n", FOFhalfcell, SOpartition);
+        STDLOG(1,"SO parameters: FOFhalfcell = {:f}, SOpartition = {:f}\n", FOFhalfcell, SOpartition);
 
         minhalosize = _minhalosize;
         invcpd = 1. / (double) _cpd;
@@ -171,7 +171,7 @@ class GroupFindingControl {
         cellgroups_status = new int[cpd];
         for (int j=0;j<cpd;j++) cellgroups_status[j] = 0;
         GLL = new GroupLinkList(cpd, np/cpd*linking_length/invcpd*3*15);  // TODO: does not appear to rescale for 1D or 2D
-        STDLOG(1,"Allocated %.2f GB for GroupLinkList\n", sizeof(GroupLink)*GLL->maxlist/1024./1024./1024.);
+        STDLOG(1,"Allocated {:.2f} GB for GroupLinkList\n", sizeof(GroupLink)*GLL->maxlist/1024./1024./1024.);
         
         setupGGS();
         // This is a MultiAppendList, so the buffer cannot grow. 
@@ -189,7 +189,7 @@ class GroupFindingControl {
         max_group_diameter = 0;
 
         use_aux_dens = _use_aux_dens;
-        STDLOG(1,"Using %s densities in group finding\n", use_aux_dens ? "aux" : "acc");
+        STDLOG(1,"Using {:s} densities in group finding\n", use_aux_dens ? "aux" : "acc");
 
         return;
     }
@@ -210,40 +210,40 @@ class GroupFindingControl {
         
     /// This generates the log report
     void report(FILE *reportfp) {
-         GLOG(0,"Considered %f G particles as active\n", CGactive/1e9);
+         GLOG(0,"Considered {:f} G particles as active\n", CGactive/1e9);
          // The FOFdensities are weighted by b^2-r^2.  When integrated,
          // that yields a mass at unit density of 
             // (2/15)*4*PI*b^5*np
-         GLOG(0,"Maximum reported density = %f (%e in code units)\n", maxFOFdensity/WriteState.FOFunitdensity, maxFOFdensity);
+         GLOG(0,"Maximum reported density = {:f} ({:e} in code units)\n", maxFOFdensity/WriteState.FOFunitdensity, maxFOFdensity);
          meanFOFdensity /= P.np;
-         GLOG(0,"Mean reported non-self density = %f (%e in code units)\n", meanFOFdensity/WriteState.FOFunitdensity, meanFOFdensity);
-         GLOG(0,"Found %f G cell groups (including boundary singlets)\n", CGtot/1e9);
-         GLOG(0,"Used %f G pseudoParticles, %f G faceParticles, %f G faceGroups\n",
+         GLOG(0,"Mean reported non-self density = {:f} ({:e} in code units)\n", meanFOFdensity/WriteState.FOFunitdensity, meanFOFdensity);
+         GLOG(0,"Found {:f} G cell groups (including boundary singlets)\n", CGtot/1e9);
+         GLOG(0,"Used {:f} G pseudoParticles, {:f} G faceParticles, {:f} G faceGroups\n",
              pPtot/1e9, fPtot/1e9, fGtot/1e9);
-         GLOG(0,"Found %f M links between groups.\n", Ltot/1e6);
-         GLOG(0,"Found %f M global groups\n", GGtot/1e6);
-         GLOG(0,"Longest GroupLink list was %f M, compared to %f M allocation (%f MB)\n", GLL->longest/1e6, GLL->maxlist/1e6, GLL->maxlist/1024/1024*sizeof(GroupLink));
-         GLOG(0,"Widest L0 Diameter reached %d slabs from the first\n", max_group_diameter);
+         GLOG(0,"Found {:f} M links between groups.\n", Ltot/1e6);
+         GLOG(0,"Found {:f} M global groups\n", GGtot/1e6);
+         GLOG(0,"Longest GroupLink list was {:f} M, compared to {:f} M allocation ({:f} MB)\n", GLL->longest/1e6, GLL->maxlist/1e6, GLL->maxlist/1024./1024.*sizeof(GroupLink));
+         GLOG(0,"Widest L0 Diameter reached {:d} slabs from the first\n", max_group_diameter);
 
 #ifdef PARALLEL
          MPI_REDUCE_TO_ZERO(&max_group_diameter, 1, MPI_INT, MPI_MAX);
 #endif
          WriteState.MaxGroupDiameter = max_group_diameter; 
 
-         GLOG(0,"Largest Global Group has %d particles\n", largest_GG);
+         GLOG(0,"Largest Global Group has {:d} particles\n", largest_GG);
          WriteState.MaxL0GroupSize = largest_GG; 
 
          GLOG(0,"L0 group multiplicity distribution:\n");
          L0stats.report_multiplicities(reportfp);
 
-         GLOG(0,"L1 & L2 groups min size = %d\n", minhalosize);
-         GLOG(0,"L1 groups required %f G distances, %f G sorts, %f G centers, %f G cg\n", numdists1/1e9, numsorts1/1e9, numcenters1/1e9, numcg1/1e9);
-         GLOG(0,"L2 groups required %f G distances, %f G sorts, %f G centers, %f G cg\n", numdists2/1e9, numsorts2/1e9, numcenters2/1e9, numcg2/1e9);
+         GLOG(0,"L1 & L2 groups min size = {:d}\n", minhalosize);
+         GLOG(0,"L1 groups required {:f} G distances, {:f} G sorts, {:f} G centers, {:f} G cg\n", numdists1/1e9, numsorts1/1e9, numcenters1/1e9, numcg1/1e9);
+         GLOG(0,"L2 groups required {:f} G distances, {:f} G sorts, {:f} G centers, {:f} G cg\n", numdists2/1e9, numsorts2/1e9, numcenters2/1e9, numcg2/1e9);
          GLOG(0,"L1 group multiplicity distribution:\n");
-         GLOG(0,"Total number of L1 groups considered %f M\n", numgroups1/1e6);
+         GLOG(0,"Total number of L1 groups considered {:f} M\n", numgroups1/1e6);
          L1stats.report_multiplicities(reportfp);
          GLOG(0,"L2 group multiplicity distribution:\n");
-         GLOG(0,"Total number of L2 groups considered %f M\n", numgroups2/1e6);
+         GLOG(0,"Total number of L2 groups considered {:f} M\n", numgroups2/1e6);
      L2stats.report_multiplicities(reportfp);
      
          float total_time = CellGroupTime.Elapsed()+
@@ -261,44 +261,44 @@ class GroupFindingControl {
          GLOG(0,"Timings: \n");
          #define RFORMAT(a) a.Elapsed(), a.Elapsed()/total_time*100.0
          #define CFORMAT(a) a.Elapsed(), a.Elapsed()/total_cycle*100.0
-         GLOG(0,"Finding Cell Groups:     %8.4f sec (%5.2f%%)\n",
+         GLOG(0,"Finding Cell Groups:     {:8.4f} sec ({:5.2f}%)\n",
                         RFORMAT(CellGroupTime));
-         GLOG(0,"Creating Faces:          %8.4f sec (%5.2f%%)\n",
+         GLOG(0,"Creating Faces:          {:8.4f} sec ({:5.2f}%)\n",
                         RFORMAT(CreateFaceTime));
-         GLOG(0,"Finding Group Links:     %8.4f sec (%5.2f%%)\n",
+         GLOG(0,"Finding Group Links:     {:8.4f} sec ({:5.2f}%)\n",
                         RFORMAT(FindLinkTime));
-         GLOG(0,"Sort Links:              %8.4f sec (%5.2f%%)\n",
+         GLOG(0,"Sort Links:              {:8.4f} sec ({:5.2f}%)\n",
                         RFORMAT(SortLinks));
-         GLOG(0,"Index Links:             %8.4f sec (%5.2f%%)\n",
+         GLOG(0,"Index Links:             {:8.4f} sec ({:5.2f}%)\n",
                         RFORMAT(IndexLinks));
-         // printf("     Searching:               %8.4f sec\n", IndexLinksSearch.Elapsed());
-         GLOG(0,"Indexing (P):                %8.4g cyc\n", IndexLinksIndex.Elapsed());
-         GLOG(0,"Defer Groups:            %8.4f sec (%5.2f%%)\n",
+         // fmt::print("     Searching:               {:8.4f} sec\n", IndexLinksSearch.Elapsed());
+         GLOG(0,"Indexing (P):                {:8.4g} cyc\n", IndexLinksIndex.Elapsed());
+         GLOG(0,"Defer Groups:            {:8.4f} sec ({:5.2f}%)\n",
                         RFORMAT(DeferGroups));
-         GLOG(0,"Find Global Groups:      %8.4f sec (%5.2f%%)\n",
+         GLOG(0,"Find Global Groups:      {:8.4f} sec ({:5.2f}%)\n",
                         RFORMAT(FindGlobalGroupTime));
-         GLOG(0,"Clear Deferrals:         %8.4f sec (%5.2f%%)\n",
+         GLOG(0,"Clear Deferrals:         {:8.4f} sec ({:5.2f}%)\n",
                         RFORMAT(ClearDefer));
-         GLOG(0,"Index Global Groups:     %8.4f sec (%5.2f%%)\n",
+         GLOG(0,"Index Global Groups:     {:8.4f} sec ({:5.2f}%)\n",
                         RFORMAT(IndexGroups));
-         GLOG(0,"Gather Group Particles:  %8.4f sec (%5.2f%%)\n",
+         GLOG(0,"Gather Group Particles:  {:8.4f} sec ({:5.2f}%)\n",
                         RFORMAT(GatherGroups));
-         GLOG(0,"Level 1 & 2 Processing:  %8.4f sec (%5.2f%%)\n",
+         GLOG(0,"Level 1 & 2 Processing:  {:8.4f} sec ({:5.2f}%)\n",
                         RFORMAT(ProcessLevel1));
      total_cycle = L1Tot.Elapsed();
-         GLOG(0,"Level 1 FOF (P):               %8.4g cyc (%5.2f%%)\n",
+         GLOG(0,"Level 1 FOF (P):               {:8.4g} cyc ({:5.2f}%)\n",
                         CFORMAT(L1FOF));
-         GLOG(0,"Level 2 FOF (P):               %8.4g cyc (%5.2f%%)\n",
+         GLOG(0,"Level 2 FOF (P):               {:8.4g} cyc ({:5.2f}%)\n",
                         CFORMAT(L2FOF));
-         GLOG(0,"Level 1 Total (P):             %8.4g cyc (%5.2f%%)\n",
+         GLOG(0,"Level 1 Total (P):             {:8.4g} cyc ({:5.2f}%)\n",
                         CFORMAT(L1Tot));
-         GLOG(0,"Level 1 Output:          %8.4f sec (%5.2f%%)\n",
+         GLOG(0,"Level 1 Output:          {:8.4f} sec ({:5.2f}%)\n",
             RFORMAT(OutputLevel1));
-         GLOG(0,"Scatter Aux:             %8.4f sec (%5.2f%%)\n",
+         GLOG(0,"Scatter Aux:             {:8.4f} sec ({:5.2f}%)\n",
             RFORMAT(ScatterAux));
-         GLOG(0,"Scatter Group Particles: %8.4f sec (%5.2f%%)\n",
+         GLOG(0,"Scatter Group Particles: {:8.4f} sec ({:5.2f}%)\n",
                         RFORMAT(ScatterGroups));
-         GLOG(0,"Total Booked Time:       %8.4f sec (%5.2f Mp/sec)\n", total_time, np/total_time*1e-6);
+         GLOG(0,"Total Booked Time:       {:8.4f} sec ({:5.2f} Mp/sec)\n", total_time, np/total_time*1e-6);
          #undef RFORMAT
     }
 };
@@ -408,7 +408,7 @@ void GroupFindingControl::ConstructCellGroups(int slab) {
     uint64 tot = cellgroups[slab].get_slab_size();
     CGtot += tot;
     cellgroups_status[slab] = 1;
-    STDLOG(2,"Found %d cell groups in slab %d\n", tot, slab);
+    STDLOG(2,"Found {:d} cell groups in slab {:d}\n", tot, slab);
     CellGroupTime.Stop();
     return;
 }
@@ -477,14 +477,14 @@ void FindAndProcessGlobalGroups(int slab) {
     GFC->globalslabs[slab] = GGS;
     GGS->setup(slab);
     GGS->CreateGlobalGroups();
-    STDLOG(2,"Closed global groups in slab %d, finding %d groups involving %d cell groups\n",
+    STDLOG(2,"Closed global groups in slab {:d}, finding {:d} groups involving {:d} cell groups\n",
         slab, GGS->globalgroups.get_slab_size(), GGS->globalgrouplist.get_slab_size());
     GFC->GGtot += GGS->globalgroups.get_slab_size();
 
     // Now process and output each one....
     // Start by gathering all of the particles into a contiguous set.
     GGS->GatherGlobalGroups();
-    STDLOG(1,"Gathered %d particles from global groups in slab %d\n", GGS->np, slab);
+    STDLOG(1,"Gathered {:d} particles from global groups in slab {:d}\n", GGS->np, slab);
     GFC->largest_GG = std::max(GFC->largest_GG, GGS->largest_group);
     // TODO: This largest_GG work is now superceded by MultiplicityHalos
     // The GGS->globalgroups[j][k][n] now reference these as [start,start+np)
@@ -505,7 +505,7 @@ void FindAndProcessGlobalGroups(int slab) {
     // We have a split time slice output model where non-L0 particles and L0 particles go in separate files
     if(ReadState.DoTimeSliceOutput){
         FLOAT unkickfactor = WriteState.FirstHalfEtaKick;
-        STDLOG(1,"Outputting L0 group particles in slab %d with unkick factor %f\n", slab, unkickfactor);
+        STDLOG(1,"Outputting L0 group particles in slab {:d} with unkick factor {:f}\n", slab, unkickfactor);
         GFC->n_L0_output += GGS->L0TimeSliceOutput(unkickfactor);
     }
 #endif

@@ -14,6 +14,9 @@ CPPFLAGS += -D_FORCE_INLINES
 
 CUDAFLAGS := $(ARCHFLAGS) -lineinfo -Xptxas="-v" --default-stream per-thread $(NVCC_FLAGS)
 
+# for fmt "warning #128-D: loop is not reachable"
+CUDAFLAGS += -diag-suppress 128
+
 all: gpudirect.a
 
 gpudirect.a: GPUControl.o

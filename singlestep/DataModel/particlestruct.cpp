@@ -293,7 +293,7 @@ public:
         if(enc == -1) enc = 0;
         if(enc == 2*iscale + 1) enc = 2*iscale;  // we could represent this overflow, but let's be symmetric
         
-        assertf(enc >= 0 && enc < 1<<16, "Cannot pack float %g with invscale %g\n", f, invfscale);
+        assertf(enc >= 0 && enc < 1<<16, "Cannot pack float {:g} with invscale {:g}\n", f, invfscale);
         return (uint16) enc;
     }
 
@@ -358,31 +358,31 @@ public:
         // Do a sanity check on the cellinfo values; return 1 if ok, 0 if not.
         // slabsize is the number of particles in the slab.
         if(count<0){
-            STDLOG(0, "Bad 'count' in cellinfo: %d\n", count);
+            STDLOG(0, "Bad 'count' in cellinfo: {:d}\n", count);
             return 0;
         }
         if(active<0){
-            STDLOG(0, "Bad 'active' in cellinfo: %u\n", active);
+            STDLOG(0, "Bad 'active' in cellinfo: {:d}\n", active);
             return 0;
         }
         if(mean_square_velocity<0){
-            STDLOG(0, "Bad 'mean_square_velocity' in cellinfo: %u\n", mean_square_velocity);
+            STDLOG(0, "Bad 'mean_square_velocity' in cellinfo: {:d}\n", mean_square_velocity);
             return 0;
         }
 
         // startindex is meaningless in ghost cells
         if (!isghost && startindex+count > slabsize){
-            STDLOG(0, "'startindex+count' (%u + %d = %d) > 'slabsize' (%u) in cellinfo\n", startindex, count, startindex+count, slabsize);
+            STDLOG(0, "'startindex+count' ({:d} + {:d} = {:d}) > 'slabsize' ({:d}) in cellinfo\n", startindex, count, startindex+count, slabsize);
             return 0;
         }
         
         if (startindex_with_ghost + count > slabsize_with_ghost){
-            STDLOG(0, "'startindex_with_ghost+count' (%u + %d = %d) > 'slabsize_with_ghost' (%u) in cellinfo\n",
+            STDLOG(0, "'startindex_with_ghost+count' ({:d} + {:d} = {:d}) > 'slabsize_with_ghost' ({:d}) in cellinfo\n",
                 startindex_with_ghost, count, startindex_with_ghost+count, slabsize_with_ghost);
             return 0;
         }
         if (active>count){
-            STDLOG(0, "'active' (%d) > 'count' (%d) in cellinfo\n", active, count);
+            STDLOG(0, "'active' ({:d}) > 'count' ({:d}) in cellinfo\n", active, count);
             return 0;
         }
         return 1;
@@ -413,9 +413,9 @@ public:
     inline void swap(int a, int b) {
         // Swap two particles in the list
         /*assertf(a>=0&&a<ci->count,
-            "Particle a = %d is out of range %d\n", a, ci->count);
+            "Particle a = {:d} is out of range {:d}\n", a, ci->count);
         assertf(b>=0&&b<ci->count,
-            "Particle b = %d is out of range %d\n", b, ci->count);*/
+            "Particle b = {:d} is out of range {:d}\n", b, ci->count);*/
         posstruct ptmp; ptmp = pos[b]; pos[b] = pos[a]; pos[a] = ptmp; 
         velstruct vtmp; vtmp = vel[b]; vel[b] = vel[a]; vel[a] = vtmp; 
         auxstruct atmp; atmp = aux[b]; aux[b] = aux[a]; aux[a] = atmp;

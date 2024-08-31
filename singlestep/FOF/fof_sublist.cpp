@@ -451,12 +451,12 @@ class FOFcell {
 	np = ngroups = 0;
 	if (_size+16<maxsize) return;    // Do nothing if we have enough space
 	maxsize = _size*1.9+16;   // Oversize to limit the number of re-allocations
-	assertf(maxsize<8e6, "Maxsize %d is too large\n", maxsize);	
+	assertf(maxsize<8e6, "Maxsize {:d} is too large\n", maxsize);	
 	    // This is required because FOFparticle is storing the 
 	    // indices in a float.  We could in principle work around
 	    // this, by using additional bits in a negative exponent.
 	    // But current Abacus plans do not produce cells this big.
-	// printf("Allocating FOFCell to maxsize = %d\n", maxsize);
+	// fmt::print("Allocating FOFCell to maxsize = {:d}\n", maxsize);
         if (p!=NULL) free(p);
 	ret = posix_memalign((void **)&p, CACHE_LINE_SIZE, sizeof(FOFparticle)*maxsize);  assert(ret == 0);
 	memset(p, 0, sizeof(FOFparticle)*maxsize);
@@ -1107,7 +1107,7 @@ int main() {
     #pragma omp parallel for schedule(static)
     for (int g=0; g<omp_get_num_threads(); g++) {
 	doFOF[g].setup(b, 0.5-b);
-	if (g==0) STDLOG(3,"Using %d threads\n", omp_get_num_threads());
+	if (g==0) STDLOG(3,"Using {:d} threads\n", omp_get_num_threads());
     }
 
     STimer FOFtime;
@@ -1128,18 +1128,18 @@ int main() {
     // For timing, the quantity of interest is probably pairs per second.
     float Npair = (float)Ncell*cellsize*cellsize;
 
-    STDLOG(3,"Found %f groups per cell, on average\n", (float)ngroup/Ncell);
-    STDLOG(3,"Used %d pairwise calculations\n", doFOF[0].numdists);
-    STDLOG(3,"Time to do %d particles in %d cells: %f (%f Mp/sec, %f Gpair/sec)\n", 
+    STDLOG(3,"Found {:f} groups per cell, on average\n", (float)ngroup/Ncell);
+    STDLOG(3,"Used {:d} pairwise calculations\n", doFOF[0].numdists);
+    STDLOG(3,"Time to do {:d} particles in {:d} cells: {:f} ({:f} Mp/sec, {:f} Gpair/sec)\n", 
     	cellsize, Ncell, FOFtime.Elapsed(), cellsize*Ncell/FOFtime.Elapsed()/1e6,
 	doFOF[0].numdists/doFOF[0].time_total.Elapsed()/1e9);
-    STDLOG(3,"Copy:      %f\n", doFOF[0].time_copy.Elapsed());
-    STDLOG(3,"   Distances: %f\n", doFOF[0].time_d2.Elapsed());
-    STDLOG(3,"   Partition: %f\n", doFOF[0].time_partition.Elapsed());
-    STDLOG(3,"   Close Groups: %f\n", doFOF[0].time_close.Elapsed());
-    STDLOG(3,"FOF:       %f\n", doFOF[0].time_fof.Elapsed());
-    STDLOG(3,"Permute:   %f\n", doFOF[0].time_permute.Elapsed());
-    STDLOG(3,"Total:     %f\n", doFOF[0].time_total.Elapsed());
+    STDLOG(3,"Copy:      {:f}\n", doFOF[0].time_copy.Elapsed());
+    STDLOG(3,"   Distances: {:f}\n", doFOF[0].time_d2.Elapsed());
+    STDLOG(3,"   Partition: {:f}\n", doFOF[0].time_partition.Elapsed());
+    STDLOG(3,"   Close Groups: {:f}\n", doFOF[0].time_close.Elapsed());
+    STDLOG(3,"FOF:       {:f}\n", doFOF[0].time_fof.Elapsed());
+    STDLOG(3,"Permute:   {:f}\n", doFOF[0].time_permute.Elapsed());
+    STDLOG(3,"Total:     {:f}\n", doFOF[0].time_total.Elapsed());
     return 0;
 }
 

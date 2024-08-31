@@ -86,7 +86,7 @@ void KickCell_2LPT_1(Cell &c, FLOAT kick1, FLOAT kick2, int _set_aux_dens) {
 }
 
 void DriftCell_2LPT_1(Cell &c, FLOAT driftfactor) {
-    assertf(P.is_np_perfect_cube(), "LPT reconstruction requires np (%d) to be a perfect cube.\n",P.np);
+    assertf(P.is_np_perfect_cube(), "LPT reconstruction requires np ({:d}) to be a perfect cube.\n",P.np);
     int e = c.count();
 #ifdef GLOBALPOS
     // Set cellcenter to zero to return to box-centered positions
@@ -114,7 +114,7 @@ void KickCell_2LPT_2(Cell &c, FLOAT kick1, FLOAT kick2, int _set_aux_dens) {
 
 void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
     // Now we have to adjust the positions and velocities
-    assertf(P.is_np_perfect_cube(), "LPT reconstruction requires np (%d) to be a perfect cube.\n",P.np);
+    assertf(P.is_np_perfect_cube(), "LPT reconstruction requires np ({:d}) to be a perfect cube.\n",P.np);
     int e = c.count();
     posstruct displ1, displ2;
     // This is the factor to convert from redshift-space displacements
@@ -215,7 +215,7 @@ void DriftCell_2LPT_3(Cell &c, FLOAT driftfactor) {
         // Third order displacement
         displ3 = (2./(3*H*H*P.Omega_M)*TOFLOAT3(c.acc[b]) - (7./(3*H*WriteState.f_growth*convert_velocity)*c.vel[b] - 4./3*displ12))/6;
         displ3 -= displ3.round();
-        assertf(displ3.norm() < displ12.norm(), "Error: 3rd-order LPT displacement (%f, %f, %f) is larger than 1st+2nd order (%f, %f, %f)!\n",
+        assertf(displ3.norm() < displ12.norm(), "Error: 3rd-order LPT displacement ({:f}, {:f}, {:f}) is larger than 1st+2nd order ({:f}, {:f}, {:f})!\n",
                displ3.x, displ3.y, displ3.z, displ12.x, displ12.y, displ12.z);
 
         c.pos[b] = ZelPos(c.aux[b].xyz())-cellcenter + displ12 + displ3;

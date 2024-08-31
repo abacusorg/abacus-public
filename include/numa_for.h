@@ -131,7 +131,7 @@ void init_numa_for(int nthreads, int const *core_assignments){
 
     // First, determine which NUMA nodes have active CPUs and index them contiguously
     int max_node = numa_max_node();
-    STDLOG(3, "Max NUMA node: %d\n", max_node);
+    STDLOG(3, "Max NUMA node: {:d}\n", max_node);
     struct bitmask *bm = numa_allocate_cpumask();
     int numa_node_squashed_index[max_node+1];  // index of node, skipping empties
     _N_numa_nodes = 0;  // number of non-empty numa nodes
@@ -140,13 +140,13 @@ void init_numa_for(int nthreads, int const *core_assignments){
             numa_node_squashed_index[i] = -1;
             continue;
         }
-        assertf(numa_node_to_cpus(i, bm) == 0, "NUMA detection failed (errno: %d)\n", errno);
+        assertf(numa_node_to_cpus(i, bm) == 0, "NUMA detection failed (errno: {:d})\n", errno);
         int cpus_on_node = numa_bitmask_weight(bm);
         if(cpus_on_node)
             numa_node_squashed_index[i] = _N_numa_nodes++;
         else
             numa_node_squashed_index[i] = -1;
-        STDLOG(3,"%d cpus on NUMA node %d, squashed index %d\n", cpus_on_node, i, numa_node_squashed_index[i]);
+        STDLOG(3,"{:d} cpus on NUMA node {:d}, squashed index {:d}\n", cpus_on_node, i, numa_node_squashed_index[i]);
     }
     numa_free_cpumask(bm);
 
@@ -161,12 +161,12 @@ void init_numa_for(int nthreads, int const *core_assignments){
         _thread_numa_nodes[i] = numa_node_squashed_index[nncpu];
         assertf(_thread_numa_nodes[i] != -1, "NUMA failure!\n");
         _nthread_per_numa_node[_thread_numa_nodes[i]]++;
-        STDLOG(3,"Thread %d on core %d on NUMA node %d\n",
+        STDLOG(3,"Thread {:d} on core {:d} on NUMA node {:d}\n",
             i, core_assignments[i], _thread_numa_nodes[i]);
     }
 
     for(int i = 0; i < _N_numa_nodes; i++)
-        STDLOG(1,"NUMA_FOR configured with %d threads on NUMA node %d\n", _nthread_per_numa_node[i], i);
+        STDLOG(1,"NUMA_FOR configured with {:d} threads on NUMA node {:d}\n", _nthread_per_numa_node[i], i);
 
     _numa_cumulative_nthread[0] = 0;
     for(int i = 1; i < _N_numa_nodes+1; i++){

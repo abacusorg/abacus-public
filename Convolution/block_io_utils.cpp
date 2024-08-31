@@ -108,7 +108,7 @@ public:
 			
 	            int x = _x % cpd;
 
-				STDLOG(1,"Reading multipoles for x-slab %d\n", x);
+				STDLOG(1,"Reading multipoles for x-slab {:d}\n", x);
 
 	            // Different threads are responsible for different files (but they all read into one block)
 	            if (x % CP.niothreads != thread_num)
@@ -143,23 +143,23 @@ public:
 	                // Or is it that bad to require zwidth = full?
 					
 					
-	                int fd = open(ramdisk_fn, shm_fd_flags, S_IRUSR | S_IWUSR);
-	                assertf(fd != -1, "Failed to open shared memory file at \"%s\"\n", ramdisk_fn);
+	                int fd = open(ramdisk_fn.c_str(), shm_fd_flags, S_IRUSR | S_IWUSR);
+	                assertf(fd != -1, "Failed to open shared memory file at \"{}\"\n", ramdisk_fn);
 					
 
 	                if(!CP.OverwriteConvState){
 	                    // expand the Taylors file
 	                    // TODO: page alignment?
 	                    int res = ftruncate(fd, file_offset + size);
-	                    assertf(res == 0, "ftruncate on shared memory ramdisk_fn = %s to size = %d failed\n", ramdisk_fn, file_offset + size);
+	                    assertf(res == 0, "ftruncate on shared memory ramdisk_fn = {} to size = {:d} failed\n", ramdisk_fn, file_offset + size);
 	                }
                 	mtblock[x] = (MTCOMPLEX *) mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, file_offset);
 					
 					
 	                int res = close(fd);
-	                assertf((void *) mtblock[x] != MAP_FAILED, "%d mmap shared memory from fd = %d of size = %d at offset = %d failed\n", MPI_rank, fd, size, file_offset);
-	                assertf(mtblock[x] != NULL, "mmap shared memory from fd = %d of size = %d at offset = %d failed\n", fd, size, file_offset);
-	                assertf(res == 0, "Failed to close fd %d\n", fd);
+	                assertf((void *) mtblock[x] != MAP_FAILED, "{:d} mmap shared memory from fd = {:d} of size = {:d} at offset = {:d} failed\n", MPI_rank, fd, size, file_offset);
+	                assertf(mtblock[x] != NULL, "mmap shared memory from fd = {:d} of size = {:d} at offset = {:d} failed\n", fd, size, file_offset);
+	                assertf(res == 0, "Failed to close fd {:d}\n", fd);
 			
 	               
 	            } else {
@@ -175,7 +175,7 @@ public:
 	            }
 				
 				
-				STDLOG(1,"Finished reading multipoles for x-slab %d\n", x);
+				STDLOG(1,"Finished reading multipoles for x-slab {:d}\n", x);
 			
 			
         }
@@ -197,7 +197,7 @@ public:
 		 MPI_Type_size(MPI_skewer, &size_skewer);
 		 assert(size_skewer == sizeof(MTCOMPLEX)*rml_times_cpd);
 		 
-		STDLOG(1,"Beginning first transpose for zstart with int64 %d\n", zstart);
+		STDLOG(1,"Beginning first transpose for zstart with int64 {:d}\n", zstart);
 		 
 	 
 
@@ -206,7 +206,7 @@ public:
 		int recvcounts[MPI_size];
 		int    rdispls[MPI_size];
 		
-		STDLOG(1,"Allocated send/recvcounts/displs. %d\n", zstart);
+		STDLOG(1,"Allocated send/recvcounts/displs. {:d}\n", zstart);
 		
 		
 		for (int i = 0; i < MPI_size; i++)
@@ -229,20 +229,20 @@ public:
 			recvcounts[i] = total_slabs_all[i];
 			rdispls[i]    = (first_slabs_all[i] - first_slabs_all[0]);
 			if (rdispls[i] < 0) rdispls[i]  += cpd;
-            STDLOG(1,"Send to node %d: %d %d\n", i, sendcounts[i], sdispls[i]);
-            STDLOG(1,"Receive from node %d: %d %d\n", i, recvcounts[i], rdispls[i]);
+            STDLOG(1,"Send to node {:d}: {:d} {:d}\n", i, sendcounts[i], sdispls[i]);
+            STDLOG(1,"Receive from node {:d}: {:d} {:d}\n", i, recvcounts[i], rdispls[i]);
 			
 			
-			//printf("%d %d %d %d %d\n", i, sendcounts[i], sdispls[i], recvcounts[i], rdispls[i]);
+			//fmt::print("{:d} {:d} {:d} {:d} {:d}\n", i, sendcounts[i], sdispls[i], recvcounts[i], rdispls[i]);
 			
             // DJE TODO: Is this assuming that first_slabs_all[] is monotonically increasing?
 #endif					
 		}
 		
-		STDLOG(1,"Populated send/recvcounts/displs. %d\n", zstart);
+		STDLOG(1,"Populated send/recvcounts/displs. {:d}\n", zstart);
 		
 		
-		//STDLOG(1, "zslabspernode = %d\n", z_slabs_per_node);
+		//STDLOG(1, "zslabspernode = {:d}\n", z_slabs_per_node);
 		
         for (int zbig=0; zbig<z_slabs_per_node; zbig++) {
 			
@@ -252,7 +252,7 @@ public:
           // Each one will send one z (and all x's) to each node.
           // The z's being sent in each call are spaced out, so that after all of the
           // MPI calls, each node will have a contiguous range of z's.
-          //STDLOG(1, "Starting first transpose zbig = %d\n", zbig);
+          //STDLOG(1, "Starting first transpose zbig = {:d}\n", zbig);
 
 		//for(int z=0; z< z_slabs_per_node * MPI_size; z++)
           for (int zr=0; zr<MPI_size; zr++) {
@@ -260,7 +260,7 @@ public:
 #pragma omp parallel for schedule(static)
 			for(int x=0; x<total_slabs_on_node;x++){	
                 if (z < zwidth) {
-                    //STDLOG(1, "Loading z=%d x=%d into zr=%d x=%d, slot %d\n", z, (x+first_slab_on_node)%cpd, zr, x, zr*total_slabs_on_node+x);
+                    //STDLOG(1, "Loading z={:d} x={:d} into zr={:d} x={:d}, slot {:d}\n", z, (x+first_slab_on_node)%cpd, zr, x, zr*total_slabs_on_node+x);
                     #ifdef DO_NOTHING
                     // Overwrite the values
                     for(int m=0;m<rml;m++)
@@ -274,7 +274,7 @@ public:
                         &(mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + 0*cpd + 0 ]),
                         sizeof(MTCOMPLEX)*rml_times_cpd);
                 } else {
-                    //STDLOG(1, "Zeroing z=%d x=%d in slot zr=%d x=%d\n", z, (x+first_slab_on_node)%cpd, zr, x);
+                    //STDLOG(1, "Zeroing z={:d} x={:d} in slot zr={:d} x={:d}\n", z, (x+first_slab_on_node)%cpd, zr, x);
                      memset(
 						&(sendbuf[rml_times_cpd * zr*total_slabs_on_node + rml_times_cpd * x + 0*cpd + 0]),
                         0, sizeof(MTCOMPLEX)*rml_times_cpd);
@@ -285,7 +285,7 @@ public:
 					for(int y=0;y<cpd;y++){
 						uint64_t i = rml_times_cpd * zr*total_slabs_on_node + rml_times_cpd * x + m*cpd + y;
 						
-						assertf(sizeof(MTCOMPLEX)*i<sendbufsize, "%ld, %d %d %d %d, %ld", i, z, x, m, y, sendbufsize);
+						assertf(sizeof(MTCOMPLEX)*i<sendbufsize, "{:d}, {:d} {:d} {:d} {:d}, {:d}", i, z, x, m, y, sendbufsize);
 						
 						
 						if (z < zwidth) sendbuf[i] = mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + m*cpd + y ];
@@ -296,7 +296,7 @@ public:
 			}
 		  } // End zr loop
 		
-		STDLOG(1,"Populated sendbuf. %d\n", zbig);
+		STDLOG(1,"Populated sendbuf. {:d}\n", zbig);
 	
         // TODO: are these barriers needed?
 		MPI_Barrier(MPI_COMM_WORLD);
@@ -319,7 +319,7 @@ public:
 		
 		
 		
-		STDLOG(1,"Did Alltoallv. %d\n", zbig);
+		STDLOG(1,"Did Alltoallv. {:d}\n", zbig);
 		
 	
 		uint64_t r = 0; 
@@ -328,7 +328,7 @@ public:
             for (int i = 0; i < MPI_size; i ++){		
 				//#pragma omp parallel for schedule(static)					
 				for(int x=0; x<total_slabs_all[i]; x++){
-                    //STDLOG(1, "Storing slot %d into z=%d x=%d\n", r/rml_times_cpd, z, (x+first_slabs_all[i])%cpd);
+                    //STDLOG(1, "Storing slot {:d} into z={:d} x={:d}\n", r/rml_times_cpd, z, (x+first_slabs_all[i])%cpd);
                     memcpy( &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + 0*cpd + 0]),
                             &(recvbuf[r]),
                             sizeof(MTCOMPLEX)*rml_times_cpd);
@@ -340,7 +340,7 @@ public:
                         for(int y=0;y<cpd;y++) 
                             assertf(mttmp[m*cpd+y] == 
                                 MTCOMPLEX(z*1000+((x + first_slabs_all[i] + 1) % cpd), m*1000+y),
-                                "Echoing test failed: %d %d %d %d %d %d mt[%d][%d].  Output %f %f\n",
+                                "Echoing test failed: {:d} {:d} {:d} {:d} {:d} {:d} mt[{:d}][{:d}].  Output {:f} {:f}\n",
                                 zbig, z, i, x, m, y, 
                                 (x + first_slabs_all[i] + 1) % cpd, rml_times_cpd*z + m*cpd + y,
                                 real(mttmp[m*cpd+y]),
@@ -361,7 +361,7 @@ public:
 		
         }
 		
-		STDLOG(1,"Finishing first transpose for zstart %d\n", zstart);
+		STDLOG(1,"Finishing first transpose for zstart {:d}\n", zstart);
 				
 		TransposeBuffering.Stop(thread_num); 
 				
@@ -373,7 +373,7 @@ public:
 		TransposeBuffering.Start(thread_num); 
 		
 		
-		STDLOG(1,"Beginning second transpose for zstart %d\n", zstart);
+		STDLOG(1,"Beginning second transpose for zstart {:d}\n", zstart);
 		
 		uint64_t rml_times_cpd = rml * cpd; 
 		
@@ -415,7 +415,7 @@ public:
           // Each one will send one z (and all x's) to each node.
           // The z's being sent in each call are spaced out, so that after all of the
           // MPI calls, each node will have a contiguous range of z's.
-			// STDLOG(1, "Starting second transpose zbig = %d\n", zbig);
+			// STDLOG(1, "Starting second transpose zbig = {:d}\n", zbig);
 		  
 		  
 
@@ -426,13 +426,13 @@ public:
 				 //#pragma omp parallel for schedule(static)				 		
 					for(int x=0; x<total_slabs_all[i]; x++){
 						 if (z < zwidth) {
-	                        //STDLOG(1, "Loading z=%d x=%d into slot %d\n", z, (x+first_slabs_all[i])%cpd, r/rml_times_cpd);
+	                        //STDLOG(1, "Loading z={:d} x={:d} into slot {:d}\n", z, (x+first_slabs_all[i])%cpd, r/rml_times_cpd);
 	                        memcpy( &(sendbuf[r]),
 	                            &(mtblock[(x + first_slabs_all[i] + 1) % cpd][rml_times_cpd*z + 0*cpd + 0]),
 	                            sizeof(MTCOMPLEX)*rml_times_cpd);
 							
 						 } else {
-                        	//STDLOG(1, "Zeroing zr=%d x=%d into slot %d\n", z, (x+first_slabs_all[i])%cpd, r/rml_times_cpd);
+                        	//STDLOG(1, "Zeroing zr={:d} x={:d} into slot {:d}\n", z, (x+first_slabs_all[i])%cpd, r/rml_times_cpd);
                          	memset( &(sendbuf[r]), 0, sizeof(MTCOMPLEX)*rml_times_cpd);
                      	 }
 						 
@@ -480,7 +480,7 @@ public:
 				
 				if (z < zwidth) {
 				
-	               // STDLOG(1,"Storing zr=%d x=%d, slot %d, into z=%d x=%d\n", zr, x, zr*total_slabs_on_node+x,
+	               // STDLOG(1,"Storing zr={:d} x={:d}, slot {:d}, into z={:d} x={:d}\n", zr, x, zr*total_slabs_on_node+x,
 	                //    z, (x + first_slab_on_node) % cpd);
 	                #ifndef DO_NOTHING
 	                memcpy( &( mtblock[(x + first_slab_on_node + 1) % cpd][rml_times_cpd*z + 0*cpd + 0 ]),
@@ -494,7 +494,7 @@ public:
 	                        for(int y=0;y<cpd;y++) 
 	                            assertf(rtmp[m*cpd+y] == 
 	                                MTCOMPLEX(z*1000+((x + first_slab_on_node + 1) % cpd), m*1000+y),
-	                                "Echoing test failed: rank %d zbig %d zr %d z %d x %d m %d y %d mt[%d][%d].  Input %f %f, Output %f %f. firstslab = %d. cpd = %d. x = %d\n", 
+	                                "Echoing test failed: rank {:d} zbig {:d} zr {:d} z {:d} x {:d} m {:d} y {:d} mt[{:d}][{:d}].  Input {:f} {:f}, Output {:f} {:f}. firstslab = {:d}. cpd = {:d}. x = {:d}\n", 
 	                                MPI_rank, 
 									zbig, zr, z, x, m, y, 
 	                                (x + first_slab_on_node + 1) % cpd, rml_times_cpd*z + m*cpd + y,
@@ -518,7 +518,7 @@ public:
 		  }			
 		
         }  // zbig
-		STDLOG(1,"Finishing second transpose for zstart %d\n", zstart);
+		STDLOG(1,"Finishing second transpose for zstart {:d}\n", zstart);
 		TransposeBuffering.Stop(thread_num); 
 		
 	}
@@ -537,7 +537,7 @@ public:
         for(int _x = first_slab_on_node; _x < first_slab_on_node + total_slabs_on_node; _x++) {
             int x = _x % cpd;
 			
-			STDLOG(1,"Beginning write for x %d\n", x);
+			STDLOG(1,"Beginning write for x {:d}\n", x);
 			
 			
             if (x % CP.niothreads != thread_num)
@@ -546,7 +546,7 @@ public:
             char fn[1024];
             CP.TaylorFN(x, fn);
 
-			STDLOG(1, "Writing out to Taylor x-slab %d \n", x);	
+			STDLOG(1, "Writing out to Taylor x-slab {:d} \n", x);	
 			
             // The convolve code expects the data from file x to be in mtblock[x+1]
             x = (x+1)%cpd;			
@@ -574,7 +574,7 @@ public:
                 }
             }
         
-			STDLOG(1,"Finishing write for x %d\n", x);
+			STDLOG(1,"Finishing write for x {:d}\n", x);
 			
 		}
         
@@ -615,15 +615,15 @@ public:
                     int res = munmap(dblock[z-zstart], size);
                     assertf(res == 0, "Failed to munmap derivs\n");
                 }
-                int fd = open(fn, O_RDWR, S_IRUSR | S_IWUSR);
-                assertf(fd != -1, "Failed to open shared memory file at \"%s\"\n", fn);
+                int fd = open(fn.c_str(), O_RDWR, S_IRUSR | S_IWUSR);
+                assertf(fd != -1, "Failed to open shared memory file at \"{}\"\n", fn);
                 
                 // map the shared memory fd to an address
                 dblock[z-zstart] = (DFLOAT *) mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
                 int res = close(fd);
-                assertf((void *) dblock[z-zstart] != MAP_FAILED, "mmap shared memory from fd = %d of size = %d failed\n", fd, size);
-                assertf(dblock[z-zstart] != NULL, "mmap shared memory from fd = %d of size = %d failed\n", fd, size);
-                assertf(res == 0, "Failed to close fd %d\n", fd);
+                assertf((void *) dblock[z-zstart] != MAP_FAILED, "mmap shared memory from fd = {:d} of size = {:d} failed\n", fd, size);
+                assertf(dblock[z-zstart] != NULL, "mmap shared memory from fd = {:d} of size = {:d} failed\n", fd, size);
+                assertf(res == 0, "Failed to close fd {:d}\n", fd);
             }
         }
         

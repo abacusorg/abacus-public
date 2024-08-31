@@ -83,11 +83,11 @@ void ConfirmSorting(ilstruct *il, uint64 len) {
     // Just an extra check that sorting is working
     for (uint64 j=0; j+1<len; j++) 
     assertf(il[j].key()<=il[j+1].key(), 
-            "Insert list sorting failed: il[%d]=%d,  il[%d]=%d\n",
+            "Insert list sorting failed: il[{:d}]={:d},  il[{:d}]={:d}\n",
         j, il[j].key(), j+1, il[j+1].key());
     
 
-    //STDLOG(1, "Sorting confirmed on insert list segment of length %d\n", len);
+    //STDLOG(1, "Sorting confirmed on insert list segment of length {:d}\n", len);
 }
 
 void ConfirmPartition(ilstruct *il, uint64 len, int slab) {
@@ -97,11 +97,11 @@ void ConfirmPartition(ilstruct *il, uint64 len, int slab) {
         if(il[j].newslab == slab)
             n_partitioned++;
         assertf((il[j].newslab == slab) == (n_partitioned > 0),
-                "Insert list partitioning failed: il[%d].slab = %d; partition slab = %d; n_partitioned = %d\n",
+                "Insert list partitioning failed: il[{:d}].slab = {:d}; partition slab = {:d}; n_partitioned = {:d}\n",
                 j, il[j].newslab, slab, n_partitioned);
     }
 
-    STDLOG(2, "Partitioning confirmed on insert list of length %d for slab %d (found %d partitioned particles)\n", len, slab, n_partitioned);
+    STDLOG(2, "Partitioning confirmed on insert list of length {:d} for slab {:d} (found {:d} partitioned particles)\n", len, slab, n_partitioned);
 }
 
 
@@ -120,13 +120,13 @@ public:
         clearLC = _clearLC;  // LC bits used as vel bits in 2LPT
 
         L2cache_bytes = (size_t) std::round(P.getCacheSize(2)*(1<<20));
-        STDLOG(2, "il sorting will use L2cache=%.3g MiB sublist size\n", (float)L2cache_bytes/(1<<20));
+        STDLOG(2, "il sorting will use L2cache={:.3g} MiB sublist size\n", (float)L2cache_bytes/(1<<20));
 
         assertf(cpd <= 0xFFFF, "CPD too large for ilstruct 16-bit indices\n");
         return;
     }
     ~InsertList(void) {
-        STDLOG(0, "Insert list peak usage was %.1f%%\n", 100.*longest/maxlist);
+        STDLOG(0, "Insert list peak usage was {:.1f}%\n", 100.*longest/maxlist);
     }
 
     // Push to the end of the list and grow
@@ -167,7 +167,7 @@ public:
         // Find the new cell, changing the position as appropriate.
         // This is for cell-referenced positions
         assertf(fabs(pos->x)<0.5&&fabs(pos->y)<0.5&&fabs(pos->z)<0.5,
-            "Particle has moved way too much: %f %f %f\n",
+            "Particle has moved way too much: {:f} {:f} {:f}\n",
             pos->x, pos->y, pos->z);
         while (pos->x>=phalfinvcpd) {
             oldx+=1; pos->x-=pinvcpd;
@@ -229,7 +229,7 @@ public:
                 newcell.x, x, FINISH_WAIT_RADIUS);
             printf("pos: %e %e %e; vel: %e %e %e; aux: %s; cell: %d %d %d\n", p.x, p.y, p.z, v.x, v.y, v.z, a.tostring().c_str(), c.x, c.y, c.z);
             assertf(slab_distance <= FINISH_WAIT_RADIUS,
-                "Trying to push a particle to slab %d from slab %d.  This is larger than FINISH_WAIT_RADIUS = %d.",
+                "Trying to push a particle to slab {:d} from slab {:d}.  This is larger than FINISH_WAIT_RADIUS = {:d}.",
                 x, newcell.x, FINISH_WAIT_RADIUS);
         }
         //*/   // DONE with REMOVED CHECK
@@ -286,7 +286,7 @@ ilstruct *InsertList::PartitionAndSort(int slab, uint64 *_slablength) {
     slablength = length - mid;
 
     FinishPartition.Stop();
-    STDLOG(3, "Partition done, yielding %d particles; starting sort.\n", slablength);
+    STDLOG(3, "Partition done, yielding {:d} particles; starting sort.\n", slablength);
 
     ilstruct *ilnew;
     assert(posix_memalign((void **)&ilnew, CACHE_LINE_SIZE, sizeof(ilstruct)*(slablength)) == 0);

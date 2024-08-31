@@ -24,13 +24,13 @@ int FetchPosSlabPrecondition(int slab) {
 }
 
 void FetchPosSlabAction(int slab) {
-    STDLOG(0,"Fetching slab %d with %d particles\n", slab, SS->size(slab));
+    STDLOG(0,"Fetching slab {:d} with {:d} particles\n", slab, SS->size(slab));
 
     // Load directly into the merge slabs
     SB->LoadArenaNonBlocking(MergeCellInfoSlab, slab);
     SB->LoadArenaNonBlocking(MergePosSlab, slab);
 
-    assertf(SS->size(slab)*sizeof(posstruct) <= fsize(SB->ReadSlabPath(PosSlab,slab).c_str()),
+    assertf(SS->size(slab)*sizeof(posstruct) <= fs::file_size(SB->ReadSlabPath(PosSlab,slab)),
         "PosSlab size doesn't match prediction\n");
 }
 
@@ -42,7 +42,7 @@ int FinishMultipolesPrecondition(int slab) {
 }
 
 void FinishMultipolesAction(int slab) {
-    STDLOG(1,"Finishing multipole slab %d\n", slab);
+    STDLOG(1,"Finishing multipole slab {:d}\n", slab);
         
     // Make the multipoles
 	int ramdisk_multipole_flag; 
@@ -63,10 +63,10 @@ void FinishMultipolesAction(int slab) {
 
 #ifdef PARALLEL	
 	QueueMultipoleMPI.Start();
-	 STDLOG(2, "Attempting to SendMultipoleSlab %d\n", slab);
+	 STDLOG(2, "Attempting to SendMultipoleSlab {:d}\n", slab);
 	 	ParallelConvolveDriver->SendMultipoleSlab(slab); //distribute z's to appropriate nodes for this node's x domain.
 	if (Finish.raw_number_executed==0){ //if we are finishing the first slab, set up receive MPI calls for incoming multipoles.
-		STDLOG(2, "Attempting to RecvMultipoleSlab %d\n", slab);
+		STDLOG(2, "Attempting to RecvMultipoleSlab {:d}\n", slab);
 		ParallelConvolveDriver->RecvMultipoleSlab(slab); //receive z's from other nodes for all x's.
 	}
 

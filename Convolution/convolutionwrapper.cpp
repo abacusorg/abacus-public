@@ -171,19 +171,19 @@ void setup_openmp(){
 #ifdef CONVIOTHREADED
     for (int i = 0; i < MAX_IO_THREADS; i++){
         P.Conv_IOCores[i] = P.Conv_IOCores[i];
-        //STDLOG(3, "IO thread %d assigned to core %d\n", i, P.Conv_IOCores[i]);
+        //STDLOG(3, "IO thread {:d} assigned to core {:d}\n", i, P.Conv_IOCores[i]);
     }
 #endif
     
     assertf(nthreads <= max_threads,
-        "Trying to use more OMP threads (%d) than omp_get_max_threads() (%d)!  This will cause global objects that have already used omp_get_max_threads() to allocate thread workspace (like PTimer) to fail.\n",
+        "Trying to use more OMP threads ({:d}) than omp_get_max_threads() ({:d})!  This will cause global objects that have already used omp_get_max_threads() to allocate thread workspace (like PTimer) to fail.\n",
         nthreads, max_threads);
     assertf(nthreads <= ncores,
-        "Trying to use more threads (%d) than cores (%d).  This will probably be very slow.\n",
+        "Trying to use more threads ({:d}) than cores ({:d}).  This will probably be very slow.\n",
         nthreads, ncores);
     
     omp_set_num_threads(nthreads);
-    STDLOG(1, "Initializing OpenMP with %d threads (system max is %d; P.Conv_OMP_NUM_THREADS is %d)\n", nthreads, max_threads, P.Conv_OMP_NUM_THREADS);
+    STDLOG(0, "Initializing OpenMP with {:d} threads (system max is {:d}; P.Conv_OMP_NUM_THREADS is {:d})\n", nthreads, max_threads, P.Conv_OMP_NUM_THREADS);
 
     // If threads are bound to cores via OMP_PROC_BIND,
     // then identify free cores for use by IO thread
@@ -194,20 +194,19 @@ void setup_openmp(){
         int core_assignments[nthreads];
         #pragma omp parallel for schedule(static)
         for(int g = 0; g < nthreads; g++){
-            assertf(g == omp_get_thread_num(), "OpenMP thread %d is executing wrong loop iteration (%d)\n", omp_get_thread_num(), g);
+            assertf(g == omp_get_thread_num(), "OpenMP thread {:d} is executing wrong loop iteration ({:d})\n", omp_get_thread_num(), g);
             core_assignments[g] = sched_getcpu();
         }
-        std::ostringstream core_log;
-        core_log << "Thread->core assignments:";
+        std::string core_log;
+        core_log += "Thread->core assignments:";
         for(int g = 0; g < nthreads; g++)
-            core_log << " " << g << "->" << core_assignments[g];
-        core_log << "\n";
-        STDLOG(1, core_log.str().c_str());
+            core_log += fmt::format(" {:d}->{:d}", g, core_assignments[g]);
+        STDLOG(1, "{}\n", core_log);
         
         // Assign the main CPU thread to core 0 to avoid the IO thread during serial parts of the code
         /*int main_thread_core = P.Conv_IOCore != 0 ? 0 : 1;
         set_core_affinity(main_thread_core);
-        STDLOG(1, "Assigning main convolution thread to core %d\n", main_thread_core);*/
+        STDLOG(1, "Assigning main convolution thread to core {:d}\n", main_thread_core);*/
 
         for(int g = 0; g < nthreads; g++)
             for(int h = 0; h < g; h++)
@@ -234,8 +233,8 @@ int choose_zwidth(int Conv_zwidth, int cpd, ConvolutionParameters &CP){
 #endif
     uint64_t zslabbytes = CP.rml*cpd*cpd*n_alloc_block*sizeof(MTCOMPLEX);
     zslabbytes += n_alloc_block*sizeof(DFLOAT)*CP.rml*CP.CompressedMultipoleLengthXY;  // derivatives block
-    STDLOG(0,"Each slab requires      %.2f MB\n",zslabbytes/1024/1024.);
-    STDLOG(0,"You allow a maximum of  %.2f MB\n",rambytes/1024/1024.);
+    STDLOG(0,"Each slab requires      {:.2f} MB\n",zslabbytes/1024/1024.);
+    STDLOG(0,"You allow a maximum of  {:.2f} MB\n",rambytes/1024/1024.);
     uint64_t swizzlebytes = CP.rml*cpd*cpd*sizeof(Complex);
     if(rambytes < zslabbytes) { 
         fprintf(stderr, "Each slab requires      %.2f MB\n", zslabbytes/1024/1024.);
@@ -251,18 +250,18 @@ int choose_zwidth(int Conv_zwidth, int cpd, ConvolutionParameters &CP){
     // TODO: need to support ramdisk offsets if we want to support zwidth < max
     if(CP.is_ramdisk()){
 		CP.z_slabs_per_node = (int)((cpd + 1)/2 / MPI_size) + 1; 
-        STDLOG(0, "Forcing zwidth = full and z_slabs_per_node = %d since we are using ramdisk\n", CP.z_slabs_per_node);
+        STDLOG(0, "Forcing zwidth = full and z_slabs_per_node = {:d} since we are using ramdisk\n", CP.z_slabs_per_node);
         return (cpd + 1)/2;  // full width
     }
 	
 	
 	//If we are doing a multi-node Convolve, set zwidth = 1. NAM TODO: May want to extend this to have multiple z per node later. 
 #ifdef PARALLEL
-	// STDLOG(0, "Forcing zwidth = %d in multi-node convolve, where each node does %d slab(s).\n", CP.z_slabs_per_node * MPI_size, CP.z_slabs_per_node);
+	// STDLOG(0, "Forcing zwidth = {:d} in multi-node convolve, where each node does {:d} slab(s).\n", CP.z_slabs_per_node * MPI_size, CP.z_slabs_per_node);
 // 	return CP.z_slabs_per_node * MPI_size;
 	
 	CP.z_slabs_per_node = (int)((cpd + 1)/2 / MPI_size) + 1; 
-    STDLOG(0, "Forcing zwidth = full and z_slabs_per_node = %d since we are using ramdisk\n", CP.z_slabs_per_node);
+    STDLOG(0, "Forcing zwidth = full and z_slabs_per_node = {:d} since we are using ramdisk\n", CP.z_slabs_per_node);
     return (cpd + 1)/2;  // full width
 #endif
 	
@@ -351,8 +350,8 @@ int main(int argc, char ** argv){
 	    ConvolutionParameters CP(MPI_size);
 	    CP.runtime_ConvolutionCacheSizeMB = P.ConvolutionCacheSizeMB;
 	    CP.runtime_ConvolutionL1CacheSizeMB = P.ConvolutionL1CacheSizeMB;
-        STDLOG(1, "Using L3 cache size %d MB\n", CP.runtime_ConvolutionCacheSizeMB);
-        STDLOG(1, "Using L1 cache size %d MB\n", CP.runtime_ConvolutionL1CacheSizeMB);
+        STDLOG(1, "Using L3 cache size {:f} MB\n", CP.runtime_ConvolutionCacheSizeMB);
+        STDLOG(1, "Using L1 cache size {:f} MB\n", CP.runtime_ConvolutionL1CacheSizeMB);
 	    CP.runtime_DerivativeExpansionRadius = P.DerivativeExpansionRadius;
 	    strcpy(CP.runtime_DerivativesDirectory,P.DerivativesDirectory);
 	    CP.runtime_DIOBufferSizeKB = 1LL<<11;
@@ -436,8 +435,8 @@ int main(int argc, char ** argv){
         for (int i = 0; i < MAX_IO_THREADS; i++)
             CP.io_cores[i] = P.Conv_IOCores[i];
     
-        STDLOG(3, "MTCOMPLEX (multipole/taylor) dtype width: %d\n", (int) sizeof(MTCOMPLEX));
-        STDLOG(3, "DFLOAT (derivatives)         dtype width: %d\n", (int) sizeof(DFLOAT));
+        STDLOG(3, "MTCOMPLEX (multipole/taylor) dtype width: {:d}\n", (int) sizeof(MTCOMPLEX));
+        STDLOG(3, "DFLOAT (derivatives)         dtype width: {:d}\n", (int) sizeof(DFLOAT));
 
         // Finished determining parameters; start the main work object
         OutofCoreConvolution OCC(CP);

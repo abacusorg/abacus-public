@@ -12,7 +12,7 @@ Cosmology *InitializeCosmology(double ScaleFactor) {
     cosmo.H0 = 1.0;    
     cosmo.w0 = P.w0;
     cosmo.wa = P.wa;
-    STDLOG(0,"Initialized Cosmology at a= %6.4f\n",ScaleFactor);
+    STDLOG(0,"Initialized Cosmology at a= {:6.4f}\n",ScaleFactor);
     return new Cosmology(ScaleFactor,cosmo);
         // This will set cosm->current and cosm->next to epoch a=ScaleFactor.
 }
@@ -85,11 +85,11 @@ double ChooseTimeStep(int NoForces){
 
     // cosm has already been loaded with the ReadState.ScaleFactor.
     // Don't advance time if we are still doing LPT
-    STDLOG(0,"LPTStepNumber = %d, FullStepNumber = %d, PTO = %d\n",LPTStepNumber(), WriteState.FullStepNumber, P.LagrangianPTOrder);
+    STDLOG(0,"LPTStepNumber = {:d}, FullStepNumber = {:d}, PTO = {:d}\n",LPTStepNumber(), WriteState.FullStepNumber, P.LagrangianPTOrder);
     if(LPTStepNumber()>0) return 0.;
 
     double da = ReadState.ScaleFactor*P.TimeStepDlna;
-    STDLOG(0,"da from Hubble Dlna limit is %f\n", da);
+    STDLOG(0,"da from Hubble Dlna limit is {:f}\n", da);
 
     if(NoForces){
         da = 0.;
@@ -106,17 +106,17 @@ double ChooseTimeStep(int NoForces){
 
     // We might have already reached the FinishingRedshift.
     if (ReadState.Redshift < P.FinishingRedshift()+1e-12) {
-        STDLOG(0,"We have reached the Finishing Redshift of %f\n", P.FinishingRedshift());
+        STDLOG(0,"We have reached the Finishing Redshift of {:f}\n", P.FinishingRedshift());
         da = 0.0;
     }
 
     // Particles should not be able to move more than one cell per timestep
     double maxdrift = cosm->DriftFactor(cosm->current.a, da)*ReadState.MaxVelocity;
     maxdrift *= P.cpd;
-    STDLOG(1,"Maximum velocity would drift %f cells in this time step\n", maxdrift);
+    STDLOG(1,"Maximum velocity would drift {:f} cells in this time step\n", maxdrift);
     if (maxdrift>0.8) {
         da *= 0.8/maxdrift;   // Just linearly interpolate
-        STDLOG(0,"da based on not letting particles drift more than a cell is %f.\n", da);
+        STDLOG(0,"da based on not letting particles drift more than a cell is {:f}.\n", da);
     }
 
     // Perhaps the acceleration limits us more than this?
@@ -134,7 +134,7 @@ double ChooseTimeStep(int NoForces){
         double da_eona = da;
         if (NFD && maxdrift>NFD->SofteningLength) {  // Plummer-equivalent softening length
             if(maxdrift >1e-12) da_eona *= sqrt(NFD->SofteningLength/maxdrift);
-            STDLOG(0,"da based on sqrt(epsilon/amax) is %f.\n", da_eona);
+            STDLOG(0,"da based on sqrt(epsilon/amax) is {:f}.\n", da_eona);
             // We deliberately do not limit the timestep based on this criterion
         }
     }
@@ -148,15 +148,15 @@ double ChooseTimeStep(int NoForces){
     if (ReadState.MaxAcceleration!=0.0) 
         goal2 = ReadState.RMS_Velocity/ReadState.MaxAcceleration;
     else goal2 = 1e10;    // This doesn't exist in the first step.
-    STDLOG(1,"Cell-based Vrms/Amax = %f\n", goal);
-    STDLOG(1,"Global     Vrms/Amax = %f\n", goal2);
+    STDLOG(1,"Cell-based Vrms/Amax = {:f}\n", goal);
+    STDLOG(1,"Global     Vrms/Amax = {:f}\n", goal2);
     // We have both a global value and a cell value.  Take the maximum of these,
     // to guard against abnormally cold cells.
     goal = max(goal,goal2) * P.TimeStepAccel;
 
     if (maxkick>goal) {
         da *= goal/maxkick;
-        STDLOG(0,"da based on vrms/amax is %f. dlna = %f.\n", da, da/ReadState.ScaleFactor);
+        STDLOG(0,"da based on vrms/amax is {:f}. dlna = {:f}.\n", da, da/ReadState.ScaleFactor);
     }
 
     // Handle some special cases
@@ -174,7 +174,7 @@ double ChooseTimeStep(int NoForces){
             ReadState.ScaleFactor + da >= tsa
             ) {
             da = tsa - ReadState.ScaleFactor;
-            STDLOG(0,"da to reach next timeslice output is %f\n", da);
+            STDLOG(0,"da to reach next timeslice output is {:f}\n", da);
             WriteState.DoTimeSliceOutput = i+2;
             break;
 
@@ -196,7 +196,7 @@ double ChooseTimeStep(int NoForces){
             ReadState.ScaleFactor + da >= L1a
             ) {
             da = L1a - ReadState.ScaleFactor;
-            STDLOG(0,"da to reach next timeslice subsample output is %f\n", da);
+            STDLOG(0,"da to reach next timeslice subsample output is {:f}\n", da);
             WriteState.DoSubsampleOutput = i+2;
 
             if(WriteState.DoTimeSliceOutput >= 2 && L1z > P.TimeSliceRedshifts[WriteState.DoTimeSliceOutput-2]){

@@ -17,7 +17,7 @@ void StartMPI() {
 
         int ret = -1;
         MPI_Init_thread(NULL, NULL, MPI_THREAD_FUNNELED, &ret);
-        assertf(ret>=MPI_THREAD_FUNNELED, "MPI_Init_thread() reports it supports level %d, not MPI_THREAD_FUNNELED.\n", ret);
+        assertf(ret>=MPI_THREAD_FUNNELED, "MPI_Init_thread() reports it supports level {:d}, not MPI_THREAD_FUNNELED.\n", ret);
     #endif
 }
 
@@ -32,7 +32,7 @@ void InitializeParallelTopology() {
         MPI_size_z = P.NumZRanks;
         MPI_size_x = MPI_size/MPI_size_z;
         assertf(MPI_size_x * MPI_size_z == MPI_size,
-            "NumZRanks=%d does not divide MPI_size=%d evenly!", MPI_size_z, MPI_size);
+            "NumZRanks={:d} does not divide MPI_size={:d} evenly!", MPI_size_z, MPI_size);
         assertf(MPI_size_x > 1,
             "Must have at least two X ranks to run the parallel code!");
 
@@ -63,7 +63,7 @@ void InitializeParallelTopology() {
         int _comm_1d_x_rank = -1;
         MPI_Comm_rank(comm_1d_x, &_comm_1d_x_rank);
         assertf(_comm_1d_x_rank == MPI_rank_x,
-            "Rank in comm_1d_x = %d, 2D x rank is %d\n", _comm_1d_x_rank, MPI_rank_x);
+            "Rank in comm_1d_x = {:d}, 2D x rank is {:d}\n", _comm_1d_x_rank, MPI_rank_x);
 
         // Make a communicator across z
         // TODO: unclear if one 2D communicator or multiple 1D communicators better
@@ -74,7 +74,7 @@ void InitializeParallelTopology() {
         int _comm_1d_z_rank = -1;
         MPI_Comm_rank(comm_1d_z, &_comm_1d_z_rank);
         assertf(_comm_1d_z_rank == MPI_rank_z,
-            "Rank in comm_1d_z = %d, 2D z rank is %d\n", _comm_1d_z_rank, MPI_rank_z);
+            "Rank in comm_1d_z = {:d}, 2D z rank is {:d}\n", _comm_1d_z_rank, MPI_rank_z);
 
         #ifdef MULTIPLE_MPI_COMM
             MPI_Comm_dup(comm_1d_x, &comm_taylors);
@@ -111,7 +111,7 @@ void InitializeParallelDomain(){
 
         if(MPI_size_z > 1){
             assertf(GHOST_RADIUS >= FORCE_RADIUS,
-                "GHOST_RADIUS=%d not big enough for FORCE_RADIUS=%d\n",
+                "GHOST_RADIUS={:d} not big enough for FORCE_RADIUS={:d}\n",
                 GHOST_RADIUS, FORCE_RADIUS);
                 // InitGroupFinding() will check GHOST_RADIUS against GROUP_RADIUS
         }
@@ -189,7 +189,7 @@ void InitializeParallelMergeDomain(){
     // One could likely make this work as long as one thought about the MPI_size_z = 2 case
     // and avoided sending/deleting duplicates
     assertf(2*MERGE_GHOST_RADIUS <= node_z_size,
-        "MERGE_GHOST_RADIUS (%d) big enough to overlap on node with primary size %d!",
+        "MERGE_GHOST_RADIUS ({:d}) big enough to overlap on node with primary size {:d}!",
         MERGE_GHOST_RADIUS, node_z_size
     );
 
@@ -197,7 +197,7 @@ void InitializeParallelMergeDomain(){
     int zright = MPI_rank_z + 1; if (zright >= MPI_size_z) zright -= MPI_size_z;
     assertf(MERGE_GHOST_RADIUS <= all_node_z_size[zleft] && 
             MERGE_GHOST_RADIUS <= all_node_z_size[zright],
-            "MERGE_GHOST_RADIUS (%d) bigger than neighbor primary regions!\n",
+            "MERGE_GHOST_RADIUS ({:d}) bigger than neighbor primary regions!\n",
             MERGE_GHOST_RADIUS
             );
 
@@ -211,25 +211,25 @@ void LogParallelTopology(){
 
     #ifdef PARALLEL
         STDLOG(0,"Initialized parallel topology.\n");
-        STDLOG(0,"1D node rank %d of %d total\n", MPI_rank, MPI_size);
-        STDLOG(0,"2D (x,z) node rank is (%d,%d) of (%d,%d) total\n",
+        STDLOG(0,"1D node rank {:d} of {:d} total\n", MPI_rank, MPI_size);
+        STDLOG(0,"2D (x,z) node rank is ({:d},{:d}) of ({:d},{:d}) total\n",
             MPI_rank_x, MPI_rank_z, MPI_size_x, MPI_size_z);
-        STDLOG(2,"Original 1D rank was %d, remapped to %d\n", _world_rank, MPI_rank);
+        STDLOG(2,"Original 1D rank was {:d}, remapped to {:d}\n", _world_rank, MPI_rank);
 
-        STDLOG(0,"This node's primary domain is z=[%d,%d) (%d columns)\n",
+        STDLOG(0,"This node's primary domain is z=[{:d},{:d}) ({:d} columns)\n",
             node_z_start, node_z_start + node_z_size, node_z_size);
         int ghostend = node_z_start_ghost + node_z_size_with_ghost;
         if (ghostend >= P.cpd) ghostend -= P.cpd;
-        STDLOG(0,"Including ghost: z=[%d,%d) (%d columns)\n",
+        STDLOG(0,"Including ghost: z=[{:d},{:d}) ({:d} columns)\n",
             node_z_start_ghost, ghostend, node_z_size_with_ghost);
 
-        STDLOG(0,"The ReadState has GHOST_RADIUS=%d ghost columns\n", GHOST_RADIUS);
-        STDLOG(0,"The WriteState will have MERGE_GHOST_RADIUS=%d\n", MERGE_GHOST_RADIUS);
+        STDLOG(0,"The ReadState has GHOST_RADIUS={:d} ghost columns\n", GHOST_RADIUS);
+        STDLOG(0,"The WriteState will have MERGE_GHOST_RADIUS={:d}\n", MERGE_GHOST_RADIUS);
     #endif
 
     char hostname[1024];
     gethostname(hostname,1024);
-    STDLOG(0,"Host machine name is %s\n", hostname);
+    STDLOG(0,"Host machine name is {:s}\n", hostname);
 }
 
 

@@ -60,7 +60,7 @@ void SinkPencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, in
 
             nwritten+=N;
         }
-        assertf(nwritten==total, "Pencil contents doesn't match space supplied: %d vs %d\n",
+        assertf(nwritten==total, "Pencil contents doesn't match space supplied: {:d} vs {:d}\n",
             nwritten, total);
     }
 
@@ -73,7 +73,7 @@ void SinkPencilPlan::copy_into_pinned_memory(List3<FLOAT> &pinpos, int start, in
             N1 = 0;
         }
         N2 = cell[width-1].start + cell[width-1].N - cell[wrapcell].start;
-        assertf((N1 + N2) == total, "N1 (%d) + N2 (%d) != total (%d)\n", N1, N2, total);
+        assertf((N1 + N2) == total, "N1 ({:d}) + N2 ({:d}) != total ({:d})\n", N1, N2, total);
 
         if constexpr (dim == PENCIL_DIM::X || dim == PENCIL_DIM::XYZ) {
             memcpy(pinpos.X+start,    SinkPosSlab+cell[0].start+ghostoffset,        sizeof(FLOAT)*N1);
@@ -199,8 +199,8 @@ void SinkPencilPlan::copy_from_pinned_memory(void *_pinacc,
     /*for(int c = 0; c < 2*NearFieldRadius+1; c++){
         accstruct *p = (accstruct *) SinkAccSlab + cell[c].start;
         for(int i = 0; i < cell[c].N; i++){
-            assertf(TOFLOAT3(p[i]).is_finite(), "p[%d of %d] in cell %d (wrapcell %d): %f %f %f\n", i, cell[c].N, c, wrapcell, p[i].x, p[i].y, p[i].z);
-            //assertf(p[i].norm2() != 0., "p[%d of %d] in cell %d (wrapcell %d): %f %f %f\n", i, cell[c].N, c, wrapcell, p[i].x, p[i].y, p[i].z);
+            assertf(TOFLOAT3(p[i]).is_finite(), "p[{:d} of {:d}] in cell {:d} (wrapcell {:d}): {:f} {:f} {:f}\n", i, cell[c].N, c, wrapcell, p[i].x, p[i].y, p[i].z);
+            //assertf(p[i].norm2() != 0., "p[{:d} of {:d}] in cell {:d} (wrapcell {:d}): {:f} {:f} {:f}\n", i, cell[c].N, c, wrapcell, p[i].x, p[i].y, p[i].z);
         }
     }*/
 }

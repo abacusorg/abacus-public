@@ -118,7 +118,7 @@ NearFieldDriver::NearFieldDriver(int NearFieldRadius) :
     
     int nthread = omp_get_max_threads();
     STDLOG(1,
-            "Initializing NearFieldDriver with %d OMP threads (OMP is aware of %d procs).\n",
+            "Initializing NearFieldDriver with {:d} OMP threads (OMP is aware of {:d} procs).\n",
             nthread, omp_get_num_procs());
     DD = new Direct[nthread];
     DirectInteractions_CPU = 0;
@@ -142,7 +142,7 @@ NearFieldDriver::NearFieldDriver(int NearFieldRadius) :
     size_t GPUMemory, MemPerGPUBuffer;
     STDLOG(2, "Fetching device memory...\n");
     GetDeviceInfo(&GPUMemory, GPUName);
-    STDLOG(1, "Running with %d GPUs (%.1f GB each), %d buffers per GPU\n", NGPU, GPUMemory/1e9, DirectBPD);
+    STDLOG(1, "Running with {:d} GPUs ({:.1f} GB each), {:d} buffers per GPU\n", NGPU, GPUMemory/1e9, DirectBPD);
 
     // No need to go crazy if the problem is small.  But small 
     // problems can be highly clustered.
@@ -165,18 +165,18 @@ NearFieldDriver::NearFieldDriver(int NearFieldRadius) :
         MemPerGPUBuffer = std::min(MemPerGPUBuffer, (size_t) (0.05/NBuffers*P.MAXRAMMB*1e6));
     }
 
-    STDLOG(1, "Using %.2f GB of GPU memory (per GPU thread)\n", MemPerGPUBuffer/1e9);
+    STDLOG(1, "Using {:.2f} GB of GPU memory (per GPU thread)\n", MemPerGPUBuffer/1e9);
     MinSplits = NBuffers;
     MaxNSplits = MinSplits;
 
     // Put a floor to insist on using all GPUs
-    STDLOG(2,"MinSplits = %d\n", MinSplits);
+    STDLOG(2,"MinSplits = {:d}\n", MinSplits);
 
     GPUSetup(P.cpd, MemPerGPUBuffer, NGPU, DirectBPD,
         P.GPUThreadCoreStart, P.NGPUThreadCores,
         P.GPUQueueAssignments,
         &MaxSinkBlocks, &MaxSourceBlocks, P.UsePinnedGPUMemory);
-    STDLOG(1,"Initializing GPU with %7.3f x10^3 sink blocks and %7.3f x10^3 source blocks\n",
+    STDLOG(1,"Initializing GPU with {:7.3f} x10^3 sink blocks and {:7.3f} x10^3 source blocks\n",
             MaxSinkBlocks/1e3,MaxSourceBlocks/1e3);
     // This returns the number of SinkBlocks and number of SourceBlocks
     // that any future SIC is allowed.  Overheads for other bookkeeping
@@ -262,13 +262,13 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     // use all of the GPU buffers for efficiency, so that sets a 
     // minimum.
     int NBuffers_per_SIC = NBuffers;
-    STDLOG(2,"Found %d sink and %d source blocks in slab %d\n", totSinkBlocks, totSourceBlocks, slabID);
+    STDLOG(2,"Found {:d} sink and {:d} source blocks in slab {:d}\n", totSinkBlocks, totSourceBlocks, slabID);
     int useMaxSink = totSinkBlocks/NBuffers_per_SIC;
     useMaxSink *= (1+1.1*NBuffers_per_SIC/P.cpd); 
         // Trying to bias up to leave the last one short instead of long
     useMaxSink = std::min(useMaxSink, MaxSinkBlocks);
     int useMaxSource = MaxSourceBlocks;
-    STDLOG(3,"Using max sink %d and source %d.\n", useMaxSink, useMaxSource);
+    STDLOG(3,"Using max sink {:d} and source {:d}.\n", useMaxSink, useMaxSource);
 
     // Now we want to pack these in
     int SplitPoint[1024]; // Just a crazy number
@@ -283,7 +283,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
             // We've overflowed the previous set; end it 
             if (NSplit>0) {
                 SplitPoint[NSplit-1] = j;
-                STDLOG(2,"Split %d ending at y=%d; %d sink and %d source blocks\n", 
+                STDLOG(2,"Split {:d} ending at y={:d}; {:d} sink and {:d} source blocks\n", 
                     NSplit-1, j, thisSink-SinkBlocks[j], thisSource-SourceBlocks[CP->WrapSlab(j+RADIUS)]);
             }
             // Time to start a new one
@@ -292,19 +292,19 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
             for (int c=-RADIUS; c<=RADIUS; c++) 
                 thisSource += SourceBlocks[CP->WrapSlab(j-c)];
             NSplit++;
-            assertf(NSplit < 1024, "Too many splits! %d\n", NSplit);
+            assertf(NSplit < 1024, "Too many splits! {:d}\n", NSplit);
         }
     }
     // And always end the last one
     SplitPoint[NSplit-1] = P.cpd;
-    STDLOG(2,"Split %d ending at y=%d; %d sink and %d source blocks\n", 
+    STDLOG(2,"Split {:d} ending at y={:d}; {:d} sink and {:d} source blocks\n", 
                     NSplit-1, P.cpd, thisSink, thisSource);
     // There is a failure mode here if the last skewer by itself
     // overflows; it will end up assigned without prior question.
     assertf(thisSink<=MaxSinkBlocks && thisSource<=MaxSourceBlocks,
             "Sinks or Sources of the last skewer overflow the maxima.");
 
-    STDLOG(1,"Using %d direct splits on slab %d, max blocks %d sink and %d source\n", 
+    STDLOG(1,"Using {:d} direct splits on slab {:d}, max blocks {:d} sink and {:d} source\n", 
             NSplit, slabID, useMaxSink, useMaxSource);
 
     delete[] SinkBlocks;
@@ -352,30 +352,30 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
         int jh = SplitPoint[n];
         // The construction and execution are timed internally in each SIC then reduced in Finalize(slab)
         // This is where the SetInteractionCollection is actually constructed
-        // STDLOG(1,"Entering SIC Construction with %d bytes\n", bsize);
+        // STDLOG(1,"Entering SIC Construction with {:d} bytes\n", bsize);
         SlabInteractionCollections[slabID][n] = 
             new SetInteractionCollection(slabID,jl,jh,WriteState.DensityKernelRad2, buffer, bsize, RADIUS);
-        // STDLOG(1,"Leaving SIC Construction with %d bytes\n", bsize);
+        // STDLOG(1,"Leaving SIC Construction with {:d} bytes\n", bsize);
         
         // Check that we have enough blocks
         int NSinkBlocks = SlabInteractionCollections[slabID][n]->NSinkBlocks;
         int NSourceBlocks = SlabInteractionCollections[slabID][n]->NSourceBlocks;
         assertf(NSinkBlocks <= MaxSinkBlocks,
-                "NSinkBlocks (%d) is larger than MaxSinkBlocks (%d)\n", NSinkBlocks, MaxSinkBlocks);
+                "NSinkBlocks ({:d}) is larger than MaxSinkBlocks ({:d})\n", NSinkBlocks, MaxSinkBlocks);
         assertf(NSourceBlocks <= MaxSourceBlocks,
-                "NSourceBlocks (%d) is larger than MaxSourceBlocks (%d)\n", NSourceBlocks, MaxSourceBlocks);
+                "NSourceBlocks ({:d}) is larger than MaxSourceBlocks ({:d})\n", NSourceBlocks, MaxSourceBlocks);
 
     SICConstruction.Stop();
     SICExecute.Start();
         
-        STDLOG(3,"Executing directs for slab %d, y: %d - %d\n",slabID,jl,jh);
+        STDLOG(3,"Executing directs for slab {:d}, y: {:d} - {:d}\n",slabID,jl,jh);
         // This SIC is ready; send it to be executed
         SlabInteractionCollections[slabID][n]->GPUExecute(blocking);
         //SlabInteractionCollections[slabID][n]->CPUExecute();
     SICExecute.Stop();
     }
 
-    STDLOG(2, "%l bytes remaining after SIC allocation on slab %d (%4.1f%% unused)\n", 
+    STDLOG(2, "{:d} bytes remaining after SIC allocation on slab {:d} ({:4.1f}% unused)\n", 
         bsize, slabID, 100.0*bsize/SB->SlabSizeBytes(NearField_SIC_Slab, slabID));
     return;
 }
@@ -434,7 +434,7 @@ void NearFieldDriver::Finalize(int slab){
     slab = CP->WrapSlab(slab);
 
     assertf(SlabDone(slab) != 0,
-            "Finalize called for slab %d but it is not complete\n",slab);
+            "Finalize called for slab {:d} but it is not complete\n",slab);
 
     if(P.ForceOutputDebug)
         CheckInteractionList(slab);
@@ -516,8 +516,8 @@ void NearFieldDriver::AggregateStats(){
         mean_splits_per_slab += SlabNSplit[s];
     mean_splits_per_slab /= P.cpd;
 
-    STDLOG(1, "Maximum NSplits used in Directs: %d\n", MaxNSplits);
-    STDLOG(1, "Mean NSplits used in Directs: %d\n", mean_splits_per_slab);
+    STDLOG(1, "Maximum NSplits used in Directs: {:d}\n", MaxNSplits);
+    STDLOG(1, "Mean NSplits used in Directs: {:f}\n", mean_splits_per_slab);
 #endif
 }
 

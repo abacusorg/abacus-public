@@ -222,7 +222,7 @@ void finish_fftw();
  */
 void Prologue(Parameters &P, int MakeIC, int NoForces) {
     STDLOG(1,"Entering Prologue()\n");
-    STDLOG(2,"Size of accstruct is %d bytes\n", sizeof(accstruct));
+    STDLOG(2,"Size of accstruct is {:d} bytes\n", sizeof(accstruct));
     prologue.Clear();
     prologue.Start();
 
@@ -279,7 +279,7 @@ void Prologue(Parameters &P, int MakeIC, int NoForces) {
     }
     maxILsize = maxILsize*num_slab_il*(node_z_size*drift_efficiency + 2*MERGE_GHOST_RADIUS)/P.cpd/P.cpd + 1;
     int clearLC = LPTStepNumber() == 0;  // LC bits used as vel bits during 2LPT
-    STDLOG(2,"Maximum insert list size = %l, allocating %.3g GB\n", maxILsize, maxILsize*sizeof(ilstruct)/1e9);
+    STDLOG(2,"Maximum insert list size = {:d}, allocating {:.3g} GB\n", maxILsize, maxILsize*sizeof(ilstruct)/1e9);
     IL = new InsertList(cpd, maxILsize, clearLC);
 
     STDLOG(2,"Setting up IO\n");
@@ -288,7 +288,7 @@ void Prologue(Parameters &P, int MakeIC, int NoForces) {
     sprintf(logfn,"%s/step%04d%s.iolog",
         WriteState.LogDirectory, WriteState.FullStepNumber, NodeString);
     allow_directio_global = P.AllowDirectIO;
-    STDLOG(1,"Setting global AllowDirectIO = %d\n", P.AllowDirectIO);
+    STDLOG(1,"Setting global AllowDirectIO = {:d}\n", P.AllowDirectIO);
     IO_Initialize(logfn, SB->NumTypes);
 
     SS = new SlabSize(P.cpd, MPI_size_z, MPI_rank_z);
@@ -353,7 +353,7 @@ void Epilogue(Parameters &P, bool MakeIC) {
 
     if(MF != NULL){ // Some pipelines, like standalone_fof, don't use multipoles
         MF->GatherRedlack();    // For the parallel code, we have to coadd the inputs
-        STDLOG(3, "globaldipole = (%g,%g,%g)\n", MF->globaldipole.x, MF->globaldipole.y, MF->globaldipole.z);
+        STDLOG(3, "globaldipole = ({:g},{:g},{:g})\n", MF->globaldipole.x, MF->globaldipole.y, MF->globaldipole.z);
 
         if (MPI_rank==0) {
             MF->ComputeRedlack();
@@ -393,7 +393,7 @@ void Epilogue(Parameters &P, bool MakeIC) {
 
     if(0 and P.ForceOutputDebug){
         #ifdef CUDADIRECT
-        STDLOG(1,"Direct Interactions: CPU (%lu) and GPU (%lu)\n",
+        STDLOG(1,"Direct Interactions: CPU ({:d}) and GPU ({:d})\n",
                     NFD->DirectInteractions_CPU,NFD->TotalDirectInteractions_GPU);
         if(!(NFD->DirectInteractions_CPU == NFD->TotalDirectInteractions_GPU)){
             printf("Error:\n\tDirect Interactions differ between CPU (%lu) and GPU (%lu)\n",
@@ -432,11 +432,11 @@ void Epilogue(Parameters &P, bool MakeIC) {
     // Report peak memory usage
     struct rusage rusage;
     assert(getrusage(RUSAGE_SELF, &rusage) == 0);
-    STDLOG(0, "Peak resident memory usage was %.3g GB\n", (double) rusage.ru_maxrss / 1024 / 1024);
+    STDLOG(0, "Peak resident memory usage was {:.3g} GB\n", (double) rusage.ru_maxrss / 1024 / 1024);
     
     epilogue.Stop();
     // This timing does not get written to the timing log, so it had better be small!
-    STDLOG(1,"Leaving Epilogue(). Epilogue took %.2g sec.\n", epilogue.Elapsed());
+    STDLOG(1,"Leaving Epilogue(). Epilogue took {:.2g} sec.\n", epilogue.Elapsed());
 }
 
 void init_fftw(){
@@ -473,21 +473,20 @@ void finish_fftw(){
             int wislen;
             MPI_Get_count(&stat, MPI_CHAR, &wislen);
 
-            char *wis = (char *) malloc(sizeof(char) * (wislen+1));
-            assert(wis != NULL);
+            char *wis = new char[wislen+1];
 
             MPI_Recv(wis, wislen, MPI_CHAR, MPI_size_z-1, 0,
                     comm_1d_z, MPI_STATUS_IGNORE);
             wis[wislen] = '\0';
             fftw_import_wisdom_from_string(wis);
-            free(wis);
+            delete[] wis;
         }
 #endif
     }
     
     if(MPI_rank == 0){
-        int ret = fftw_export_wisdom_to_filename(wisdom_file);
-        STDLOG(1, "Wisdom export to file \"%s\" returned %d.\n", wisdom_file, ret);
+        int ret = fftw_export_wisdom_to_filename(wisdom_file.c_str());
+        STDLOG(1, "Wisdom export to file \"{}\" returned {:d}.\n", wisdom_file, ret);
     }
 
     fftw_cleanup();  // all plans and wisdom invalidated after this
@@ -497,16 +496,15 @@ std::vector<std::vector<int>> free_cores;  // list of cores on each socket that 
 void init_openmp(){
     // First report the CPU affinity bitmask of the master thread; might be useful in diagnosing OMP_PLACES problems
     cpu_set_t mask;
-    std::ostringstream affinitylog;
+    std::string affinitylog;
 
     assertf(pthread_getaffinity_np(pthread_self(), sizeof(cpu_set_t), &mask) == 0, "pthread_getaffinity_np failed\n");
-    affinitylog << "Core affinity for the master thread: ";
+    affinitylog += "Core affinity for the master thread: ";
     for (int i = 0; i < CPU_SETSIZE; i++) {
         if(CPU_ISSET(i, &mask))
-            affinitylog << i << " ";
+            affinitylog += fmt::format("{:d} ", i);
     }
-    affinitylog << "\n";
-    STDLOG(2, affinitylog.str().c_str());
+    STDLOG(2, "{}\n", affinitylog);
 
     // Now tell OpenMP singlestep to use the desired number of threads
     int max_threads = omp_get_max_threads();
@@ -518,12 +516,12 @@ void init_openmp(){
     // In practice, we will probably not use this many cores because there aren't nearly that many physical cores
     nthreads = min(128, nthreads);
 
-    assertf(nthreads <= max_threads, "Trying to use more OMP threads (%d) than omp_get_max_threads() (%d)!  This will cause global objects that have already used omp_get_max_threads() to allocate thread workspace (like PTimer) to fail.\n",
+    assertf(nthreads <= max_threads, "Trying to use more OMP threads ({:d}) than omp_get_max_threads() ({:d})!  This will cause global objects that have already used omp_get_max_threads() to allocate thread workspace (like PTimer) to fail.\n",
         nthreads, max_threads);
-    assertf(nthreads <= ncores, "Trying to use more threads (%d) than cores (%d).  This will probably be very slow.\n", nthreads, ncores);
+    assertf(nthreads <= ncores, "Trying to use more threads ({:d}) than cores ({:d}).  This will probably be very slow.\n", nthreads, ncores);
 
     omp_set_num_threads(nthreads);
-    STDLOG(1, "Initializing OpenMP with %d threads (system max is %d; P.OMP_NUM_THREADS is %d)\n", nthreads, max_threads, P.OMP_NUM_THREADS);
+    STDLOG(0, "Initializing OpenMP with {:d} threads (system max is {:d}; P.OMP_NUM_THREADS is {:d})\n", nthreads, max_threads, P.OMP_NUM_THREADS);
 
     // If threads are bound to cores via OMP_PROC_BIND,
     // then identify free cores for use by GPU and IO threads
@@ -539,15 +537,14 @@ void init_openmp(){
         //bool is_core_free[ncores] = {true};
         #pragma omp parallel for schedule(static)
         for(int g = 0; g < nthreads; g++){
-            assertf(g == omp_get_thread_num(), "OpenMP thread %d is executing wrong loop iteration (%d)\n", omp_get_thread_num(), g);
+            assertf(g == omp_get_thread_num(), "OpenMP thread {:d} is executing wrong loop iteration ({:d})\n", omp_get_thread_num(), g);
             core_assignments[g] = sched_getcpu();
         }
         std::ostringstream core_log;
         core_log << "Thread->core assignments:";
         for(int g = 0; g < nthreads; g++)
             core_log << " " << g << "->" << core_assignments[g];
-        core_log << "\n";
-        STDLOG(1, core_log.str().c_str());
+        STDLOG(0, "{}\n", core_log.str());
 
         for(int g = 0; g < nthreads; g++)
             for(int h = 0; h < g; h++)
@@ -557,7 +554,7 @@ void init_openmp(){
         // Actually, this is unnecessary because the first OpenMP thread *is* the main CPU thread
         //int main_thread_core = 0;
         //set_core_affinity(main_thread_core);
-        //STDLOG(1, "Assigning main singlestep thread to core %d\n", main_thread_core);
+        //STDLOG(1, "Assigning main singlestep thread to core {:d}\n", main_thread_core);
     }
 
     // Initialize the helper variables needed for "NUMA For"
@@ -574,7 +571,7 @@ void setup_log(){
         WriteState.LogDirectory, WriteState.FullStepNumber, NodeString);
     stdlog.open(logfn);
     STDLOG_TIMESTAMP;
-    STDLOG(0, "Log established with verbosity %d.\n", stdlog_threshold_global);
+    STDLOG(0, "Log established with verbosity {:d}.\n", stdlog_threshold_global);
 }
 
 
@@ -628,7 +625,7 @@ void check_read_state(const int MakeIC){
     if(MakeIC){
         STDLOG(0,"Generating initial State from initial conditions\n");
     } else {
-        STDLOG(0,"Read ReadState from %s\n",P.ReadStateDirectory);
+        STDLOG(0,"Read ReadState from {}\n",P.ReadStateDirectory);
         ReadState.AssertStateLegal(P);
     }
 }
@@ -770,10 +767,10 @@ void InitGroupFinding(int MakeIC){
             // Is the next time step going to take us further from the target z?
             if(fabs(ReadState.ScaleFactor - L1a) > fabs(WriteState.ScaleFactor - L1a)){
                 WriteState.DoGroupFindingOutput = i+2;
-                STDLOG(0,"Group finding on the write state requested by L1OutputRedshifts[%d]\n", i);
+                STDLOG(0,"Group finding on the write state requested by L1OutputRedshifts[{:d}]\n", i);
             } else {
                 ReadState.DoGroupFindingOutput = i+2;
-                STDLOG(0,"Group finding on the read state requested by L1OutputRedshifts[%d]\n", i);
+                STDLOG(0,"Group finding on the read state requested by L1OutputRedshifts[{:d}]\n", i);
             }
             
             break;
@@ -803,7 +800,7 @@ void InitGroupFinding(int MakeIC){
     
     if(P.OutputAllHaloParticles && !WriteState.DoSubsampleOutput){
         WriteState.DoSubsampleOutput = 1;
-        STDLOG(0,"OutputAllHaloParticles = 1; forcing subsample A = 100%% and B = 0%%\n");
+        STDLOG(0,"OutputAllHaloParticles = 1; forcing subsample A = 100% and B = 0%\n");
     }
 
     if(MPI_size_z > 1 && ReadState.DoGroupFindingOutput && !ReadState.VelIsSynchronous){
@@ -835,7 +832,7 @@ void InitGroupFinding(int MakeIC){
 
         float rescale = EvolvingDelta(ReadState.Redshift);
 
-        STDLOG(2, "Rescaling SO Delta as a function of redshift.\n\t\tL0: %f --> %f\n\t\tL1: %f --> %f\n\t\tL2: %f --> %f\n",
+        STDLOG(2, "Rescaling SO Delta as a function of redshift.\n\t\tL0: {:f} --> {:f}\n\t\tL1: {:f} --> {:f}\n\t\tL2: {:f} --> {:f}\n",
                       P.L0DensityThreshold, rescale * P.L0DensityThreshold,
                       P.SODensity[0], rescale * P.SODensity[0],
                       P.SODensity[1], rescale * P.SODensity[1]);
@@ -878,7 +875,7 @@ void InitGroupFinding(int MakeIC){
 
         if(ReadState.DoGroupFindingOutput && WriteState.DeltaScaleFactor == 0.) WriteState.DidGroupFindingOutput = 1;
 
-        STDLOG(2, "Group finding: %d, subsample output: %d, timeslice output: %d.\n",
+        STDLOG(2, "Group finding: {:d}, subsample output: {:d}, timeslice output: {:d}.\n",
             ReadState.DoGroupFindingOutput, ReadState.DoSubsampleOutput, ReadState.DoTimeSliceOutput);
 
         GFC = new GroupFindingControl(P.FoFLinkingLength[0]/pow(P.np,1./3),
@@ -908,12 +905,12 @@ void InitGroupFinding(int MakeIC){
         if (WriteState.L0DensityThreshold==0) {
             STDLOG(1,"Passing L0DensityThreshold = 0 to signal to use anything with a neighbor\n");
         } else {
-            STDLOG(1,"Using L0DensityThreshold = %f\n", WriteState.L0DensityThreshold);
+            STDLOG(1,"Using L0DensityThreshold = {:f}\n", WriteState.L0DensityThreshold);
         }
 
         if(MPI_size_z > 1){
             assertf(GHOST_RADIUS >= GROUP_RADIUS,
-                    "GHOST_RADIUS=%d not big enough for GROUP_RADIUS=%d\n",
+                    "GHOST_RADIUS={:d} not big enough for GROUP_RADIUS={:d}\n",
                     GHOST_RADIUS, GROUP_RADIUS);
         }
     } else{
@@ -938,7 +935,7 @@ void InitGroupFinding(int MakeIC){
 
     if(ReadState.DoSubsampleOutput >= 2) WriteState.LastSubsampleOutput = ReadState.DoSubsampleOutput - 2;
     
-    STDLOG(1,"Using DensityKernelRad2 = %f (%f of interparticle)\n", WriteState.DensityKernelRad2, sqrt(WriteState.DensityKernelRad2)*pow(P.np,1./3.));
+    STDLOG(1,"Using DensityKernelRad2 = {:f} ({:f} of interparticle)\n", WriteState.DensityKernelRad2, sqrt(WriteState.DensityKernelRad2)*pow(P.np,1./3.));
 
 }
 
@@ -1037,15 +1034,15 @@ void FinalizeWriteState() {
     WriteNodeSlabs();  // We do this here because it will need a MPI Barrier
 
     #ifdef PARALLEL
-        STDLOG(1,"Node MinCellSize = %d, MaxCellSize = %d\n",
+        STDLOG(1,"Node MinCellSize = {:d}, MaxCellSize = {:d}\n",
             WriteState.MinCellSize, WriteState.MaxCellSize);
-        STDLOG(1,"Maximum v_j in node is %f.\n", WriteState.MaxVelocity);
-        STDLOG(1,"Maximum a_j in node is %f.\n", WriteState.MaxAcceleration);
-        STDLOG(1,"Minimum cell Vrms/Amax in node is %f.\n", WriteState.MinVrmsOnAmax);
-        STDLOG(1,"Unnormalized node RMS_Velocity = %f.\n", WriteState.RMS_Velocity);
-        STDLOG(1,"Unnormalized node StdDevCellSize = %f.\n", WriteState.StdDevCellSize);
-        STDLOG(1,"Maximum group diameter in node is %d.\n", WriteState.MaxGroupDiameter); 
-        STDLOG(1,"Maximum L0 group size in node is %d.\n", WriteState.MaxL0GroupSize); 
+        STDLOG(1,"Maximum v_j in node is {:f}.\n", WriteState.MaxVelocity);
+        STDLOG(1,"Maximum a_j in node is {:f}.\n", WriteState.MaxAcceleration);
+        STDLOG(1,"Minimum cell Vrms/Amax in node is {:f}.\n", WriteState.MinVrmsOnAmax);
+        STDLOG(1,"Unnormalized node RMS_Velocity = {:f}.\n", WriteState.RMS_Velocity);
+        STDLOG(1,"Unnormalized node StdDevCellSize = {:f}.\n", WriteState.StdDevCellSize);
+        STDLOG(1,"Maximum group diameter in node is {:d}.\n", WriteState.MaxGroupDiameter); 
+        STDLOG(1,"Maximum L0 group size in node is {:d}.\n", WriteState.MaxL0GroupSize); 
     
         // If we're running in parallel, then we want to gather some
         // state statistics across the nodes.  We start by writing the
@@ -1092,19 +1089,19 @@ void FinalizeWriteState() {
         // This is the standard deviation of the fractional overdensity in cells.
         // But for the parallel code: this has been divided by CPD^3, not the number of cells on the node
 
-    STDLOG(0,"MinCellSize = %d, MaxCellSize = %d, RMS Fractional Overdensity = %g\n", 
+    STDLOG(0,"MinCellSize = {:d}, MaxCellSize = {:d}, RMS Fractional Overdensity = {:g}\n", 
         WriteState.MinCellSize, WriteState.MaxCellSize, WriteState.StdDevCellSize);
 
     double code_to_kms = WriteState.VelZSpace_to_kms/WriteState.VelZSpace_to_Canonical;
     WriteState.RMS_Velocity = sqrt(WriteState.RMS_Velocity/P.np);
 
-    STDLOG(0,"Rms |v| in simulation is %f km/s.\n", WriteState.RMS_Velocity * code_to_kms);
-    STDLOG(0,"Maximum v_j in simulation is %f km/s.\n", WriteState.MaxVelocity * code_to_kms);
-    STDLOG(0,"Maximum a_j in simulation is %f code units.\n", WriteState.MaxAcceleration);
-    STDLOG(0,"Minimum cell Vrms/Amax in simulation is %f code units.\n", WriteState.MinVrmsOnAmax);
-    STDLOG(0,"Maximum group diameter in simulation is %d.\n", WriteState.MaxGroupDiameter); 
-    STDLOG(0,"Maximum L0 group size in simulation is %d.\n", WriteState.MaxL0GroupSize); 
-    STDLOG(0,"Mean Directs per particle in simulation is %d.\n", WriteState.DirectsPerParticle); 
+    STDLOG(0,"Rms |v| in simulation is {:f} km/s.\n", WriteState.RMS_Velocity * code_to_kms);
+    STDLOG(0,"Maximum v_j in simulation is {:f} km/s.\n", WriteState.MaxVelocity * code_to_kms);
+    STDLOG(0,"Maximum a_j in simulation is {:f} code units.\n", WriteState.MaxAcceleration);
+    STDLOG(0,"Minimum cell Vrms/Amax in simulation is {:f} code units.\n", WriteState.MinVrmsOnAmax);
+    STDLOG(0,"Maximum group diameter in simulation is {:d}.\n", WriteState.MaxGroupDiameter); 
+    STDLOG(0,"Maximum L0 group size in simulation is {:d}.\n", WriteState.MaxL0GroupSize); 
+    STDLOG(0,"Mean Directs per particle in simulation is {:g}.\n", WriteState.DirectsPerParticle); 
 
     //NAM TODO put an intelligent assertf here. 
     // the things we'd really like to check are: 
@@ -1113,8 +1110,8 @@ void FinalizeWriteState() {
 
 
     // if (ReadState.DoSubsampleOutput){ 
-    //     assertf(WriteState.np_subA_state == (int64) ( P.ParticleSubsampleA * P.np), "Subsample A contains %d particles, expected %d.\n", WriteState.np_subA_state, (P.ParticleSubsampleA * P.np) ); 
-    //     assertf(WriteState.np_subB_state == (int64) ( P.ParticleSubsampleB * P.np), "Subsample A contains %d particles, expected %d.\n", WriteState.np_subB_state, (P.ParticleSubsampleB * P.np) ); 
+    //     assertf(WriteState.np_subA_state == (int64) ( P.ParticleSubsampleA * P.np), "Subsample A contains {:d} particles, expected {:d}.\n", WriteState.np_subA_state, (P.ParticleSubsampleA * P.np) ); 
+    //     assertf(WriteState.np_subB_state == (int64) ( P.ParticleSubsampleB * P.np), "Subsample A contains {:d} particles, expected {:d}.\n", WriteState.np_subB_state, (P.ParticleSubsampleB * P.np) ); 
     // }
 
 

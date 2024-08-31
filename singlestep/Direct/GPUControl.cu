@@ -56,6 +56,9 @@ to the rest of the code, because it needs CUDA.
 #include <pthread.h>
 #include "omp.h"
 
+#include <fmt/format.h>
+#include <fmt/std.h>
+
 #ifdef HAVE_LIBNUMA
 #include <numaif.h>
 #endif
@@ -100,17 +103,16 @@ to the rest of the code, because it needs CUDA.
 
 // Provide a mechanism to call singlestep's STDLOG from this compilation unit
 // TODO: consider writing to a new log file, as we do with the IO
-void stdlog_hook(int verbosity, const char* str);
+void stdlog_hook(int verbosity, const std::string &str);
 #define STDLOG(_verbosity,...) do { \
-    char logstr[1024]; \
-    sprintf(logstr, __VA_ARGS__);\
+    std::string logstr = fmt::format(__VA_ARGS__);\
     stdlog_hook(_verbosity, logstr);\
 } while(0)
 
 #define assertf(_mytest,...) do { \
     if (!(_mytest)) { \
-        STDLOG(0,"Failed Assertion: %s\n", #_mytest);\
-        fprintf(stderr,"Failed Assertion: %s\n", #_mytest);\
+        STDLOG(0,"Failed Assertion: {:s}\n", #_mytest);\
+        fmt::print(stderr,"Failed Assertion: {:s}\n", #_mytest);\
         STDLOG(0,__VA_ARGS__);\
         assert(0==99); \
     }} while(0)
@@ -331,7 +333,7 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
     for (int i = 0; i < NGPU; i++){
         NGPUQueues = max(NGPUQueues, GPUQueueAssignments[i]+1);
     }
-    STDLOG(1, "Using %d GPU work queues\n", NGPUQueues);
+    STDLOG(1, "Using {:d} GPU work queues\n", NGPUQueues);
 
     // The following estimates are documented above, and assume sizeof(int)=4
     float BytesPerSourceBlockWC = sizeof(FLOAT)*3*NFBlockSize+8.0;
@@ -342,7 +344,7 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
     // Set the levels assuming WIDTH Sources per Sink
     float TotalBytesPerSinkBlock = BytesPerSinkBlockDef+
             BytesPerSinkBlockWC+WIDTH*BytesPerSourceBlockWC;
-    STDLOG(2, "Bytes per Block = %5.1f+%5.1f+%d*%5.1f = %5.1f\n",
+    STDLOG(2, "Bytes per Block = {:5.1f}+{:5.1f}+{:d}*{:5.1f} = {:5.1f}\n",
             BytesPerSinkBlockDef, BytesPerSinkBlockWC, WIDTH, BytesPerSourceBlockWC,
             TotalBytesPerSinkBlock);
 
@@ -360,15 +362,15 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
     MaxSinkSize     = NFBlockSize * MaxSinkBlocks;
     MaxSourceSize   = NFBlockSize * MaxSourceBlocks;
 
-    STDLOG(2, "Planning for %d sink and %d source blocks, each %d particles\n",
+    STDLOG(2, "Planning for {:d} sink and {:d} source blocks, each {:d} particles\n",
             MaxSinkBlocks, MaxSourceBlocks, NFBlockSize);
 
     // And then we have storage for the Pencils.
     // Here we pessimistically assume one Pencil per SinkBlock.
     MaxNSink = MaxSinkBlocks;
     MaxNSource = MaxNSink;
-    assertf(MaxNSink>2*cpd, "MaxNSink = %d is too small\n", MaxNSink);
-    assertf(MaxNSource>(2+WIDTH)*cpd, "MaxNSource = %d is too small\n", MaxNSource);
+    assertf(MaxNSink>2*cpd, "MaxNSink = {:d} is too small\n", MaxNSink);
+    assertf(MaxNSource>(2+WIDTH)*cpd, "MaxNSource = {:d} is too small\n", MaxNSource);
     // Formally, this one could be slightly larger because of the boundary
     // rows.  However, we neglected this in the Memory estimate, so we'll
     // overflow our buffer if we put it in here.  Fortunately, 1 Pencil
@@ -388,8 +390,8 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
     // Assign threads to cores
     // TODO: make this automatic using libnuma
     //int n_socket = numa_available() == -1 ? 1 : (numa_max_node() + 1);
-    //STDLOG(1, "Detected %d sockets/NUMA nodes\n", n_socket);
-    //assertf(n_socket > 0, "n_socket %d less than 1\n", n_socket);
+    //STDLOG(1, "Detected {:d} sockets/NUMA nodes\n", n_socket);
+    //assertf(n_socket > 0, "n_socket {:d} less than 1\n", n_socket);
 
     if(UsePinnedGPUMemory < 0)
         UsePinnedGPUMemory = MaxSinkBlocks >= 10000;  // Pinning is slow, so for very small problems it's faster to use unpinned memory
@@ -417,7 +419,7 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
         if(g < NGPU){
             thread_startup_barriers[g] = new pthread_barrier_t;
             int p_ret = pthread_barrier_init(thread_startup_barriers[g], NULL, BPD);
-            assertf(p_ret == 0, "pthread_barrier_init failed with value %d\n", p_ret);
+            assertf(p_ret == 0, "pthread_barrier_init failed with value {:d}\n", p_ret);
         }
         
         ThreadInfo *info = DeviceThreads + g;
@@ -428,18 +430,18 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
         info->queue = GPUQueueAssignments[g%NGPU];
 
         if(core >= 0)
-            STDLOG(0, "GPU buffer thread %d (GPU %d) assigned to core %d, watching queue %d\n", g, g % NGPU, core, info->queue);
+            STDLOG(0, "GPU buffer thread {:d} (GPU {:d}) assigned to core {:d}, watching queue {:d}\n", g, g % NGPU, core, info->queue);
         else
-            STDLOG(0, "GPU buffer thread %d (GPU %d) not bound to a core, watching queue %d\n", g, g % NGPU, info->queue);
+            STDLOG(0, "GPU buffer thread {:d} (GPU {:d}) not bound to a core, watching queue {:d}\n", g, g % NGPU, info->queue);
         
         // Start one thread per buffer
         int p_retval = pthread_create(&(DeviceThreads[g].thread), NULL, QueueWatcher, info);
-        assertf(p_retval == 0, "pthread_create failed with value %d\n", p_retval);
+        assertf(p_retval == 0, "pthread_create failed with value {:d}\n", p_retval);
 
         host_alloc_bytes += Buffers[g].sizeWC + Buffers[g].sizeDef;
     }
 
-    STDLOG(1, "Allocated %f MB host-side memory\n", host_alloc_bytes/1024./1024);
+    STDLOG(1, "Allocated {:f} MB host-side memory\n", host_alloc_bytes/1024./1024);
 
     init = 1;
 }
@@ -512,7 +514,7 @@ void *QueueWatcher(void *arg){
         set_core_affinity(assigned_core);
     int UsePinnedGPUMemory = info->UsePinnedGPUMemory;
 
-    STDLOG(1,"Running GPU thread %d, core %d\n", n, assigned_core);
+    STDLOG(1,"Running GPU thread {:d}, core {:d}\n", n, assigned_core);
 
     checkCudaErrors(cudaSetDevice(gpu));
     if (assigned_device < NGPU) {
@@ -523,20 +525,20 @@ void *QueueWatcher(void *arg){
 
     // Wait on the barrier: the "head" thread for each GPU must complete setting device flags before any CUDA operations can occur
     pthread_barrier_wait(info->barrier);
-    STDLOG(1,"Barrier passed on stream %d\n", n);
+    STDLOG(1,"Barrier passed on stream {:d}\n", n);
 
     // Initiate the stream
     checkCudaErrors(cudaStreamCreateWithFlags(&DeviceStreams[n], cudaStreamNonBlocking));
-    STDLOG(1,"GPU stream %d initiated\n", n);
+    STDLOG(1,"GPU stream {:d} initiated\n", n);
 
     // Allocate CUDA memory
-    STDLOG(1,"About to CudaAllocate %lu bytes on GPU %d\n", Buffers[n].size,gpu);
-    //assertf((Buffers[n].size > (int64) 1e9) && (Buffers[n].size < (int64) 3e9), "Unexpected CudaAllocate size %d bytes for AbacusSummit\n", Buffers[n].size);
+    STDLOG(1,"About to CudaAllocate {:d} bytes on GPU {:d}\n", Buffers[n].size,gpu);
+    //assertf((Buffers[n].size > (int64) 1e9) && (Buffers[n].size < (int64) 3e9), "Unexpected CudaAllocate size {:d} bytes for AbacusSummit\n", Buffers[n].size);
 
     CudaAllocate(Buffers[n].device,     Buffers[n].size);
     WCAllocate(Buffers[n].hostWC,       Buffers[n].sizeWC);
     PinnedAllocate(Buffers[n].host,     Buffers[n].sizeDef);
-    STDLOG(1,"GPU thread %d memory allocated\n", n);
+    STDLOG(1,"GPU thread {:d} memory allocated\n", n);
     // We make 2/3 of the host pinned memory WriteCombined, which is
     // good for sending data to the GPU.  The other 1/3 is normal, 
     // better for returning the data from the GPU.
@@ -547,14 +549,14 @@ void *QueueWatcher(void *arg){
     int page = -1, ret = 0;
     ret = move_pages(0, 1, (void **) &(Buffers[n].host), NULL, &page, 0);
     if(ret == 0)
-        STDLOG(1, "Host buffer for GPU %d allocated on NUMA node %d on core %d\n", gpu, page, assigned_core);
+        STDLOG(1, "Host buffer for GPU {:d} allocated on NUMA node {:d} on core {:d}\n", gpu, page, assigned_core);
     else
-        STDLOG(1, "NUMA page query failed for GPU %d on core %d\n", gpu, assigned_core);
+        STDLOG(1, "NUMA page query failed for GPU {:d} on core {:d}\n", gpu, assigned_core);
     ret = move_pages(0, 1, (void **) &(Buffers[n].hostWC), NULL, &page, 0);
     if(ret == 0)
-        STDLOG(1, "Host write-combined buffer for GPU %d allocated on NUMA node %d on core %d\n", gpu, page, assigned_core);
+        STDLOG(1, "Host write-combined buffer for GPU {:d} allocated on NUMA node {:d} on core {:d}\n", gpu, page, assigned_core);
     else
-        STDLOG(1, "NUMA page query failed on host write-combined buffer for GPU %d on core %d\n", gpu, assigned_core);
+        STDLOG(1, "NUMA page query failed on host write-combined buffer for GPU {:d} on core {:d}\n", gpu, assigned_core);
 #endif
 
     Buffers[n].ready = 1;
@@ -573,7 +575,7 @@ void *QueueWatcher(void *arg){
             GPUPencilTask(item.task, assigned_device);
     }
 
-    STDLOG(1, "Received item signaling termination in GPU thread %d\n", n);
+    STDLOG(1, "Received item signaling termination in GPU thread {:d}\n", n);
     
     // All done; make sure profiling info is sync'd
     checkCudaErrors(cudaStreamSynchronize(DeviceStreams[assigned_device]));
@@ -594,7 +596,7 @@ void *QueueWatcher(void *arg){
         free(Buffers[n].host);
     }
     
-    STDLOG(1, "Terminated GPU thread %d\n", n);
+    STDLOG(1, "Terminated GPU thread {:d}\n", n);
 
     if(assigned_device < NGPU)
         delete info->barrier;  // this was allocated in GPUSetup

@@ -76,12 +76,8 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
 	
 	Constructor.Clear(); Constructor.Start(); 
 	
-    std::stringstream ss;
-    std::string s;
-	ss << MultipoleDirectory << "/Multipoles";
-	s = ss.str();
-	mt_file = s.c_str(); 
-    STDLOG(2,"Working with MTfile %s\n", mt_file);
+	mt_file = MultipoleDirectory / "Multipoles"; 
+    STDLOG(2,"Working with MTfile {}\n", mt_file);
 
 	//in previous timestep's finish action, multipoles were distributed to nodes such that each node now stores multipole moments for all x and its given range of z that it will convolve. Fetch these from shared memory.
 	create_MT_file = _create_MT_file; 
@@ -106,7 +102,7 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
 	node_slab_elem = znode*rml*node_ky_size;  // number of elements in each slab this node handles
     convtimebuffer = NULL;
 	
-	STDLOG(2, "Doing zstart = %d and znode = %d\n", zstart, znode);
+	STDLOG(2, "Doing zstart = {:d} and znode = {:d}\n", zstart, znode);
 	
 	CompressedMultipoleLengthXY = ((1+cpd)*(3+cpd))/8;
 	invcpd3 = (Complex) (pow(cpd * cpd * cpd, -1.0)); //NAM TODO get rid of Complex typecasting. 
@@ -180,7 +176,7 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, char MultipoleDir
     sdb *= 1024LLU;
 
     int no_dio = !P.AllowDirectIO;
-	STDLOG(2, "Making RD object with no_dio=%d bufsize=%d\n", no_dio, sdb);
+	STDLOG(2, "Making RD object with no_dio={:d} bufsize={:d}\n", no_dio, sdb);
 	RD = new ReadDirect(no_dio, sdb);
 	
 	Constructor.Stop(); 
@@ -204,8 +200,8 @@ ParallelConvolution::~ParallelConvolution() {
 	
 	Destructor.Clear(); Destructor.Start(); 
 		
-	assertf(Trecv_active == 0, "Error: active taylor receive requests ! = 0, = %d\n", Trecv_active);
-	assertf(Msend_active == 0, "Error: active multipole send requests ! = 0, = %d\n", Msend_active);
+	assertf(Trecv_active == 0, "Error: active taylor receive requests ! = 0, = {:d}\n", Trecv_active);
+	assertf(Msend_active == 0, "Error: active multipole send requests ! = 0, = {:d}\n", Msend_active);
 	
 	delete[] Msend_requests;
 	delete[] Trecv_requests; 
@@ -233,7 +229,7 @@ ParallelConvolution::~ParallelConvolution() {
 		    if(Ddisk[z] != NULL){
 				MunmapDerivs.Clear(); MunmapDerivs.Start(); 
 		        int res = munmap(Ddisk[z], Ddisk_bytes);
-		        assertf(res == 0, "Failed to munmap derivs %d\n", z); 
+		        assertf(res == 0, "Failed to munmap derivs {:d}\n", z); 
 				MunmapDerivs.Stop(); 
 				CS.MunmapDerivs += MunmapDerivs.Elapsed(); 
 		    }
@@ -265,7 +261,7 @@ ParallelConvolution::~ParallelConvolution() {
 	
 	dumpstats_timer.Stop(); 
 	
-	STDLOG(1, "Dumpstats took %f seconds\n", dumpstats_timer.Elapsed());
+	STDLOG(1, "Dumpstats took {:f} seconds\n", dumpstats_timer.Elapsed());
 }
 
 
@@ -280,30 +276,26 @@ void ParallelConvolution::AllocMT(){
 	//TODO this appears almost exactly as in arena allocator. Consider factoring out to ramdisk util. 
 	AllocateMT.Clear(); AllocateMT.Start(); 
 	
-	
-	assert(mt_file != NULL);
-    assert(strnlen(mt_file,1) > 0);
+    assert(!mt_file.empty());
     STDLOG(2,"Mapping MTdisk from shared memory\n");
 
 	if(create_MT_file)
-		unlink(mt_file);
+		fs::remove(mt_file);
 	
     int shm_fd_flags = create_MT_file ? (O_RDWR | O_CREAT | O_EXCL) : O_RDWR;
-    int fd = open(mt_file, shm_fd_flags, S_IRUSR | S_IWUSR);
-    assertf(fd != -1, "Failed to open shared memory file at \"%s\"\n", mt_file);
+    int fd = open(mt_file.c_str(), shm_fd_flags, S_IRUSR | S_IWUSR);
+    assertf(fd != -1, "Failed to open shared memory file at \"{}\"\n", mt_file);
     
 	MTdisk_bytes = sizeof(MTCOMPLEX)*node_slab_elem*cpd;
 	
     if(create_MT_file){
 	    // set the size
 	    int res = ftruncate(fd, MTdisk_bytes);
-	    assertf(res == 0, "ftruncate on shared memory mt_file = %s to size = %d failed\n", mt_file, MTdisk_bytes);
+	    assertf(res == 0, "ftruncate on shared memory mt_file = {} to size = {:d} failed\n", mt_file, MTdisk_bytes);
     } else {
         // check that the size is as expected
-        struct stat shmstat;
-        int res = fstat(fd, &shmstat);
-        assertf(res == 0, "fstat on shared memory ramdisk_fn = %s\n", mt_file);
-        assertf(shmstat.st_size == MTdisk_bytes, "Found shared memory size %d; expected %d (ramdisk_fn = %s)\n", shmstat.st_size, MTdisk_bytes, mt_file);
+        assertf(res == 0, "fstat on shared memory ramdisk_fn = {}\n", mt_file);
+        assertf(fs::file_size(mt_file) == MTdisk_bytes, "Found shared memory size {:d}; expected {:d} (ramdisk_fn = {})\n", shmstat.st_size, MTdisk_bytes, mt_file);
     }
     // map the shared memory fd to an address
     int mmap_flags = create_MT_file ? (PROT_READ | PROT_WRITE) : (PROT_READ | PROT_WRITE);  // the same
@@ -312,19 +304,19 @@ void ParallelConvolution::AllocMT(){
 	
 	MTdisk = (MTCOMPLEX *) mmap(NULL, MTdisk_bytes, mmap_flags, MAP_SHARED, fd, 0);
     int res = close(fd);
-    assertf((void *) MTdisk != MAP_FAILED, "mmap shared memory from fd = %d of size = %d failed\n", fd, MTdisk_bytes);
-    assertf(MTdisk != NULL, "mmap shared memory from fd = %d of size = %d failed\n", fd, MTdisk_bytes);
-    assertf(res == 0, "Failed to close fd %d\n", fd);
+    assertf((void *) MTdisk != MAP_FAILED, "mmap shared memory from fd = {:d} of size = {:d} failed\n", fd, MTdisk_bytes);
+    assertf(MTdisk != NULL, "mmap shared memory from fd = {:d} of size = {:d} failed\n", fd, MTdisk_bytes);
+    assertf(res == 0, "Failed to close fd {:d}\n", fd);
 	
-	STDLOG(2, "Successfully mapped MTdisk of size %d bytes at address %p.\n", MTdisk_bytes, MTdisk);
+	STDLOG(2, "Successfully mapped MTdisk of size {:d} bytes at address {:p}.\n", MTdisk_bytes, MTdisk);
 	
 	MmapMT.Stop(); 
 		
     size_t bufsize = sizeof(Complex)*znode*rml*cpdky_pad;
 	
 	MTzmxy = (Complex *) fftw_malloc(bufsize);
-	assertf(MTzmxy!=NULL, "Failed fftw_malloc for MTzmxy of size %d\n", bufsize);
-	STDLOG(2, "Successfully malloced MTzmxy at address %p\n", MTzmxy);
+	assertf(MTzmxy!=NULL, "Failed fftw_malloc for MTzmxy of size {:d}\n", bufsize);
+	STDLOG(2, "Successfully malloced MTzmxy at address {:p}\n", MTzmxy);
 	
 	AllocateMT.Stop(); 
 	CS.AllocMT = AllocateMT.Elapsed();
@@ -387,13 +379,13 @@ void ParallelConvolution::LoadDerivatives(int z) {
             (int) cpd, order, P.NearFieldRadius,
             P.DerivativeExpansionRadius, z_file);
 	
-	assertf(ramdisk_derivs == 0 || ramdisk_derivs == 1, "Ramdisk_derivs detected bad value: %d.\n", ramdisk_derivs);
+	assertf(ramdisk_derivs == 0 || ramdisk_derivs == 1, "Ramdisk_derivs detected bad value: {:d}.\n", ramdisk_derivs);
 	
     if(!ramdisk_derivs){
 		assert(Ddisk[z] != NULL); 
         RD->BlockingRead( fn, (char *) Ddisk[z], Ddisk_bytes, dfile_offset, ramdisk_derivs);
         CS.ReadDerivativesBytes += Ddisk_bytes;
-		STDLOG(2, "BlockingRead derivatives for z = %d from file %s\n", z_file, fn);
+		STDLOG(2, "BlockingRead derivatives for z = {:d} from file {}\n", z_file, fn);
     } else {
 	    if(Ddisk[z] != NULL){
 	    	MunmapDerivs.Clear(); MunmapDerivs.Start();
@@ -403,8 +395,8 @@ void ParallelConvolution::LoadDerivatives(int z) {
 	        assertf(res == 0, "Failed to munmap derivs\n");
 	    }
 
-	    int fd = open(fn, O_RDWR, S_IRUSR | S_IWUSR);
-	    assertf(fd != -1, "Failed to open shared memory file at \"%s\"\n", fn);
+	    int fd = open(fn.c_str(), O_RDWR, S_IRUSR | S_IWUSR);
+	    assertf(fd != -1, "Failed to open shared memory file at \"{}\"\n", fn);
 
 		MmapDerivs.Clear(); MmapDerivs.Start(); 
 		
@@ -414,10 +406,10 @@ void ParallelConvolution::LoadDerivatives(int z) {
 		// But that's slower.
 	    Ddisk[z] = (DFLOAT *) mmap(NULL, Ddisk_bytes, PROT_READ | PROT_WRITE, MAP_SHARED, fd, dfile_offset);
 	    int res = close(fd);
-	    assertf((void *) Ddisk[z] != MAP_FAILED, "mmap shared memory from fd = %d of size = %d failed\n", fd, Ddisk_bytes);
-	    assertf(Ddisk[z] != NULL, "mmap shared memory from fd = %d of size = %d failed\n", fd, Ddisk_bytes);
-	    assertf(res == 0, "Failed to close fd %d\n", fd);
-		STDLOG(2, "Mapped derivatives for z = %d from file %s\n", z_file, fn);
+	    assertf((void *) Ddisk[z] != MAP_FAILED, "mmap shared memory from fd = {:d} of size = {:d} failed\n", fd, Ddisk_bytes);
+	    assertf(Ddisk[z] != NULL, "mmap shared memory from fd = {:d} of size = {:d} failed\n", fd, Ddisk_bytes);
+	    assertf(res == 0, "Failed to close fd {:d}\n", fd);
+		STDLOG(2, "Mapped derivatives for z = {:d} from file {}\n", z_file, fn);
 		
 		MmapDerivs.Stop(); 
 		CS.MmapDerivs += MmapDerivs.Elapsed(); 
@@ -437,7 +429,7 @@ void ParallelConvolution::RecvMultipoleSlab(int first_slab_finished) {
 	    for (int xraw = first_slabs_all[r] + offset; xraw < first_slabs_all[r] + offset + total_slabs_all[r]; xraw++) {
 			int x = CP->WrapSlab(xraw);
 
-		    STDLOG(4,"MPI_Irecv set for incoming Multipoles on slab %d\n", x);
+		    STDLOG(4,"MPI_Irecv set for incoming Multipoles on slab {:d}\n", x);
 
 			int tag = (MPI_rank_x+1) * 10000 + x + M_TAG; 
 			
@@ -466,7 +458,7 @@ void ParallelConvolution::SendMultipoleSlab(int slab) {
 		MPI_Issend(mt + node_start[r], node_size[r], MPI_MTCOMPLEX, r, tag, comm_multipoles, &Msend_requests[slab][r]);		
 	}
     MsendTimer[slab].Start();
-	STDLOG(2,"Multipole slab %d has been queued for MPI_Issend, Msend_active = %d\n", slab, Msend_active);
+	STDLOG(2,"Multipole slab {:d} has been queued for MPI_Issend, Msend_active = {:d}\n", slab, Msend_active);
 }
 
 
@@ -477,7 +469,7 @@ int ParallelConvolution::CheckRecvMultipoleComplete(int slab) {
     int received = 0;
     int err = MPI_Test(&Mrecv_requests[slab], &received, MPI_STATUS_IGNORE);
 
-	if (!received) STDLOG(4, "Multipole slab %d not received yet...\n", slab);
+	if (!received) STDLOG(4, "Multipole slab {:d} not received yet...\n", slab);
     else assert(Mrecv_requests[slab] == MPI_REQUEST_NULL);
 	return received;  
 }
@@ -513,7 +505,7 @@ int ParallelConvolution::CheckSendMultipoleComplete(int slab) {
 
 		Msend_active--;
         MsendTimer[slab].Stop();
-		STDLOG(1,"MPI_Issend complete for MultipoleSlab %d after %6.3f sec, Msend_active = %d\n", x, MsendTimer[slab].Elapsed(), Msend_active);
+		STDLOG(1,"MPI_Issend complete for MultipoleSlab {:d} after {:6.3f} sec, Msend_active = {:d}\n", x, MsendTimer[slab].Elapsed(), Msend_active);
     }
 	
 	return done; 
@@ -532,7 +524,7 @@ int ParallelConvolution::CheckForMultipoleTransferComplete(int _slab) {
 	int done = CheckRecvMultipoleComplete(slab) &&
 			   CheckSendMultipoleComplete(slab); 
 	if (done){
-        STDLOG(1,"Multipole MPI work complete for slab %d.\n", slab);
+        STDLOG(1,"Multipole MPI work complete for slab {:d}.\n", slab);
         MultipoleSlabAllMPIDone[slab] = 1;
     }
 	
@@ -547,12 +539,12 @@ int ParallelConvolution::GetTaylorRecipient(int slab, int offset){
 		for (int _x = first_slabs_all[r] + offset; _x < first_slabs_all[r] + offset + total_slabs_all[r]; _x++) {
 			int x = _x % cpd;
 			if (x == slab){
-				STDLOG(4, "For slab %d, identified node %d as Taylor target\n", slab, r);
+				STDLOG(4, "For slab {:d}, identified node {:d} as Taylor target\n", slab, r);
 				return r;
 			}
 		} 
 	}
-    QUIT("Did not find target node for slab %d!", slab);
+    QUIT("Did not find target node for slab {:d}!", slab);
     return -1;
 }
 
@@ -565,14 +557,14 @@ void ParallelConvolution::SendTaylors(int offset) {
 		//figure out who the receipient should be based on x slab and send to them. 
 		// Take from MTdisk. Set Tsend_requests[x] as request. 	
 		int slab = CP->WrapSlab(_slab);
-		STDLOG(4, "About to SendTaylor Slab %d with offset %d\n", slab, offset); 
+		STDLOG(4, "About to SendTaylor Slab {:d} with offset {:d}\n", slab, offset); 
 		
 		int r = GetTaylorRecipient(slab, offset); //x-slab slab is in node r's domain. Send to node r. 
 	
 		int tag = (MPI_rank_x+1) * 10000 + slab + T_TAG;
 		
 		MPI_Issend(MTdisk + slab * node_slab_elem, node_slab_elem, MPI_MTCOMPLEX, r, tag, comm_taylors, &Tsend_requests[slab]);
-		STDLOG(3,"Taylor slab %d has been queued for MPI_Issend to rank %d, offset %d\n", slab, r, offset);
+		STDLOG(3,"Taylor slab {:d} has been queued for MPI_Issend to rank {:d}, offset {:d}\n", slab, r, offset);
 	}
 	STDLOG(2, "MPI_Issend set for outgoing Taylors.\n");
 	QueueTaylors.Stop(); CS.QueueTaylors = QueueTaylors.Elapsed(); 
@@ -594,7 +586,7 @@ void ParallelConvolution::RecvTaylorSlab(int slab) {
 		int tag = (r+1) * 10000 + slab + T_TAG;
 		MPI_Irecv(mt + node_start[r], node_size[r], MPI_MTCOMPLEX, r, tag, comm_taylors, &Trecv_requests[slab][r]);
 	}
-	STDLOG(2,"MPI_Irecv setup for incoming Taylors on slab %d.\n", slab);
+	STDLOG(2,"MPI_Irecv setup for incoming Taylors on slab {:d}.\n", slab);
 	
 	QueueTaylors.Stop(); CS.QueueTaylors = QueueTaylors.Elapsed(); 
 }
@@ -608,7 +600,7 @@ int ParallelConvolution::CheckTaylorRecvReady(int slab){
 		delete[] Trecv_requests[slab];
 		Trecv_requests[slab] = NULL; 
 		Trecv_active--;
-		STDLOG(2, "Taylor slab %d receives completed\n", slab);
+		STDLOG(2, "Taylor slab {:d} receives completed\n", slab);
 	}
 	
 	return done;
@@ -623,7 +615,7 @@ int ParallelConvolution::CheckTaylorSendComplete(int slab){
 	
     if (sent) {
     	assert(Tsend_requests[slab] == MPI_REQUEST_NULL);
-    	STDLOG(1, "Taylor slab %d send completed\n", slab);
+    	STDLOG(1, "Taylor slab {:d} send completed\n", slab);
     }
 	
 	return sent; 
@@ -650,7 +642,7 @@ int ParallelConvolution::CheckTaylorSlabReady(int slab) {
 	}
 	
 	if(send_done and recv_done){
-        STDLOG(1, "Taylor MPI work complete for slab %d.\n", slab);
+        STDLOG(1, "Taylor MPI work complete for slab {:d}.\n", slab);
         TaylorSlabAllMPIDone[slab] = 1;
     }
 
@@ -723,7 +715,7 @@ fftw_plan ParallelConvolution::PlanFFT(int sign){
 	// stride = cpd, dist = 1, nembed = NULL
 	// We imported any wisdom in Prologue
 
-    STDLOG(2, "MTzmxy byte alignment is %d\n", 1 << __builtin_ctzll((unsigned long long) MTzmxy));
+    STDLOG(2, "MTzmxy byte alignment is {:d}\n", 1 << __builtin_ctzll((unsigned long long) MTzmxy));
 	
 	int  n[] = {(int) cpd};
     if(wisdom_exists){
@@ -749,7 +741,7 @@ fftw_plan ParallelConvolution::PlanFFT(int sign){
             (fftw_complex *) MTzmxy, NULL, node_ky_size, 1,
             sign, FFTW_PATIENT);
     }
-    assertf(plan != NULL, "Failed to generate ParallelConvolve FFTW plan for sign %d\n", sign);
+    assertf(plan != NULL, "Failed to generate ParallelConvolve FFTW plan for sign {:d}\n", sign);
 	
 	return plan;
 }

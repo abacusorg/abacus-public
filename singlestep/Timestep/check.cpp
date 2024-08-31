@@ -12,7 +12,7 @@ int are_cellinfo_legal(int slab, uint64 slabsize, uint64 slabsize_with_ghost) {
 			int isghost = (k < node_z_start_ghost + GHOST_RADIUS) || (k >= node_z_start_ghost + node_z_size_with_ghost - GHOST_RADIUS);
 			
 			assertf(CP->CellInfo(slab,j,k)->legalvalue(slabsize, slabsize_with_ghost, isghost),
-				"Failed for slab %d, j=%d, k=%d\n", slab, j, k);
+				"Failed for slab {:d}, j={:d}, k={:d}\n", slab, j, k);
 		}
 	}
 	NUMA_FOR_END;

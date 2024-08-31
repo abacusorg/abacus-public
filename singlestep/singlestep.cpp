@@ -4,7 +4,7 @@
 
 
 void BuildWriteState(double da){
-	STDLOG(0,"Building WriteState for a step from a=%f by da=%f\n", cosm->current.a, da);
+	STDLOG(0,"Building WriteState for a step from a={:f} by da={:f}\n", cosm->current.a, da);
 
 	// fill in WriteState from the Parameter file
 	WriteState.np_state = P.np;
@@ -34,15 +34,15 @@ void BuildWriteState(double da){
     WriteState.NodeSizeZ = MPI_size_z;
 
 	WriteState.DoublePrecision = (sizeof(FLOAT)==8)?1:0;
-	STDLOG(0,"Bytes per float is %d\n", sizeof(FLOAT));
-	STDLOG(0,"Bytes per auxstruct is %d\n", sizeof(auxstruct));
-	STDLOG(0,"Bytes per cellinfo is %d\n", sizeof(cellinfo));
+	STDLOG(0,"Bytes per float is {:d}\n", sizeof(FLOAT));
+	STDLOG(0,"Bytes per auxstruct is {:d}\n", sizeof(auxstruct));
+	STDLOG(0,"Bytes per cellinfo is {:d}\n", sizeof(cellinfo));
 	assert(WriteState.FullStepNumber == ReadState.FullStepNumber+1);  // already set this in load_read_state()
-	STDLOG(0,"This is step number %d\n", WriteState.FullStepNumber);
+	STDLOG(0,"This is step number {:d}\n", WriteState.FullStepNumber);
 
 	//get the next timestep and build the cosmology for it
 	double nexta = cosm->current.a + da;
-	STDLOG(0,"Next scale factor is %f\n", nexta);
+	STDLOG(0,"Next scale factor is {:f}\n", nexta);
 	cosm->BuildEpoch(cosm->current, cosm->next, nexta);
 	FillStateWithCosmology(WriteState);
 
@@ -52,7 +52,7 @@ void BuildWriteState(double da){
 	WriteState.DeltaScaleFactor = cosm->next.a - cosm->current.a;
 
 	cosm->t2a(0.5*(cosm->next.t+cosm->current.t));
-	STDLOG(0,"Scale factor halfway in between is %f\n", cosm->search.a);
+	STDLOG(0,"Scale factor halfway in between is {:f}\n", cosm->search.a);
 	// cosm->search now has the midpoint epoch.
 	WriteState.ScaleFactorHalf = cosm->search.a;
 	WriteState.LastHalfEtaKick =
@@ -88,7 +88,7 @@ void BuildWriteState(double da){
     // This helps ensure that we are using the true 1/r^2 force
     /*if(LPTStepNumber()>0){
         WriteState.SofteningLengthNow = P.SofteningLength / 1e4;  // This might not be in the growing mode for this choice of softening, though
-        STDLOG(0,"Reducing softening length from %f to %f because this is a 2LPT step.\n", P.SofteningLength, WriteState.SofteningLengthNow);
+        STDLOG(0,"Reducing softening length from {:f} to {:f} because this is a 2LPT step.\n", P.SofteningLength, WriteState.SofteningLengthNow);
     }
     else{
         WriteState.SofteningLengthNow = P.SofteningLength;
@@ -97,11 +97,11 @@ void BuildWriteState(double da){
     // Is the softening fixed in proper coordinates?
     if(P.ProperSoftening){
         WriteState.SofteningLengthNow = min(P.SofteningLength/WriteState.ScaleFactor, P.SofteningMax);
-        STDLOG(1, "Adopting a comoving softening of %d, fixed in proper coordinates\n", WriteState.SofteningLengthNow);
+        STDLOG(1, "Adopting a comoving softening of {:g}, fixed in proper coordinates\n", WriteState.SofteningLengthNow);
     }
     else{
         WriteState.SofteningLengthNow = P.SofteningLength;
-        STDLOG(1, "Adopting a comoving softening of %d, fixed in comoving coordinates\n", WriteState.SofteningLengthNow);
+        STDLOG(1, "Adopting a comoving softening of {:g}, fixed in comoving coordinates\n", WriteState.SofteningLengthNow);
     }
 
     // Now scale the softening to match the minimum Plummer orbital period
@@ -204,9 +204,9 @@ int main(int argc, char **argv) {
     int NoForces = MakeIC || Do2DGroupFinding;
 
     setup_log(); // STDLOG and assertf now available
-    STDLOG(0,"Read Parameter file %s\n", argv[1]);
-    STDLOG(0,"MakeIC = %d\n", MakeIC);
-    STDLOG(0,"NoForces = %d\n", NoForces);
+    STDLOG(0,"Read Parameter file {:s}\n", argv[1]);
+    STDLOG(0,"MakeIC = {:d}\n", MakeIC);
+    STDLOG(0,"NoForces = {:d}\n", NoForces);
 
     InitializeForceRadius(NoForces);
     InitializeParallelDomain();  // needs ReadState
@@ -233,9 +233,9 @@ int main(int argc, char **argv) {
 
     // da *= -1;  // reverse the time step TODO: make parameter
     double dlna = da/ReadState.ScaleFactor;
-    STDLOG(0,"Chose Time Step da = %6.4f, dlna = %6.4f\n", da, dlna);
+    STDLOG(0,"Chose Time Step da = {:6.4f}, dlna = {:6.4f}\n", da, dlna);
     if(dlna > 0){
-        STDLOG(0, "\t\tAt the current rate, this implies %d more steps to z_final=%f\n", (int64)ceil(log(1./ReadState.ScaleFactor/(1. + P.FinishingRedshift()))/dlna), P.FinishingRedshift());
+        STDLOG(0, "\t\tAt the current rate, this implies {:d} more steps to z_final={:f}\n", (int64)ceil(log(1./ReadState.ScaleFactor/(1. + P.FinishingRedshift()))/dlna), P.FinishingRedshift());
     }
 
     BuildWriteState(da);
@@ -285,7 +285,7 @@ int main(int argc, char **argv) {
     // The state should be written last, since that officially signals success.
     if (MPI_rank==0) {
         WriteState.write_to_file(P.WriteStateDirectory);
-        STDLOG(0,"Wrote WriteState to %s\n",P.WriteStateDirectory);
+        STDLOG(0,"Wrote WriteState to {}\n",P.WriteStateDirectory);
     }
 
     if (!MakeIC && P.ProfilingMode){

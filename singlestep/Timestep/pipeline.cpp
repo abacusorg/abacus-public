@@ -45,7 +45,7 @@ public:
     * All "normal" slabtypes should be loaded here. Note that loads may be async.
     */
     void action(int slab) {
-        STDLOG(1,"Fetching slab %d with %d particles (%d w/ ghost)\n",
+        STDLOG(1,"Fetching slab {:d} with {:d} particles ({:d} w/ ghost)\n",
             slab, SS->size(slab), SS->size_with_ghost(slab));
 
         // Load all of the particle files together
@@ -63,7 +63,7 @@ public:
     #ifdef PARALLEL
         // SB->AllocateArena(TaylorSlab, slab + FORCE_RADIUS, RAMDISK_NO);
     // 	ParallelConvolveDriver->RecvTaylorSlab(slab + FORCE_RADIUS);
-    // 	STDLOG(2, "Received Taylor slab via MPI%d\n", slab + FORCE_RADIUS);
+    // 	STDLOG(2, "Received Taylor slab via MPI{:d}\n", slab + FORCE_RADIUS);
 
     #else
         SB->LoadArenaNonBlocking(TaylorSlab,slab);
@@ -148,7 +148,7 @@ public:
     void action(int slab) {
         // Do some data checks
         assertf(are_cellinfo_legal(slab, SS->size(slab), SS->size_with_ghost(slab)),
-                "Cell info of slab %d contain out of bounds data\n", slab);
+                "Cell info of slab {:d} contain out of bounds data\n", slab);
         // Could also check that the sum of the cell counts add up to SS->size(slab);
 
         SlabForceTime[slab].Start();
@@ -339,7 +339,7 @@ public:
 
         // Special case: if this is the last slab, free all +/- FORCE_RADIUS
         // Not worrying about this in the PARALLEL case; we have other non-destructions
-        STDLOG(1,"%d slabs have been Kicked so far\n", Kick->raw_number_executed);
+        STDLOG(1,"{:d} slabs have been Kicked so far\n", Kick->raw_number_executed);
         if(Kick->raw_number_executed == total_slabs_on_node-1)
             for(int j = slab - FORCE_RADIUS+1; j <= slab + FORCE_RADIUS; j++)
                 SB->DeAllocate(PosXYZSlab, j);
@@ -349,7 +349,7 @@ public:
         // Queue up slabs near the wrap to be loaded again later
         // This way, we don't have idle slabs taking up memory while waiting for the pipeline to wrap around
         if(Kick->number_of_slabs_executed < FORCE_RADIUS){
-            STDLOG(3,"Marking slab %d for repeat\n", slab - FORCE_RADIUS);
+            STDLOG(3,"Marking slab {:d} for repeat\n", slab - FORCE_RADIUS);
             TransposePos->mark_to_repeat(slab - FORCE_RADIUS);
             SB->DeAllocate(PosXYZSlab, slab - FORCE_RADIUS);
             // The first two won't need PosSlab until the second time around
@@ -404,20 +404,20 @@ public:
         if (step) {
             // We have LPT IC work to do
             if (step==1) {
-                STDLOG(1,"Kicking slab %d as LPT step 1\n", slab);
+                STDLOG(1,"Kicking slab {:d} as LPT step 1\n", slab);
                 KickSlab(slab, 0, 0, 0, KickCell_2LPT_1);
             } else if (step==2) {
-                STDLOG(1,"Kicking slab %d as LPT step 2\n", slab);
+                STDLOG(1,"Kicking slab {:d} as LPT step 2\n", slab);
                 KickSlab(slab, 0, 0, 0, KickCell_2LPT_2);
             } else if (step==3) {
-                STDLOG(1,"Kicking slab %d as LPT step 3\n", slab);
+                STDLOG(1,"Kicking slab {:d} as LPT step 3\n", slab);
                 KickSlab(slab, 0, 0, 0, KickCell_2LPT_3);
-            } else QUIT("LPT Kick %d not implemented\n", step);
+            } else QUIT("LPT Kick {:d} not implemented\n", step);
         } else {
             // This is just a standard step
             FLOAT kickfactor1 =  ReadState.LastHalfEtaKick;
             FLOAT kickfactor2 =  WriteState.FirstHalfEtaKick;
-            STDLOG(1,"Kicking slab %d by %f + %f\n", slab, kickfactor1, kickfactor2);
+            STDLOG(1,"Kicking slab {:d} by {:f} + {:f}\n", slab, kickfactor1, kickfactor2);
             KickSlab(slab, kickfactor1, kickfactor2, set_aux_dens, KickCell);
         }
         KickCellTimer.Stop();
@@ -532,7 +532,7 @@ public:
                 SendManifest++;
             }
         #endif
-        STDLOG(0,"Exiting Find Global Groups action in slab %d\n", slab);
+        STDLOG(0,"Exiting Find Global Groups action in slab {:d}\n", slab);
 
     }
 };
@@ -562,7 +562,7 @@ public:
         MicrostepCPU.Start();
         // Do microstepping here
         if(MicrostepEpochs != NULL){
-            STDLOG(1,"Beginning microsteps for slab %d\n", slab);
+            STDLOG(1,"Beginning microsteps for slab {:d}\n", slab);
             MicrostepControl *MC = new MicrostepControl;
             MC->setup(GFC->globalslabs[slab], *MicrostepEpochs, P.MicrostepTimeStep, NFD->eps);
             //MC->LaunchGroupsGPU();
@@ -682,7 +682,7 @@ public:
 
             // We've already done a K(1) and thus need a K(-1/2)
             FLOAT unkickfactor = WriteState.FirstHalfEtaKick;
-            STDLOG(1,"Outputting slab %d with unkick factor %f\n",slab, unkickfactor);
+            STDLOG(1,"Outputting slab {:d} with unkick factor {:f}\n",slab, unkickfactor);
             n_output += Output_TimeSlice(slab, unkickfactor);
         }
         OutputTimeSlice.Stop();
@@ -692,13 +692,13 @@ public:
             // TODO: LightCones may need a half un-kick if GFC == NULL
             // but we can probably handle that in the interpolation
             for(int i = 0; i < P.NLightCones; i++){
-                // STDLOG(2,"Outputting LightCone %d (origin (%f,%f,%f)) for slab %d\n",i,LCOrigin[i].x,LCOrigin[i].y,LCOrigin[i].z,slab);
+                // STDLOG(2,"Outputting LightCone {:d} (origin ({:f},{:f},{:f})) for slab {:d}\n",i,LCOrigin[i].x,LCOrigin[i].y,LCOrigin[i].z,slab);
                 // Start timing
                 // STimer lightConeTimer;
                 // lightConeTimer.Start();
                 this->np_lightcone += makeLightCone(slab,i);
                 // lightConeTimer.Stop();
-                // STDLOG(2, "LightCone %d for slab %d creation took %f seconds\n", i, slab, lightConeTimer.Elapsed());
+                // STDLOG(2, "LightCone {:d} for slab {:d} creation took {:f} seconds\n", i, slab, lightConeTimer.Elapsed());
             }
         }
         OutputLightCone.Stop();
@@ -709,7 +709,7 @@ public:
             int minstride = 12;
             if (ystride < minstride) ystride = minstride;
             int cpd = CP->cpd;
-            STDLOG(1,"Binning particles for slab %d\n",slab);
+            STDLOG(1,"Binning particles for slab {:d}\n",slab);
             #pragma omp parallel for schedule(dynamic,ystride)
             for (int y=0;y<cpd;y++) {
                 for (int z = node_z_start; z < node_z_start + node_z_size; z++) {
@@ -757,19 +757,19 @@ public:
         if (step) {
             // We have LPT IC work to do
             if (step==1) {
-                STDLOG(1,"Drifting slab %d as LPT step 1\n", slab);
+                STDLOG(1,"Drifting slab {:d} as LPT step 1\n", slab);
                 DriftAndCopy2InsertList(slab, 0, DriftCell_2LPT_1);
             } else if (step==2) {
-                STDLOG(1,"Drifting slab %d as LPT step 2\n", slab);
+                STDLOG(1,"Drifting slab {:d} as LPT step 2\n", slab);
                 DriftAndCopy2InsertList(slab, 0, DriftCell_2LPT_2);
             } else if (step==3) {
-                STDLOG(1,"Drifting slab %d as LPT step 3\n", slab);
+                STDLOG(1,"Drifting slab {:d} as LPT step 3\n", slab);
                 DriftAndCopy2InsertList(slab, 0, DriftCell_2LPT_3);
-            } else QUIT("LPT Drift %d not implemented\n", step);
+            } else QUIT("LPT Drift {:d} not implemented\n", step);
         } else {
             //         This is just a normal drift
             FLOAT driftfactor = WriteState.DeltaEtaDrift;
-            STDLOG(1,"Drifting slab %d by %f\n", slab, driftfactor);
+            STDLOG(1,"Drifting slab {:d} by {:f}\n", slab, driftfactor);
             //DriftAndCopy2InsertList(slab, driftfactor, DriftCell);
             DriftPencilsAndCopy2InsertList(slab, driftfactor, DriftPencil);
         }
@@ -777,7 +777,7 @@ public:
         if(NFD){
             // We kept the accelerations until here because of third-order LPT
             if (P.StoreForces == 1 || (P.StoreForces == 3 && ReadState.DoTimeSliceOutput)) {
-                STDLOG(1,"Storing Forces in slab %d\n", slab);
+                STDLOG(1,"Storing Forces in slab {:d}\n", slab);
                 if(this->raw_number_executed == 0){
                     CreateSubDirectory(P.OutputDirectory, "acc");
                     char dir[32];
@@ -866,7 +866,7 @@ public:
 
     void action(int slab) {
         // Usually actions are log level 1, but let's put this at level 0
-        STDLOG(0, "Executing FinishParticles on slab %d\n", slab);
+        STDLOG(0, "Executing FinishParticles on slab {:d}\n", slab);
         
         FinishFreeSlabs.Start();
 
@@ -903,7 +903,7 @@ public:
         SB->DeAllocate(VelSlab,slab);
         SB->DeAllocate(AuxSlab,slab);
 
-        STDLOG(2,"Done deallocing pos, vel, aux for slab %d\n", slab);
+        STDLOG(2,"Done deallocing pos, vel, aux for slab {:d}\n", slab);
         FinishFreeSlabs.Stop();
 
         // Make the multipoles
@@ -940,19 +940,19 @@ public:
         // In the 1D code, this is just a continuation of FinishParticles
 
         if(MPI_size_z > 1){
-            STDLOG(1, "Executing multipoles z-FFT for slab %d\n", slab);
+            STDLOG(1, "Executing multipoles z-FFT for slab {:d}\n", slab);
             MTCOMPLEX *slabptr = (MTCOMPLEX *) SB->AllocateArena(MultipoleSlab, slab, ramdisk_multipole_flag);
             MF->ComputeFFTZ(slab, slabptr);
         }
 
     #ifdef PARALLEL
         QueueMultipoleMPI.Start();
-        STDLOG(2, "Attempting to SendMultipoleSlab %d\n", slab);
+        STDLOG(2, "Attempting to SendMultipoleSlab {:d}\n", slab);
         // distribute z's to appropriate nodes for this node's x domain.
         ParallelConvolveDriver->SendMultipoleSlab(slab);
         // if we are finishing the first slab, set up receive MPI calls for incoming multipoles.
         if (FinishMultipoles->raw_number_executed==0){
-            STDLOG(2, "Attempting to RecvMultipoleSlab %d\n", slab);
+            STDLOG(2, "Attempting to RecvMultipoleSlab {:d}\n", slab);
             // receive z's from other nodes for all x's.
             ParallelConvolveDriver->RecvMultipoleSlab(slab);
         }
@@ -965,7 +965,7 @@ public:
     #endif
 
         int pwidth = FetchSlabs->raw_number_executed - FinishMultipoles->raw_number_executed;
-        STDLOG(1, "Current pipeline width (N_fetch - N_finish) is %d\n", pwidth);
+        STDLOG(1, "Current pipeline width (N_fetch - N_finish) is {:d}\n", pwidth);
         // release is cheap but not totally free, so might run every few Finishes
         //if (FinishMultipoles->raw_number_executed % 3 == 0)
             ReleaseFreeMemoryToKernel();
@@ -1040,7 +1040,7 @@ public:
             // If the manifest has been received, install it.
             ReceiveManifest->ImportData();
             ReceiveManifest++;
-            STDLOG(1, "Readying the next Manifest, number %d\n", ReceiveManifest-_ReceiveManifest);
+            STDLOG(1, "Readying the next Manifest, number {:d}\n", ReceiveManifest-_ReceiveManifest);
             ReceiveManifest->SetupToReceive();
             didsomething = 1;
         }

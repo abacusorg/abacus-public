@@ -37,7 +37,7 @@ void RecoverReadStateFiles(Parameters &P){
     load_read_state(0);  // Load the bare minimum (step num, etc) to get the log up and running
 
     setup_log(); // STDLOG and assertf now available
-    STDLOG(0,"Read Parameter file %s\n", argv[1]);
+    STDLOG(0,"Read Parameter file {:s}\n", argv[1]);
 
     SetupLocalDirectories(0);
 

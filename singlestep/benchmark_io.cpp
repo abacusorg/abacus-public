@@ -18,7 +18,7 @@
     strcpy(WriteState.ParameterFileName, argv[1]);
 
     setup_log(); // STDLOG and assertf now available
-    STDLOG(0,"Read Parameter file %s\n", argv[1]);
+    STDLOG(0,"Read Parameter file {:s}\n", argv[1]);
 
     init_openmp();
 

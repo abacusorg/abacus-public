@@ -197,7 +197,7 @@ class AppendArena {
             if (pencil[j].next == pencil[j].start) continue;  // Pencil was empty
             // Otherwise, we need to copy down 
             long long int size = pencil[j].next-pencil[j].start;
-            assertf(size>0, "ArenaPencils appear to be in non-increasing order!  Pencil %d\n", j);
+            assertf(size>0, "ArenaPencils appear to be in non-increasing order!  Pencil {:d}\n", j);
             if (pencil[j].start<next+size) {
                 // The two regions overlap, so we need to be careful
                 memmove(next, pencil[j].start, size);
@@ -454,7 +454,7 @@ class OutputRVdoublePID: public AppendArena {
     int sizeof_particle() { return sizeof(struct ICparticle); }
 
     OutputRVdoublePID() {
-            STDLOG(1,"Particle size: %d\n",sizeof_particle());
+            STDLOG(1,"Particle size: {:d}\n",sizeof_particle());
     }
     ~OutputRVdoublePID(void) { }
 };

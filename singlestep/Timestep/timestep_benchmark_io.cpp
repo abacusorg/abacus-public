@@ -27,7 +27,7 @@ int FinishBenchmarkIOPrecondition(int slab) {
 }
 
 void FinishBenchmarkIOAction(int slab) {
-    STDLOG(1,"Finishing benchmark IO slab %d\n", slab);
+    STDLOG(1,"Finishing benchmark IO slab {:d}\n", slab);
         
     /*// Make the multipoles
     SB->AllocateArena(MultipoleSlab,slab);
@@ -67,7 +67,7 @@ void timestepBenchmarkIO(int nslabs) {
     GROUP_RADIUS = 0;
 
     int cpd = P.cpd; int first = first_slab_on_node;
-    assertf(nslabs <= cpd, "nslabs (%d) cannot be larger than cpd (%d)\n", nslabs, cpd);
+    assertf(nslabs <= cpd, "nslabs ({:d}) cannot be larger than cpd ({:d})\n", nslabs, cpd);
     if (nslabs <= 0)
         nslabs = cpd;
 

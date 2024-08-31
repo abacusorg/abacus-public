@@ -113,7 +113,7 @@ public:
         foffset = 0;
         
         assertf(Npart*sizeof(typename T::ICparticle) == fbytes,
-            "Size of IC slab %s not divisible by particle size %d!\n",
+            "Size of IC slab {} not divisible by particle size {:d}!\n",
             SB->ReadSlabPath(ICSlab, slab), sizeof(typename T::ICparticle));
     }
 };
@@ -576,7 +576,7 @@ unique_ptr<ICFile> ICFile::FromFormat(const char *format, int _slab){
     REGISTER_ICFORMAT(Lattice)
     {
         // We weren't given a legal format name.
-        QUIT("Unrecognized case: ICFormat = %s\n", format);
+        QUIT("Unrecognized case: ICFormat = {:s}\n", format);
     }
 
     return ic;
@@ -589,14 +589,14 @@ uint64 UnpackICtoIL(int slab) {
     double convert_pos, convert_vel;
     get_IC_unit_conversions(convert_pos, convert_vel);
 
-    STDLOG(1,"Using IC format %s\n", P.ICFormat);
+    STDLOG(1,"Using IC format {:s}\n", P.ICFormat);
     unique_ptr<ICFile> ic = ICFile::FromFormat(P.ICFormat, slab);
 
     // Unpacks the whole slab directly to the insert list
     uint64 count = ic->unpack_to_IL(convert_pos, convert_vel);
 
-    STDLOG(0,"Read %d particles from IC slab %d\n", count, slab);
-    STDLOG(1,"Slab %d has %d subsample A particles, %d subsample B particles.\n", slab, ic->NsubsampleA, ic->NsubsampleB);
+    STDLOG(0,"Read {:d} particles from IC slab {:d}\n", count, slab);
+    STDLOG(1,"Slab {:d} has {:d} subsample A particles, {:d} subsample B particles.\n", slab, ic->NsubsampleA, ic->NsubsampleB);
 
     WriteState.LPTVelScale = std::max((double)std::abs(ic->lpt_vel_scale), WriteState.LPTVelScale);
 

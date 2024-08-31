@@ -49,7 +49,7 @@ void ReadNodeSlabs(int get_all_nodes = 0, int * first_slabs_all = NULL, int * to
 
 				
                 int nread = fscanf(fp, "%d", &value);
-                assertf(nread==1, "Couldn't read entry %j from NodeSlabs file\n", j);
+                assertf(nread==1, "Couldn't read entry {:d} from NodeSlabs file\n", j);
                 if (j==MPI_rank_x) first_slab_on_node = value;
                 if (j==neighbor) last_slab = value;
 				
@@ -68,7 +68,7 @@ void ReadNodeSlabs(int get_all_nodes = 0, int * first_slabs_all = NULL, int * to
 				for (int j=0; j<MPI_size_x; j++) {
 					total_slabs_all[j] = last_slabs[j] - first_slabs_all[j]  ; 
 			        if (total_slabs_all[j]<0) total_slabs_all[j] += P.cpd;
-			        STDLOG(1,"Read NodeSlab file: node %d will do %d slabs starting with %d, last %d\n", j, total_slabs_all[j], first_slabs_all[j], last_slabs[j]);
+			        STDLOG(1,"Read NodeSlab file: node {:d} will do {:d} slabs starting with {:d}, last {:d}\n", j, total_slabs_all[j], first_slabs_all[j], last_slabs[j]);
 				
 				}
 			}
@@ -79,7 +79,7 @@ void ReadNodeSlabs(int get_all_nodes = 0, int * first_slabs_all = NULL, int * to
 
 		
         if (total_slabs_on_node<0) total_slabs_on_node += P.cpd;
-        STDLOG(1,"Read NodeSlab file: will do %d slabs from [%d,%d)\n",
+        STDLOG(1,"Read NodeSlab file: will do {:d} slabs from [{:d},{:d})\n",
             total_slabs_on_node, first_slab_on_node, last_slab);
 		if (get_all_nodes) {	
 			assert(total_slabs_all[MPI_rank_x] == total_slabs_on_node) ;
@@ -116,9 +116,9 @@ void WriteNodeSlabs() {
 			sprintf(mname, "%s/nodeslabs", P.MultipoleDirectory);
 			
             FILE *fp, *fm; 
-            fp = fopen(fname,"w"); fm = fopen(mname, "w");
-            assertf(fp!=NULL, "Couldn't create nodeslabs file %s\n", fname);
-            assertf(fm!=NULL, "Couldn't create nodeslabs file %s\n", mname);
+            fp = fopen(fname.c_str(),"w"); fm = fopen(mname.c_str(), "w");
+            assertf(fp!=NULL, "Couldn't create nodeslabs file {}\n", fname);
+            assertf(fm!=NULL, "Couldn't create nodeslabs file {}\n", mname);
 			
             for (int j=0; j<MPI_size_x; j++) {
                 fprintf(fp, "%d\n", first[j]);
@@ -127,7 +127,7 @@ void WriteNodeSlabs() {
             }
 			
 			
-            STDLOG(1, "Wrote the NodeSlab file to %s and %s\n", fname, mname);
+            STDLOG(1, "Wrote the NodeSlab file to {} and {}\n", fname, mname);
 			
 			
         }

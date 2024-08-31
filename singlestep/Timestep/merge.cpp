@@ -159,9 +159,9 @@ void FillMergeSlab(int slab, uint64 *nmerge, uint64 *nmerge_with_ghost) {
     // Sort the insert list
     uint64 ilslablength;
 
-    STDLOG(3,"Insert list contains a total of %d particles.\n", IL->length);
+    STDLOG(3,"Insert list contains a total of {:d} particles.\n", IL->length);
     ilstruct *ILnew = IL->PartitionAndSort(slab,&ilslablength);
-    STDLOG(1,"Insert list contains %d new particles for slab %d; %d remaining\n", ilslablength, slab, IL->length);
+    STDLOG(1,"Insert list contains {:d} new particles for slab {:d}; {:d} remaining\n", ilslablength, slab, IL->length);
 
     FinishCellIndex.Start();
 
@@ -197,7 +197,7 @@ void FillMergeSlab(int slab, uint64 *nmerge, uint64 *nmerge_with_ghost) {
         skewer[y].ilprimarylength = ilprimaryend - skewer[y].ilprimarystart;
         
         assertf(skewer[y].ilprimarylength <= skewer[y].ilskewerlength,
-            "Primary length (%d) must be <= primary + ghost length (%d)\n",
+            "Primary length ({:d}) must be <= primary + ghost length ({:d})\n",
             skewer[y].ilprimarylength, skewer[y].ilskewerlength);
     }
 
@@ -258,7 +258,7 @@ void FillMergeSlab(int slab, uint64 *nmerge, uint64 *nmerge_with_ghost) {
                 "First particle in insert list skewer falls outside z domain. Invalid ghost?\n"
                 );
             assertf((ilend-1)->local_cellz() < node_z_size + 2*MERGE_GHOST_RADIUS,
-                "Last particle in insert list skewer falls outside z domain (global z %d). Invalid ghost?\n",
+                "Last particle in insert list skewer falls outside z domain (global z {:d}). Invalid ghost?\n",
                 (ilend-1)->global_cellz()
                 );
         }
@@ -293,7 +293,7 @@ void FillMergeSlab(int slab, uint64 *nmerge, uint64 *nmerge_with_ghost) {
             mci->startindex_with_ghost = mci_index;
             if(in_primary)
                 assertf(mci->startindex <= mci->startindex_with_ghost,
-                    "mci->startindex (%d) must be <= mci->startindex_with_ghost (%d); cell (%d,%d,%d)\n",
+                    "mci->startindex ({:d}) must be <= mci->startindex_with_ghost ({:d}); cell ({:d},{:d},{:d})\n",
                     mci->startindex, mci->startindex_with_ghost, slab, y, z
                     );
             mci->count = ici->count + (in_primary ? ci->active : 0);
@@ -312,7 +312,7 @@ void FillMergeSlab(int slab, uint64 *nmerge, uint64 *nmerge_with_ghost) {
     }
     NUMA_FOR_END;
 
-    STDLOG(2,"Merge slab %d will have %d old primary particles and %d new primaries and %d new ghosts\n",
+    STDLOG(2,"Merge slab {:d} will have {:d} old primary particles and {:d} new primaries and {:d} new ghosts\n",
         slab, inslab - ilslablength, inslab_no_ghost - (inslab - ilslablength), inslab - inslab_no_ghost);
 
     // Accumulate the stats for the full slab
@@ -322,7 +322,7 @@ void FillMergeSlab(int slab, uint64 *nmerge, uint64 *nmerge_with_ghost) {
     // Can refer to these as skewer->variable
 
     // Write out the stats
-    STDLOG(2,"Cells in slab %d range from %d to %d particles\n", slab, skewer->mincellsize, skewer->maxcellsize);
+    STDLOG(2,"Cells in slab {:d} range from {:d} to {:d} particles\n", slab, skewer->mincellsize, skewer->maxcellsize);
     TRACK_MAX(WriteState.MaxCellSize, skewer->maxcellsize);
     TRACK_MIN(WriteState.MinCellSize, skewer->mincellsize);
 
@@ -332,7 +332,7 @@ void FillMergeSlab(int slab, uint64 *nmerge, uint64 *nmerge_with_ghost) {
     TRACK_MAX(WriteState.MaxAcceleration, skewer->max_acceleration);
     TRACK_MIN(WriteState.MinVrmsOnAmax, skewer->min_vrms_on_amax);
 
-    STDLOG(2, "Slab %d: Max v_j %f, Max a_j %f, Min <|v|>/amax %f\n", 
+    STDLOG(2, "Slab {:d}: Max v_j {:f}, Max a_j {:f}, Min <|v|>/amax {:f}\n", 
     	slab, skewer->max_velocity, skewer->max_acceleration, skewer->min_vrms_on_amax);
 
     WriteState.RMS_Velocity += skewer->sum_square_velocity;
@@ -349,7 +349,7 @@ void FillMergeSlab(int slab, uint64 *nmerge, uint64 *nmerge_with_ghost) {
     SB->AllocateSpecificSize(MergePosSlab, slab, inslab*sizeof(posstruct));
     SB->AllocateSpecificSize(MergeVelSlab, slab, inslab*sizeof(velstruct));
     SB->AllocateSpecificSize(MergeAuxSlab, slab, inslab*sizeof(auxstruct));
-    STDLOG(2,"Allocating Merge Slabs to contain %d particles\n", inslab);
+    STDLOG(2,"Allocating Merge Slabs to contain {:d} particles\n", inslab);
 
     int64_t nwritten = 0;
     NUMA_FOR(y,0,cpd, reduction(+:nwritten), FALLBACK_DYNAMIC){
@@ -400,20 +400,20 @@ void FillMergeSlab(int slab, uint64 *nmerge, uint64 *nmerge_with_ghost) {
             // PID corruption
             if(P.MaxPID >= 0){
     			for (int j = 0; j < mc.count(); j++) {
-    				assertf(mc.aux[j].unpackpid() < P.MaxPID, "PID %d bigger than MaxPID %d\n", mc.aux[j].unpackpid(), P.MaxPID);
+    				assertf(mc.aux[j].unpackpid() < P.MaxPID, "PID {:d} bigger than MaxPID {:d}\n", mc.aux[j].unpackpid(), P.MaxPID);
     			}
             }
         }
     }
     NUMA_FOR_END;
 
-    assertf(nwritten == inslab, "Wrote %d merge particles, expected %d. Indexing failure/invalid ghosts?\n",
+    assertf(nwritten == inslab, "Wrote {:d} merge particles, expected {:d}. Indexing failure/invalid ghosts?\n",
         nwritten, inslab);
 
     // Delete the particles from the insert list.
     free(ILnew);   // Need to free this space!
     // IL->ShrinkIL(IL->length - ilslablength);
-    STDLOG(2,"After merge, insert list contains a total of %d particles.\n", IL->length);
+    STDLOG(2,"After merge, insert list contains a total of {:d} particles.\n", IL->length);
     SB->DeAllocate(InsertCellInfoSlab, slab);
     FinishMerge.Stop();
     

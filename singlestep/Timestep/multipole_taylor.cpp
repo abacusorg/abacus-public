@@ -55,7 +55,7 @@ void ComputeTaylorForce(int slab) {
 /// The driver routine to compute the Multipoles on one slab
 void ComputeMultipoleSlab(int slab) {
     // This routine must use the Merged slabs!
-    STDLOG(1,"Computing multipoles for slab %d\n", slab);
+    STDLOG(1,"Computing multipoles for slab {:d}\n", slab);
     ComputeMultipoles.Start();
     MF->ConstructOffsets.Start();
     int cpd = CP->cpd;

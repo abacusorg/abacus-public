@@ -175,7 +175,7 @@ void DriftAndCopy2InsertList(int slab, FLOAT driftfactor,
     NUMA_FOR_END;
     wc.Stop();
 
-    STDLOG(2,"Drifting slab %d has rebinned %d particles (%d - %d).\n",
+    STDLOG(2,"Drifting slab {:d} has rebinned {:d} particles ({:d} - {:d}).\n",
         slab, IL->length-ILbefore, IL->length, ILbefore);
     
     // Compute timing by prorating the total wall-clock time 
@@ -241,7 +241,7 @@ void DriftPencilsAndCopy2InsertList(int slab, FLOAT driftfactor,
     NUMA_FOR_END;
     rebin.Stop();
 
-    STDLOG(2,"Drifting slab %d has rebinned %d particles (%d - %d).\n",
+    STDLOG(2,"Drifting slab {:d} has rebinned {:d} particles ({:d} - {:d}).\n",
         slab, IL->length-ILbefore, IL->length, ILbefore);
     
     DriftMove.increment(move.timer);

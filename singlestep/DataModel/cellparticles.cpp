@@ -26,7 +26,7 @@ public:
 
     inline int _NodeCellID(int y, int zoff) {
         // zoff is the offset in this node's sub-slab
-        //assertf(zoff < node_z_size_with_ghost, "zoff %d OOB\n", zoff);
+        //assertf(zoff < node_z_size_with_ghost, "zoff {:d} OOB\n", zoff);
         
         // cellinfo always has ghost cells
         return y*node_z_size_with_ghost + zoff;
@@ -42,7 +42,7 @@ public:
 
     inline int _MergeNodeCellID(int y, int zoff) {
         // The MergeCellInfo may have a different number of ghost cells
-        //assertf(zoff < node_z_size + 2*MERGE_GHOST_RADIUS, "merge zoff %d OOB\n", zoff);
+        //assertf(zoff < node_z_size + 2*MERGE_GHOST_RADIUS, "merge zoff {:d} OOB\n", zoff);
 
         return y*(node_z_size + 2*MERGE_GHOST_RADIUS) + zoff;
     }

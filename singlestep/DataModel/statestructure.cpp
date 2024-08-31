@@ -453,16 +453,16 @@ void State::write_to_file(const char *dir, const char *suffix) {
 void State::AssertStateLegal(Parameters &P) {
     //make sure read state and parameters are compatible
     assertf(order_state == P.order, 
-            "State and Parameter order do not match, %d != %d\n", 
+            "State and Parameter order do not match, {:d} != {:d}\n", 
             order_state, P.order);
     assertf(cpd_state == P.cpd, 
-            "State and Parameter cpd do not match, %d != %d\n", 
+            "State and Parameter cpd do not match, {:d} != {:d}\n", 
             cpd_state, P.cpd);
     assertf(np_state == P.np, 
-            "State and Parameter np do not match, %d != %d\n", 
+            "State and Parameter np do not match, {:d} != {:d}\n", 
             np_state, P.np);
     assertf(MaxCellSize < (2.048e9)/3,
-            "The largest cell has %d particles, exceeding the allowed amount.\n",
+            "The largest cell has {:d} particles, exceeding the allowed amount.\n",
             MaxCellSize);
 }
 

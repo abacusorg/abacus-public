@@ -111,7 +111,7 @@ public:
         if(global_spin_timer2.timeron)
             global_spin_timer2.Stop();
         
-        if(name) STDLOG_WITH_NAME(1, name, "Entering %s action for slab %d\n", name, slab);
+        STDLOG_WITH_NAME(1, name, "Entering {:s} action for slab {:d}\n", name, slab);
 
         struct timespec stamp = SpinTimer.Stop();
         action_timer.StartFrom(stamp);
@@ -121,7 +121,7 @@ public:
         stamp = action_timer.Stop();
         SpinTimer.StartFrom(stamp);
 
-        if(name) STDLOG_WITH_NAME(1, name, "Exited %s action for slab %d\n", name, slab);
+        STDLOG_WITH_NAME(1, name, "Exited {:s} action for slab {:d}\n", name, slab);
         
         _executed_status[slab] = 1;
         last_slab_executed = slab;
@@ -157,7 +157,6 @@ public:
     }
     
     static void NotifySpinning(enum SpinFlag s){
-        assertf(s < NUM_SPIN_FLAGS, "Tried to use spin flag %d (only NUM_SPIN_FLAGS=%d exist)!", s, NUM_SPIN_FLAGS);
         // If this is the first notification, we may not actually
         // be spinning yet.
         if(spin_flags[s]){

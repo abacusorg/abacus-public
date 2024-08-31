@@ -38,7 +38,7 @@ AppendArena *get_AA_by_format(const char* format){
         
     }
     else {
-        QUIT("Unrecognized case: OutputFormat = %s\n", format);
+        QUIT("Unrecognized case: OutputFormat = {:s}\n", format);
     }
 
     return AA;

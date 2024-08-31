@@ -95,7 +95,7 @@ class LinkPencil {
 inline CellGroup *LinkToCellGroup(LinkID link) {
     // For this LinkID, return a pointer to the matching CellGroup
     integer3 c = link.localcell();
-    assertf(GFC->cellgroups_status[c.x] == 1, "Failed to find cellgroup in slab %d with status %d\n", c.x, GFC->cellgroups_status[c.x]);
+    assertf(GFC->cellgroups_status[c.x] == 1, "Failed to find cellgroup in slab {:d} with status {:d}\n", c.x, GFC->cellgroups_status[c.x]);
     CellGroup *ret = GFC->cellgroups[c.x][c.y][c.z].ptr(link.cellgroup());
     assertf(ret != NULL, "Bad LinkToCellGroup?\n");
     return ret;
@@ -312,7 +312,7 @@ void GlobalGroupSlab::IndexLinks() {
     // Now loop over slabs to construct the lookup tables
     for (int s=0; s<diam; s++) {
         int thisslab = GFC->WrapSlab(slab+s-slabbias);
-        assertf(GFC->cellgroups_status[thisslab]>0, "Cellgroup slab %d not present (value %d).  Something is wrong in dependencies!\n", thisslab, GFC->cellgroups_status[thisslab]);
+        assertf(GFC->cellgroups_status[thisslab]>0, "Cellgroup slab {:d} not present (value {:d}).  Something is wrong in dependencies!\n", thisslab, GFC->cellgroups_status[thisslab]);
             // Just to check that the CellGroups are present or already closed.
         NUMA_FOR(j,0,cpd, NO_CLAUSE, FALLBACK_DYNAMIC){
             // Now find the starting point for this Pencil
@@ -347,7 +347,7 @@ void GlobalGroupSlab::DeferGlobalGroups() {
         At the end, we must clear the deferrals.
         // TODO: Or we could do it before we start?
     */
-    STDLOG(1, "Starting Deferral search on slab %d\n", slab);
+    STDLOG(1, "Starting Deferral search on slab {:d}\n", slab);
     GFC->DeferGroups.Start();
     int lastslab = GFC->WrapSlab(slab-slabbias-1);
 
@@ -382,7 +382,7 @@ void GlobalGroupSlab::DeferGlobalGroups() {
                         if (!(thiscg->is_open())) { searching++; continue; }
 
                         int s = GFC->WrapSlab(thiscell.x-slab+slabbias);  // Map to [0,diam)
-                        assertf(s < diam, "GroupLink points to slab offset %d which violates GroupDiameter %d.  Likely need to increase GroupRadius! (slab,j,k,t = %d,%d,%d,%d)\n",
+                        assertf(s < diam, "GroupLink points to slab offset {:d} which violates GroupDiameter {:d}.  Likely need to increase GroupRadius! (slab,j,k,t = {:d},{:d},{:d},{:d})\n",
                             s, diam, slab, j, k, t);
                         LinkPencil *lp = links[s]+thiscell.y;
 
@@ -420,14 +420,14 @@ void GlobalGroupSlab::DeferGlobalGroups() {
         }  // Done with this pencil
     }  // Done with this split
     GFC->DeferGroups.Stop();
-    STDLOG(1, "Done looking for Deferrals in slab %d\n", slab);
+    STDLOG(1, "Done looking for Deferrals in slab {:d}\n", slab);
     return;
 }
 
 void GlobalGroupSlab::ClearDeferrals() {
     // We need to loop over the relevant slabs to clear the deferral flags from all CellGroups
     GFC->ClearDefer.Start();
-    STDLOG(1,"Clearing Deferrals for slab %d\n", slab);
+    STDLOG(1,"Clearing Deferrals for slab {:d}\n", slab);
     for (int s=0; s<diam; s++) {
         int thisslab = GFC->WrapSlab(slab+s-slabbias);
         NUMA_FOR(j,0,cpd, NO_CLAUSE, FALLBACK_DYNAMIC){
@@ -443,7 +443,7 @@ void GlobalGroupSlab::ClearDeferrals() {
         }
         NUMA_FOR_END;
     }
-    STDLOG(1,"Done Deferrals for slab %d\n", slab);
+    STDLOG(1,"Done Deferrals for slab {:d}\n", slab);
     GFC->ClearDefer.Stop();
     return;
 }
@@ -497,7 +497,7 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                         CellGroup *thiscg = LinkToCellGroup(cglist[searching]);
                         ggsize += thiscg->size();
                         minzslab = std::min(minzslab, thiscell.z);
-                        assertf(thiscg->is_open(), "Cellgroup in slab %d found to be closed while making groups in slab %d.  Likely need to increase GroupRadius!\n", thiscell.x, slab);
+                        assertf(thiscg->is_open(), "Cellgroup in slab {:d} found to be closed while making groups in slab {:d}.  Likely need to increase GroupRadius!\n", thiscell.x, slab);
                                 // If this fails, probably a group has spanned
                                 // beyond 2*R+1 cells and something got closed
                                 // prematurely.
@@ -515,7 +515,7 @@ void GlobalGroupSlab::CreateGlobalGroups() {
 
                         // Now get these links
                         int s = GFC->WrapSlab(thiscell.x-slab+slabbias);  // Map to [0,diam)
-                        assertf(s < diam, "GroupLink points to slab offset %d which violates GroupDiameter %d.  Likely need to increase GroupRadius! (slab,j,k,g = %d,%d,%d,%d)\n",
+                        assertf(s < diam, "GroupLink points to slab offset {:d} which violates GroupDiameter {:d}.  Likely need to increase GroupRadius! (slab,j,k,g = {:d},{:d},{:d},{:d})\n",
                             s, diam, slab, j, k, g);
                         LinkPencil *lp = links[s]+thiscell.y;
                         // Keep track of the maximum slab accessed
@@ -562,7 +562,7 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                                 /*
                                 for (uint64 t = 1; t<cglist.size(); t++) 
                                     assertf(cglist[t-1].id <= cglist[t].id,
-                                        "Failed to sort propertly: %lld > %lld\n", 
+                                        "Failed to sort propertly: {:d} > {:d}\n", 
                                             cglist[t-1].id,
                                             cglist[t].id);
                                 */
@@ -640,7 +640,7 @@ from each GlobalGroup into this slab-scale list.
 void GlobalGroupSlab::GatherGlobalGroups() {
     GFC->IndexGroups.Start();
     assertf(cpd>=4*GFC->GroupRadius+1, "CPD is too small compared to GroupRadius\n");
-    assertf(zwidth>=4*GFC->GroupRadius+1, "zwidth=%d is too small compared to GroupRadius\n", zwidth);
+    assertf(zwidth>=4*GFC->GroupRadius+1, "zwidth={:d} is too small compared to GroupRadius\n", zwidth);
     // This registers the periodic wrap using the cells.
     // However, this will misbehave if CPD is smaller than the group diameter,
     // because the LinkIDs have already been wrapped.
@@ -793,7 +793,7 @@ as some uses don't need Pos/Vel to be returned.
 void GlobalGroupSlab::ScatterGlobalGroups() {
     GFC->ScatterGroups.Start();
 
-    STDLOG(1,"Scattering global group pos/vel from slab %d\n", slab);
+    STDLOG(1,"Scattering global group pos/vel from slab {:d}\n", slab);
     NUMA_FOR(j,0,cpd, NO_CLAUSE, FALLBACK_DYNAMIC){
         for (int k=0; k<zwidth; k++){  // local k
             for (int n=0; n<globalgroups[j][k].size(); n++) {
@@ -836,7 +836,7 @@ void GlobalGroupSlab::ScatterGlobalGroups() {
     NUMA_FOR_END;
     // End loop over cells
     GFC->ScatterGroups.Stop();
-    STDLOG(1,"Done scattering global group pos/vel from slab %d\n", slab);
+    STDLOG(1,"Done scattering global group pos/vel from slab {:d}\n", slab);
     return;
 }
 
@@ -904,7 +904,7 @@ void GlobalGroupSlab::FindSubGroups() {
 	    FOFlevel1[g].setup(GFC->SOdensity1, P.SO_NPForMinDensity);
 	    FOFlevel2[g].setup(GFC->SOdensity2, P.SO_NPForMinDensity*GFC->SOdensity2/GFC->SOdensity1);
 	}
-	STDLOG(1,"Seeking SO halos, L1 = %f, L2 = %f, with min_central = %f and %f\n", 
+	STDLOG(1,"Seeking SO halos, L1 = {:f}, L2 = {:f}, with min_central = {:f} and {:f}\n", 
 		FOFlevel1[0].threshold, FOFlevel2[0].threshold,
         FOFlevel1[0].min_central/FOFlevel1[0].FOFunitdensity, 
         FOFlevel2[0].min_central/FOFlevel2[0].FOFunitdensity);
@@ -915,7 +915,7 @@ void GlobalGroupSlab::FindSubGroups() {
 	    FOFlevel1[g].setup(GFC->linking_length_level1, 1e10);
 	    FOFlevel2[g].setup(GFC->linking_length_level2, 1e10);
 	}
-	STDLOG(1,"Seeking FOF halos, L1 = %f, L2 = %f (comoving unit-box units)\n", 
+	STDLOG(1,"Seeking FOF halos, L1 = {:f}, L2 = {:f} (comoving unit-box units)\n", 
 		FOFlevel1[0].linking_length, FOFlevel2[0].linking_length);
     #endif
 
@@ -1173,23 +1173,23 @@ void GlobalGroupSlab::FindSubGroups() {
         #endif
     }
     previous = GFC->L1stats.ngroups-previous;
-    STDLOG(1,"Found %l L1 halos\n", previous);
+    STDLOG(1,"Found {:d} L1 halos\n", previous);
     // BOT
     previous_L2 = GFC->L2stats.ngroups-previous_L2;
-    STDLOG(1,"Found %l L2 halos\n", previous_L2);
+    STDLOG(1,"Found {:d} L2 halos\n", previous_L2);
     
     #ifdef SPHERICAL_OVERDENSITY
     if (FOFlevel1[0].Total.Elapsed()>0.0) {
       // B.H. trying to do timing
-      //STDLOG(3,"L1 Timing: %f = %f %f %f %f\n",
-      STDLOG(1,"L1 Timing: %f = %f %f %f %f %f\n",
+      //STDLOG(3,"L1 Timing: {:f} = {:f} {:f} {:f} {:f}\n",
+      STDLOG(1,"L1 Timing: {:f} = {:f} {:f} {:f} {:f} {:f}\n",
 	    FOFlevel1[0].Total.Elapsed(),
 	    FOFlevel1[0].Copy.Elapsed(),
 	    FOFlevel1[0].Sweep.Elapsed(),
 	    FOFlevel1[0].Distance.Elapsed(),
 	    FOFlevel1[0].Search.Elapsed(),
 	    FOFlevel1[0].Sort.Elapsed());
-	STDLOG(1,"L2 Timing: %f = %f %f %f %f %f\n",
+	STDLOG(1,"L2 Timing: {:f} = {:f} {:f} {:f} {:f} {:f}\n",
 	    FOFlevel2[0].Total.Elapsed(),
 	    FOFlevel2[0].Copy.Elapsed(),
 	    FOFlevel2[0].Sweep.Elapsed(),
@@ -1284,7 +1284,7 @@ be skipped if no L1 halos were found (but taggable particles will still be writt
 
 void GlobalGroupSlab::HaloOutput() {
     GFC->OutputLevel1.Start();
-    STDLOG(0,"Beginning halo output for slab %d\n", slab);
+    STDLOG(0,"Beginning halo output for slab {:d}\n", slab);
 
     // This will create the directory if it doesn't exist (and is parallel safe)
     char dir[32];

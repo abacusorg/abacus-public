@@ -96,20 +96,16 @@ class SlabSize {
     }
 
     void load_from_params(Parameters &P){
-        char filename[1024];
-        int ret = snprintf(filename, 1024, "%s/slabsize", P.ReadStateDirectory);
-        assert(ret >= 0 && ret < 1024);
-        STDLOG(2,"Reading SlabSize file from %s\n", filename);
+        fs::path filename = P.ReadStateDirectory / "slabsize";
+        STDLOG(2,"Reading SlabSize file from {}\n", filename);
         read(filename);
     }
 
     void store_from_params(Parameters &P){
         parallel_gather();
         if (MPI_rank==0) {
-            char filename[1024];
-            int ret = snprintf(filename, 1024, "%s/slabsize",P.WriteStateDirectory);
-            assert(ret >= 0 && ret < 1024);
-            STDLOG(2,"Writing SlabSize file to %s\n", filename);
+            fs::path filename = P.WriteStateDirectory / "slabsize";
+            STDLOG(2,"Writing SlabSize file to {}\n", filename);
             write(filename);
         }
     }
@@ -117,17 +113,17 @@ class SlabSize {
     // Read and write from files.  Return 0 if ok.
     int read(char *fname) {
         FILE *fp; 
-        fp = fopen(fname, "r");
-        assertf(fp!=NULL, "Couldn't open SlabSize read file %s\n", fname);
+        fp = fopen(fname.c_str(), "r");
+        assertf(fp!=NULL, "Couldn't open SlabSize read file {}\n", fname);
         int nread;
         uint64 cpdval,zval;
         nread = fscanf(fp, "%ld,%ld", &cpdval, &zval);
         assertf(nread==2,
-                "Couldn't read first entry from SlabSize file %s\n", fname);
+                "Couldn't read first entry from SlabSize file {}\n", fname);
         assertf(cpdval==cpd, 
-                "SlabSize file opens with incorrect CPD: %d\n", cpdval);
+                "SlabSize file opens with incorrect CPD: {:d}\n", cpdval);
         assertf(zval==num_zsplit, 
-                "SlabSize file opens with incorrect num_zsplit: %d\n", zval);
+                "SlabSize file opens with incorrect num_zsplit: {:d}\n", zval);
         for (int j = 0; j<cpd*num_zsplit; j++) {
             nread = fscanf(fp, "%ld,%ld", sizes+j, sizes_with_ghost+j);
             assertf(nread==2, "SlabSize fie ended prematurely\n");

@@ -131,7 +131,7 @@ int SlabTaylorMPI::CheckAnyMPIDone(){
             int done = 0;
             MPI_Test(&handle[i], &done, MPI_STATUS_IGNORE);
             if(done){
-                STDLOG(2, "Taylors y-z MPI transpose done on slab %d\n", i);
+                STDLOG(2, "Taylors y-z MPI transpose done on slab {:d}\n", i);
                 mpi_status[i] = 2;
                 free(sendbuf[i]);
                 ret = 1;

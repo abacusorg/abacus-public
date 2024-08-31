@@ -94,7 +94,7 @@ public:
             // 12. done send?
             MPI_Test(&send_handle, &done, MPI_STATUS_IGNORE);
             if (done) {
-                STDLOG(1, "Done ilstruct send to zrank %d for slab %d\n", zneigh, slab);
+                STDLOG(1, "Done ilstruct send to zrank {:d} for slab {:d}\n", zneigh, slab);
 
                 // 13. free
                 free(sendbuf);
@@ -185,7 +185,7 @@ private:
         }
 
         size_t nhigh = (size_t) nelem - mid;
-        STDLOG(1,"Removing %d particles that are strictly neighbor's primary\n", nhigh);
+        STDLOG(1,"Removing {:d} particles that are strictly neighbor's primary\n", nhigh);
         return nhigh;
     }
 
@@ -193,7 +193,7 @@ private:
         size_t sz = sizeof(ilstruct)*nelem;
         posix_memalign((void **) &(this->sendbuf), PAGE_SIZE, sz);
         assertf(this->sendbuf != NULL,
-            "Failed neighbor exchange sendbuf alloc of %d bytes\n", sz);
+            "Failed neighbor exchange sendbuf alloc of {:d} bytes\n", sz);
 
         #pragma omp parallel for schedule(static)
         for(size_t i = 0; i < nelem; i++){
@@ -203,13 +203,13 @@ private:
 
     void launch_mpi_send(){
         assertf(send_status == 0,
-            "send() called but exchange already sent to zrank %d, slab %d?\n", zneigh, slab);
+            "send() called but exchange already sent to zrank {:d}, slab {:d}?\n", zneigh, slab);
 
         assertf(sendelem < INT32_MAX,
-            "2D neighbor exchanger trying to send %d particles, which overflows 32-bit int\n",
+            "2D neighbor exchanger trying to send {:d} particles, which overflows 32-bit int\n",
             sendelem);
 
-        STDLOG(1, "Sending %d ilstructs (%.4g MB) to zrank %d for slab %d\n", sendelem, sendelem*sizeof(ilstruct)/1e6, zneigh, slab);
+        STDLOG(1, "Sending {:d} ilstructs ({:.4g} MB) to zrank {:d} for slab {:d}\n", sendelem, sendelem*sizeof(ilstruct)/1e6, zneigh, slab);
         // each pair of ranks has only one send and one recv per slab
         int tag = right ? (slab + RIGHT_TAG_OFFSET) : (slab + LEFT_TAG_OFFSET);
         MPI_Isend((const void *) sendbuf, (int) sendelem, MPI_ilstruct, zneigh, tag, comm_1d_z, &send_handle);
@@ -246,7 +246,7 @@ public:
             // 9. done receive?
             MPI_Test(&recv_handle, &done, MPI_STATUS_IGNORE);
             if (done) {
-                STDLOG(1, "Done ilstruct receive from zrank %d for slab %d\n", zneigh, slab);
+                STDLOG(1, "Done ilstruct receive from zrank {:d} for slab {:d}\n", zneigh, slab);
                 // 10. push to IL
                 push_buffer_to_IL();
 
@@ -276,10 +276,10 @@ public:
                 recvelem = (size_t) _recvelem32;
                 size_t sz = sizeof(ilstruct)*recvelem;
                 posix_memalign((void **) &recvbuf, PAGE_SIZE, sz);
-                assertf(recvbuf != NULL, "Failed neighbor exchange recvbuf alloc of %d bytes\n", sz);
+                assertf(recvbuf != NULL, "Failed neighbor exchange recvbuf alloc of {:d} bytes\n", sz);
                 
                 // 8. start recv
-                STDLOG(1, "Receiving %d ilstructs (%.4g MB) from zrank %d for slab %d\n",
+                STDLOG(1, "Receiving {:d} ilstructs ({:.4g} MB) from zrank {:d} for slab {:d}\n",
                     recvelem, recvelem*sizeof(ilstruct)/1e6, zneigh, slab);
                 MPI_Irecv(recvbuf, (int) recvelem, MPI_ilstruct, zneigh, tag, comm_1d_z, &recv_handle);
                 recv_status = 1;
@@ -288,7 +288,7 @@ public:
             return ret;
         }
 
-        assertf(recv_status == 1, "Unknown recv_status %d\n", recv_status);
+        assertf(recv_status == 1, "Unknown recv_status {:d}\n", recv_status);
         return ret;
     }
 
@@ -318,7 +318,7 @@ void SetupNeighborExchange(int first, int nslab){
         return;
     }
 
-    STDLOG(1,"Setting up Neighbor Exchange to do exchanges on slabs [%d,%d)\n",
+    STDLOG(1,"Setting up Neighbor Exchange to do exchanges on slabs [{:d},{:d})\n",
         first, CP->WrapSlab(first+nslab));
 
     left_exchanger = new NeighborExchanger*[P.cpd]();
@@ -344,12 +344,12 @@ void DoNeighborSend(int slab){
     if(neighbor_exchange_is_noop)
         return;
 
-    STDLOG(1,"Triggering Neighbor Exchange sends on slab %d\n", slab);
+    STDLOG(1,"Triggering Neighbor Exchange sends on slab {:d}\n", slab);
 
     assertf(left_exchanger[slab] != NULL,
-        "Slab %d not set up to do neighbor send?\n", slab);
+        "Slab {:d} not set up to do neighbor send?\n", slab);
     assertf(right_exchanger[slab] != NULL,
-        "Slab %d not set up to do neighbor send?\n", slab);
+        "Slab {:d} not set up to do neighbor send?\n", slab);
 
     left_exchanger[slab]->send();
     right_exchanger[slab]->send();
@@ -397,9 +397,9 @@ int IsNeighborReceiveDone(int slab){
     int sw = CP->WrapSlab(slab);
 
     assertf(left_exchanger[sw] != NULL,
-        "Checking neighbor receive status on slab %d not set up to receive?\n", sw);
+        "Checking neighbor receive status on slab {:d} not set up to receive?\n", sw);
     assertf(right_exchanger[sw] != NULL,
-        "Checking neighbor receive status on slab %d not set up to receive?\n", sw);
+        "Checking neighbor receive status on slab {:d} not set up to receive?\n", sw);
 
     return left_exchanger[sw]->done_receive() && right_exchanger[sw]->done_receive();
 }
@@ -415,13 +415,13 @@ void TeardownNeighborExchange(){
     
     for(int i = 0; i < P.cpd; i++){
         if(left_exchanger[i] != NULL){
-            assertf(left_exchanger[i]->done_send(), "left exchanger for slab %d not done send?\n", i);
-            assertf(left_exchanger[i]->done_receive(), "left exchanger for slab %d not done receive?\n", i);
+            assertf(left_exchanger[i]->done_send(), "left exchanger for slab {:d} not done send?\n", i);
+            assertf(left_exchanger[i]->done_receive(), "left exchanger for slab {:d} not done receive?\n", i);
             delete left_exchanger[i];
         }
         if(right_exchanger[i] != NULL){
-            assertf(right_exchanger[i]->done_send(), "right exchanger for slab %d not done send?\n", i);
-            assertf(right_exchanger[i]->done_receive(), "right exchanger for slab %d not done receive?\n", i);
+            assertf(right_exchanger[i]->done_send(), "right exchanger for slab {:d} not done send?\n", i);
+            assertf(right_exchanger[i]->done_receive(), "right exchanger for slab {:d} not done receive?\n", i);
             delete right_exchanger[i];
         }
     }

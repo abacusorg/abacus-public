@@ -132,16 +132,16 @@ public:
         // One probably shouldn't use this version outside of the
         // MALgaps.
         assertf(newlength>=length, 
-            "Illegal growing of MultiAppendList (length = %d, newlength = %d)\n", length, newlength);
+            "Illegal growing of MultiAppendList (length = {:d}, newlength = {:d})\n", length, newlength);
         assertf(newlength < maxlist, 
-            "Illegal resizing of MultiAppendList (maxlist = %d, newlength = %d\n", maxlist, newlength);
+            "Illegal resizing of MultiAppendList (maxlist = {:d}, newlength = {:d}\n", maxlist, newlength);
         length = newlength; 
     }
 
     inline void ShrinkMAL(uint64 newlength) { 
         // Call this after CollectGaps()
         assertf(newlength<=length, 
-            "Illegal shrinking of MultiAppendList (length = %d, newlength = %d)\n", length, newlength);
+            "Illegal shrinking of MultiAppendList (length = {:d}, newlength = {:d})\n", length, newlength);
         length = newlength; 
         reset_gaps();
     }
@@ -221,5 +221,5 @@ void MALgap<T>::make_next_gap(MultiAppendList<T> *MAL) {
     next = start = end - MAL->gap_size;
 
     assertf(end <= MAL->maxlist,
-        "Illegal resizing of MultiAppendList (maxlist = %d, newlength = %d\n", MAL->maxlist, end);
+        "Illegal resizing of MultiAppendList (maxlist = {:d}, newlength = {:d}\n", MAL->maxlist, end);
 }

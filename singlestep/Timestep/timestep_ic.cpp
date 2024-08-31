@@ -105,7 +105,7 @@ void timestepIC(void) {
 #endif
 	
     STDLOG(0,"Initiating timestepIC()\n");
-    STDLOG(0,"Adopting FINISH_WAIT_RADIUS = %d\n", FINISH_WAIT_RADIUS);
+    STDLOG(0,"Adopting FINISH_WAIT_RADIUS = {:d}\n", FINISH_WAIT_RADIUS);
 
     TimeStepWallClock.Clear();
     TimeStepWallClock.Start();
@@ -165,7 +165,7 @@ void timestepIC(void) {
     Dependency::SpinTimer.Stop();
 
 
-    STDLOG(1, "Read %d particles from IC files\n", NP_from_IC);
+    STDLOG(1, "Read {:d} particles from IC files\n", NP_from_IC);
 
     uint64 merged_primaries = ((FinishParticlesDep *) FinishParticles)->merged_primaries;
     #ifdef PARALLEL
@@ -187,10 +187,10 @@ void timestepIC(void) {
 	    ConvolutionWallClock.Stop(); TimeStepWallClock.Start(); 
 		
     #endif
-    STDLOG(1, "Particles remaining on insert list: %d\n", IL->length);
+    STDLOG(1, "Particles remaining on insert list: {:d}\n", IL->length);
     if (MPI_rank==0) {
-        STDLOG(1, "Merged %d primary particles\n", merged_primaries);
-        assertf(merged_primaries == P.np, "Merged slabs contain %d particles instead of %d!  Read %d IC particles.\n",
+        STDLOG(1, "Merged {:d} primary particles\n", merged_primaries);
+        assertf(merged_primaries == P.np, "Merged slabs contain {:d} particles instead of {:d}!  Read {:d} IC particles.\n",
             merged_primaries, P.np, NP_from_IC);
     }
 
@@ -198,10 +198,10 @@ void timestepIC(void) {
         IL->DumpParticles();
 
     if(MPI_rank == 0)
-        assertf(NP_from_IC == P.np, "Expected to read a total of %u particles from IC files, but only read %u.\n", P.np, NP_from_IC);
+        assertf(NP_from_IC == P.np, "Expected to read a total of {:d} particles from IC files, but only read {:d}.\n", P.np, NP_from_IC);
 
     assertf(IL->length==0,
-        "Insert List not empty (%d) at the end of timestep().  Particles in IC files not sufficiently sorted?\n", IL->length);
+        "Insert List not empty ({:d}) at the end of timestep().  Particles in IC files not sufficiently sorted?\n", IL->length);
     
     char filename[1024];
     int ret = snprintf(filename,1024,"%s/slabsize",P.WriteStateDirectory);

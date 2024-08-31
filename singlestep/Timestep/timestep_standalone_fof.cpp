@@ -54,10 +54,10 @@ int StandaloneFOFUnpackSlabPrecondition(int slab) {
 }
 
 void StandaloneFOFUnpackSlabAction(int slab) {
-    printf("Unpacking slab %d\n", slab);
-    STDLOG(1, "Unpacking slab %d\n", slab);
+    fmt::print("Unpacking slab {:d}\n", slab);
+    STDLOG(1, "Unpacking slab {:d}\n", slab);
     int64_t nump = unpack_slab_pack14(slab, P.ParticleSubsampleA, P.ParticleSubsampleB);
-    STDLOG(1,"Found %d particles in slab %d\n", nump, slab);
+    STDLOG(1,"Found {:d} particles in slab {:d}\n", nump, slab);
 
     SS->setold(slab, nump);
 
@@ -76,7 +76,7 @@ int StandaloneFOFFinishPrecondition(int slab) {
 }
 
 void StandaloneFOFFinishAction(int slab) {
-    STDLOG(1,"Deleting slab %d\n", slab);
+    STDLOG(1,"Deleting slab {:d}\n", slab);
 
     // Release the group-local copies of the particles
     GlobalGroupSlab *GGS = GFC->globalslabs[slab];
@@ -99,8 +99,8 @@ void timestepStandaloneFOF(const char* slice_dir) {
 
     FORCE_RADIUS = 0;
     GROUP_RADIUS = P.GroupRadius;
-    assertf(GROUP_RADIUS >= 0, "Illegal GROUP_RADIUS: %d\n", GROUP_RADIUS); 
-    STDLOG(0,"Adopting GROUP_RADIUS = %d\n", GROUP_RADIUS);
+    assertf(GROUP_RADIUS >= 0, "Illegal GROUP_RADIUS: {:d}\n", GROUP_RADIUS); 
+    STDLOG(0,"Adopting GROUP_RADIUS = {:d}\n", GROUP_RADIUS);
 
     int nslabs = GFC->cpd;
     int first = first_slab_on_node;

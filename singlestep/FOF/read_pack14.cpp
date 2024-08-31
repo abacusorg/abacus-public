@@ -18,7 +18,7 @@ int64_t unpack_slab_pack14(int slab, double taggable_fracA, double taggable_frac
 
     // Fast-forward past header
     uint64 header_size = HeaderStream::SkipHeaderFromFP(buffer_file);
-    STDLOG(3,"Skipped a %d byte header\n", header_size);
+    STDLOG(3,"Skipped a {:d} byte header\n", header_size);
 
     // This includes cell headers, so it's actually an upper limit
     // We will allocate SB slabs of this size, then shrink later
@@ -26,7 +26,7 @@ int64_t unpack_slab_pack14(int slab, double taggable_fracA, double taggable_frac
     uint64 datasize = rawsize - header_size;
     assert(datasize % 14 == 0);
     uint64 maxnp = datasize/14;
-    STDLOG(3,"Allocating space for %d particles\n", maxnp);
+    STDLOG(3,"Allocating space for {:d} particles\n", maxnp);
 
     posstruct *pos = (posstruct *) SB->AllocateSpecificSize(PosSlab,slab,maxnp*sizeof(posstruct), RAMDISK_NO);
     velstruct *vel = (velstruct *) SB->AllocateSpecificSize(VelSlab,slab,maxnp*sizeof(velstruct), RAMDISK_NO);

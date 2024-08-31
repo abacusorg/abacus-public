@@ -4,10 +4,12 @@
 #include <fstream>
 #include <time.h>
 #include <unistd.h>
-#include "pprint.cc"
 #include <time.h>
 #include "STimer.h"
 #include <mutex>
+#include <memory>
+#include <string>
+#include <stdexcept>
 
 using namespace std;
 
@@ -21,11 +23,10 @@ struct timespec log_global_zero = { 0, 0 };
 std::mutex _log_mutex;
 
 template<typename IO, typename... Args>
-void _log(IO &out, const char *name, const char *s, Args... args) {
-    std::string ss(s);
+void _log(IO &out, const std::string &name, std::string s, Args... args) {
     _log_mutex.lock();
     if(s[0]=='+') {
-        ss.erase(0,1);
+        s.erase(0,1);
         out << "+" << std::setw(38) << std::left << " ";
     }
     else {
@@ -38,14 +39,10 @@ void _log(IO &out, const char *name, const char *s, Args... args) {
 	timespecsub(&tnow, &log_global_zero, &elapsed);
 	double t = elapsed.tv_sec + 1e-9*elapsed.tv_nsec;
 	out << std::right;
-	fpprint(out, "%11.5f   ", t);
+	fmt::print(out, "{:11.5f}   ", t);
         out << std::setw(25) << std::left << name+std::string("()  ");
-
-        // time_t tnow = time(NULL);
-        // std::string time( ctime(&tnow) );
-        // out << time.substr(0,time.length()-1) << "  " << std::setw(20) << std::left << name+std::string("()  ");
     }
-    fpprint(out, ss.c_str(), args...);
+    out << fmt::format(s, args...);
     out.flush();
     _log_mutex.unlock();
 }

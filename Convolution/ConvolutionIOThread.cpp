@@ -26,9 +26,9 @@ private:
         int io_core = CP.io_cores[thread_num];
         if(io_core >= 0){
             set_core_affinity(io_core);
-            STDLOG(0, "IO thread %d started on core %d\n", thread_num, io_core);
+            STDLOG(0, "IO thread {:d} started on core {:d}\n", thread_num, io_core);
         } else {
-            STDLOG(0, "IO thread %d started; not bound to core\n", thread_num);
+            STDLOG(0, "IO thread {:d} started; not bound to core\n", thread_num);
         }
         }
         
@@ -55,7 +55,7 @@ private:
 		recvbuf = (MTCOMPLEX *) malloc(recvbufsize);
 		
 		
-		STDLOG(1, "Malloced %ld and %ld bytes for send and recvbuf\n", sendbufsize, recvbufsize);
+		STDLOG(1, "Malloced {:d} and {:d} bytes for send and recvbuf\n", sendbufsize, recvbufsize);
 
 		assert(sendbuf != NULL);
 		assert(recvbuf != NULL);
@@ -137,7 +137,7 @@ public:
         read_ahead = _read_ahead;
         nblocks = (int) ceil((CP.runtime_cpd+1)/2./CP.zwidth);
 
-        STDLOG(0, "Starting IO thread %d\n", thread_num);
+        STDLOG(0, "Starting IO thread {:d}\n", thread_num);
         
         for(int i = 0; i < read_ahead; i++)
             free_queue.push(blocks[i]);

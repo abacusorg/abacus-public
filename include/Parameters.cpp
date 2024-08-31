@@ -218,7 +218,7 @@ public:
                 break;
             int nscan = fscanf(fp, "%dK", &cache_size);  // cache size in KiB
             fclose(fp);
-            assertf(nscan == 1, "Unexpected cache size file format (\"%s\")\n", fn);
+            assertf(nscan == 1, "Unexpected cache size file format (\"{}\")\n", fname);
         }
         return cache_size/1024.0;    // to MiB
     }

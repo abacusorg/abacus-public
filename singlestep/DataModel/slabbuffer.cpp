@@ -161,7 +161,7 @@ public:
 
     inline char* GetSlabPtr(int type, int slab) {
         int id = TypeSlab2ID(type,slab);
-        assertf(AA->IsArenaPresent(id), "Error: slab %d of type %d was not present, when pointer requested.\n", slab, type);
+        assertf(AA->IsArenaPresent(id), "Error: slab {:d} of type {:d} was not present, when pointer requested.\n", slab, type);
         return AA->GetArenaPtr(id);
     }
 
@@ -182,7 +182,7 @@ public:
     }
 
     void ResizeSlab(int type, int slab, uint64 size) {
-        STDLOG(2,"Resizing slab %d of type %d to size %l\n", slab, type, size);
+        STDLOG(2,"Resizing slab {:d} of type {:d} to size {:d}\n", slab, type, size);
         int id = TypeSlab2ID(type,slab);
         AA->ResizeArena(id, size);
     }
@@ -246,7 +246,7 @@ int SlabBuffer::IsRamdiskSlab(int type, int hint){
         case RAMDISK_AUTO:
             break;
         default:
-            QUIT("Did not understand ramdisk hint %d\n", hint);
+            QUIT("Did not understand ramdisk hint {:d}\n", hint);
     }
 
     switch(intent){
@@ -412,7 +412,7 @@ std::string SlabBuffer::WriteSlabPath(int type, int slab) {
         case FieldTimeSlicePIDs        : { ss << P.OutputDirectory << "/slice" << redshift << "/" << P.SimName << ".z" << redshift << ".slab" << slabnum << ".field_pack9_pids.dat"; break; }
 
         default:
-            QUIT("Illegal type %d given to WriteSlabPath()\n", type);
+            QUIT("Illegal type {:d} given to WriteSlabPath()\n", type);
     }
 
     s = ss.str();
@@ -466,7 +466,7 @@ std::string SlabBuffer::ReadSlabPath(int type, int slab) {
         }
 
         default:
-            QUIT("Illegal type %d given to ReadSlabPath()\n", type);
+            QUIT("Illegal type {:d} given to ReadSlabPath()\n", type);
     }
 
     s = ss.str();
@@ -521,7 +521,7 @@ uint64 SlabBuffer::ArenaSize(int type, int slab) {
         case FieldTimeSlicePIDs : {
             return fsize(ReadSlabPath(FieldTimeSlicePIDs,slab).c_str());
         }
-        default            : QUIT("Illegal type %d given to ArenaSize()\n", type);
+        default            : QUIT("Illegal type {:d} given to ArenaSize()\n", type);
     }
     return -1; //should be unreachable
 }
@@ -564,11 +564,10 @@ char *SlabBuffer::AllocateSpecificSize(int type, int slab, uint64 sizebytes, int
             spath = "";
             break;
         default:
-            QUIT("Unexpected value %d of ramdisk\n", ramdisk);
+            QUIT("Unexpected value {:d} of ramdisk\n", ramdisk);
             break;
     }
-	const char *ramdisk_fn = spath.c_str();
-	STDLOG(3, "Allocating slab %d of type %d to size %l (ramdisk = %d), total %5.3f GB\n",
+	STDLOG(3, "Allocating slab {:d} of type {:d} to size {:d} (ramdisk = {:d}), total {:5.3f} GB\n",
                 slab, type, sizebytes, ramdisk, AA->total_allocation/1024./1024./1024.);
 
     int id = TypeSlab2ID(type,slab);
@@ -603,13 +602,13 @@ void SlabBuffer::WriteArena(int type, int slab, int deleteafter, int blocking){
     // Determine the actual, allocated Ramdisk type of the current slab
     // If it was allocated on Ramdisk, then the writing is already done by definition!
     if(AA->ArenaRamdiskType(TypeSlab2ID(type,slab)) != RAMDISK_NO){
-        STDLOG(2, "Skipping explicit write of type %d Ramdisk slab \"%s\"\n", type, path);
+        STDLOG(2, "Skipping explicit write of type {:d} Ramdisk slab \"{}\"\n", type, spath);
 
         // still might have to deallocate
         if(deleteafter == IO_DELETE){
 #ifdef PARALLEL
 			if (type == MultipoleSlab)
-                STDLOG(1, "Uh oh. DeAllocating Multipole slab %d prematurely\n", slab);
+                STDLOG(1, "Uh oh. DeAllocating Multipole slab {:d} prematurely\n", slab);
 #endif
             DeAllocate(type, slab);
 		}
@@ -637,7 +636,7 @@ void SlabBuffer::ReadArena(int type, int slab, int blocking){
     // If it was allocated from existing shared memory (i.e. RAMDISK_READSLAB),
     // we probably don't want to read into it
     if(AA->ArenaRamdiskType(TypeSlab2ID(type,slab)) == RAMDISK_READSLAB){
-        STDLOG(2, "Skipping explicit read of Ramdisk slab %d \"%s\"\n", slab, path);
+        STDLOG(2, "Skipping explicit read of Ramdisk slab {:d} \"{}\"\n", slab, spath);
         SetIOCompleted(type, slab);
         return;
     }
@@ -650,8 +649,8 @@ void SlabBuffer::LoadArenaBlocking(int type, int slab) {
     ReadArenaBlocking(type, slab);
 
     if (type != ICSlab)
-        assertf(SlabSizeBytes(type, slab) == fsize(ReadSlabPath(type,slab).c_str()),
-            "Unexpected file size for slab %d of type %d\n", slab, type);
+        assertf(SlabSizeBytes(type, slab) == fs::file_size(ReadSlabPath(type,slab)),
+            "Unexpected file size for slab {:d} of type {:d}\n", slab, type);
 }
 
 void SlabBuffer::LoadArenaNonBlocking(int type, int slab) {
@@ -659,8 +658,8 @@ void SlabBuffer::LoadArenaNonBlocking(int type, int slab) {
     ReadArenaNonBlocking(type, slab);
 
     if (type != ICSlab)
-        assertf(SlabSizeBytes(type, slab) == fsize(ReadSlabPath(type,slab).c_str()),
-            "Unexpected file size for slab %d of type %d\n", slab, type);
+        assertf(SlabSizeBytes(type, slab) == fs::file_size(ReadSlabPath(type,slab)),
+            "Unexpected file size for slab {:d} of type {:d}\n", slab, type);
 }
 
 
@@ -672,14 +671,14 @@ void SlabBuffer::ReadArena(int type, int slab, int blocking, const char *fn) {
     if (P.ForceBlockingIO!=0)
         blocking = IO_BLOCKING;
 
-    STDLOG(1,"Reading slab %d of type %d from file %s with blocking %d.\n", slab, type, fn, blocking);
+    STDLOG(1,"Reading slab {:d} of type {:d} from file {} with blocking {:d}.\n", slab, type, fn, blocking);
     assertf(IsSlabPresent(type, slab),
-        "Type %d and Slab %d doesn't exist\n", type, slab);
-    assertf(FileExists(fn),
-        "File %s does not exist\n", fn);
-    assertf(fsize(fn) >= 0 && (uint64) fsize(fn) >= SlabSizeBytes(type,slab),
-        "File %s appears to be too small (%d bytes) compared to the arena (%d)\n",
-            fn, fsize(fn), SlabSizeBytes(type,slab));
+        "Type {:d} and Slab {:d} doesn't exist\n", type, slab);
+    assertf(fs::exists(fn),
+        "File {} does not exist\n", fn);
+    assertf((uint64) fs::file_size(fn) >= SlabSizeBytes(type,slab),
+        "File {} appears to be too small ({:d} bytes) compared to the arena ({:d})\n",
+            fn, fs::file_size(fn), SlabSizeBytes(type,slab));
 
     uint64 offset = ReadOffset(type, slab);
 
@@ -691,17 +690,17 @@ void SlabBuffer::ReadArena(int type, int slab, int blocking, const char *fn) {
         blocking);
 }
 
-void SlabBuffer::WriteArena(int type, int slab, int deleteafter, int blocking, const char *fn) {
+void SlabBuffer::WriteArena(int type, int slab, int deleteafter, int blocking, const fs::path &fn) {
     // This will write into an arena.
     // This always triggers a real write, even if the path is on the ramdisk!
 
     if (P.ForceBlockingIO!=0)
         blocking = IO_BLOCKING;
 
-    STDLOG(1,"Writing slab %d of type %d to file %s with blocking %d and delete status %d.\n",
+    STDLOG(1,"Writing slab {:d} of type {:d} to file {} with blocking {:d} and delete status {:d}.\n",
         slab, type, fn, blocking, deleteafter);
     assertf(IsSlabPresent(type, slab),
-        "Type %d and Slab %d doesn't exist\n", type, slab);
+        "Type {:d} and Slab {:d} doesn't exist\n", type, slab);
 
     int use_fp = type >= LightCone0RV && type < NumTypes;
     
@@ -719,7 +718,7 @@ void SlabBuffer::WriteArena(int type, int slab, int deleteafter, int blocking, c
 // Free the memory associated with this slab.  Might stash the arena as a reuse slab!
 // One can request deletion of the file that corresponds to this slab, too.
 void SlabBuffer::DeAllocate(int type, int slab, int delete_file) {
-    STDLOG(2,"Deallocating slab %d of type %d.\n", slab, type);
+    STDLOG(2,"Deallocating slab {:d} of type {:d}.\n", slab, type);
     AA->DeAllocateArena(TypeSlab2ID(type,slab), ReuseID(type));
 
     if(delete_file){
@@ -735,7 +734,7 @@ void SlabBuffer::DeAllocate(int type, int slab, int delete_file) {
             case INMEMORY:
                 return;  // No file; nothing to delete from disk!
             default:
-                QUIT("Did not understand slab intent %d\n", intent);
+                QUIT("Did not understand slab intent {:d}\n", intent);
         }
 
         char buffer[1024];
@@ -750,13 +749,8 @@ void SlabBuffer::DeAllocate(int type, int slab, int delete_file) {
             return;
         }
 
-        STDLOG(2,"Deleting slab file \"%s\"\n", path);
-        int ret = unlink(path.c_str());
-        if(ret != 0){
-            assertf(errno == ENOENT, "Failed to remove path \"%s\" for reason %d: %s\n", path, errno, strerror(errno));
-            // TODO: is it really safe to fail to remove the file?
-            STDLOG(2, "Failed to remove path \"%s\"; does not exist. Continuing.\n", path);
-        }
+        STDLOG(2,"Deleting slab file \"{}\"\n", path);
+        fs::remove(path);
     }
 }
 

@@ -53,7 +53,7 @@ public:
         // Launch io_thread() as a separate thread
         int res = 0;
         res += pthread_create(&io_pthread, NULL, iothread::start_thread, this);
-        assertf(res == 0, "error %d starting io pthread!\n", res);
+        assertf(res == 0, "error {:d} starting io pthread!\n", res);
         STDLOG(0,"IO thread started!\n");
 
         // Open the pipes from the client side
@@ -134,7 +134,7 @@ private:
     void wait_for_ioack(int io_ack, int arenatype, int arenaslab){
         ioacknowledge ioack;
         ssize_t ret = read(io_ack, &ioack, sizeof(ioacknowledge));
-        assertf(ioack.arenatype == arenatype && ioack.arenaslab == arenaslab, "Error in IO acknowledgement for arena %d = %d, %d =%d\n", arenatype, ioack.arenatype, arenaslab, ioack.arenaslab);
+        assertf(ioack.arenatype == arenatype && ioack.arenaslab == arenaslab, "Error in IO acknowledgement for arena {:d} = {:d}, {:d} ={:d}\n", arenatype, ioack.arenatype, arenaslab, ioack.arenaslab);
     }
 
     // =====================================================================
@@ -142,7 +142,7 @@ private:
 
     void ReadIOR(iorequest *ior) {
         // Read the file, wait to complete.
-        IOLOG(1,"Reading file %s\n", ior->filename);
+        IOLOG(1,"Reading file {}\n", ior->filename);
 
         // Determine the ramdisk flag
         int no_dio = -1;
@@ -154,7 +154,7 @@ private:
                 no_dio = 1;
                 break;
             default:
-                QUIT("Unknown IO method %d\n", ior->io_method);
+                QUIT("Unknown IO method {:d}\n", ior->io_method);
         }
 
         const char *dir = ior->dir;
@@ -178,16 +178,16 @@ private:
     }
 
     void WriteIOR(iorequest *ior) {
-        IOLOG(1,"Writing file %s using io_method %d\n", ior->filename, ior->io_method);
+        IOLOG(1,"Writing file {} using io_method {:d}\n", ior->filename, ior->io_method);
         // Write the file
         //ioassertf(FileExists(ior->filename)==0,
-        //	"File %s already exists; not the intended use of WriteFile.\n", ior->filename);
+        //	"File {} already exists; not the intended use of WriteFile.\n", ior->filename);
         //ioassertf(ior->fileoffset==0,
-        //	"WriteFile fileoffest = %d.  Non-zero values not supported.\n", ior->fileoffset);
+        //	"WriteFile fileoffest = {:d}.  Non-zero values not supported.\n", ior->fileoffset);
 
         if (ior->io_method != IO_LIGHTCONE) {
             FILE * outfile = fopen(ior->filename,"wb");
-            ioassertf(outfile != NULL,"Touching file %s failed\n", ior->filename);
+            ioassertf(outfile != NULL,"Touching file {} failed\n", ior->filename);
             fclose(outfile);
         }
 
@@ -204,7 +204,7 @@ private:
                 no_dio = 1;  // no-op, since we use the file pointer mechanism
                 break;
             default:
-                QUIT("Unknown IO method %d\n", ior->io_method);
+                QUIT("Unknown IO method {:d}\n", ior->io_method);
         }
 
         if(ior->do_checksum){
@@ -290,7 +290,7 @@ private:
                     FD_SET(fifo_cmd,&set);
                     int ret = select(highfd+1,&set,NULL, NULL, &timeout);
                     assert(ret!=-1);
-                    IOLOG(3,"Polling IO pipe: select() returned %d, wait_for_cmd %d\n", ret, wait_for_cmd);
+                    IOLOG(3,"Polling IO pipe: select() returned {:d}, wait_for_cmd {:d}\n", ret, wait_for_cmd);
 
                     // if wait_for_cmd==1 then we should wait for a cmd to appear.
                     // otherwise we would spin lock.  But if wait_for_cmd = 0, then
@@ -304,12 +304,12 @@ private:
                         wait_for_cmd = 0;
                         // Put it in the buffer
                         if (ior.command==IO_READ) {
-                        IOLOG(2,"Received IO read request: file = %s, arena type %d slab %d, blocking = %d\n",
+                        IOLOG(2,"Received IO read request: file = {}, arena type {:d} slab {:d}, blocking = {:d}\n",
                             ior.filename, ior.arenatype, ior.arenaslab, ior.blocking);
                             if (ior.blocking==IO_BLOCKING) read_blocking.push(ior);
                             else read_nonblocking.push(ior);
                         } else if (ior.command==IO_WRITE) {
-                        IOLOG(2,"Received IO write request: file = %s, arena type %d slab %d, blocking = %d\n",
+                        IOLOG(2,"Received IO write request: file = {}, arena type {:d} slab {:d}, blocking = {:d}\n",
                             ior.filename, ior.arenatype, ior.arenaslab, ior.blocking);
                             if (ior.blocking==IO_BLOCKING) write_blocking.push(ior);
                             else write_nonblocking.push(ior);
@@ -431,14 +431,14 @@ void IO_Initialize(char *logfn, int NumTypes) {
 
     iothreads = new iothread*[niothreads];
     for(int i = 0; i < niothreads; i++){
-        STDLOG(0,"Initializing IO thread %d\n", i + 1);
+        STDLOG(0,"Initializing IO thread {:d}\n", i + 1);
         iothreads[i] = new iothread(logfn, i + 1, P.IOCores[i]);
     }
 }
 
 void IO_Terminate() {
     for(int i = 0; i < niothreads; i++){
-        STDLOG(0,"Terminating IO thread %d\n", i);
+        STDLOG(0,"Terminating IO thread {:d}\n", i);
         delete iothreads[i];
     }
 
@@ -447,7 +447,7 @@ void IO_Terminate() {
     for(int i = 0; i < nfilepointers; i++){
         if(filepointers[i] != NULL){
             int ret = fclose(filepointers[i]);
-            assertf(ret == 0, "Error closing file pointer for type %d\n", i);
+            assertf(ret == 0, "Error closing file pointer for type {:d}\n", i);
             filepointers[i] = NULL;
         }
     }
@@ -464,10 +464,9 @@ void IO_Terminate() {
         // The format of this file should match that of GNU cksum so that one can do a simple diff
         // That's not to say that users should prefer cksum; it's slow!
         // We will instead provide a fast CRC32 utility.
-        char checksumfn[1050];
-        snprintf(checksumfn, 1050, "%s/checksums%s.crc32", dir.c_str(), NodeString);
-        FILE *fp = fopen(checksumfn, "w");
-        assertf(fp != NULL, "Failed to open file \"%s\"\n", checksumfn);
+        const fs::path checksumfn = dir / fmt::format("checksums{:s}.crc32", NodeString);
+        FILE *fp = fopen(checksumfn.c_str(), "w");
+        assertf(fp != NULL, "Failed to open file \"{}\"\n", checksumfn);
 
         for(auto &fileiter : orderedcrc){
             const std::string filename = fileiter.first;
@@ -495,7 +494,7 @@ int GetIOThread(const char* dir){
 void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, const char *filename,
     off_t fileoffset, int blocking) {
 
-    STDLOG(3,"Using IO_thread module to read file %f, blocking %d\n", filename, blocking);
+    STDLOG(3,"Using IO_thread module to read file {}, blocking {:d}\n", filename, blocking);
     iorequest ior(ram, sizebytes, filename, IO_READ, arenatype, arenaslab, fileoffset, 0, blocking, 0);
 
     iothreads[GetIOThread(ior.dir) - 1]->request(ior);
@@ -504,7 +503,7 @@ void ReadFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, const c
 void WriteFile(char *ram, uint64 sizebytes, int arenatype, int arenaslab, const char *filename,
         off_t fileoffset, int deleteafter, int blocking, int do_checksum, int use_fp) {
 
-    STDLOG(3,"Using IO_thread module to write file %f, blocking %d, use_fp %d\n", filename, blocking, use_fp);
+    STDLOG(3,"Using IO_thread module to write file {}, blocking {:d}, use_fp {:d}\n", filename, blocking, use_fp);
 
     FILE *fp = NULL;
     if(use_fp){

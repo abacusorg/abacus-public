@@ -180,7 +180,7 @@ class SOcell {
         np = ngroups = 0;
         if (_size+16<maxsize) return;    // Do nothing if we have enough space
         maxsize = _size+16;   // Oversize to limit the number of re-allocations
-        assertf(maxsize<800e6, "Maxsize %d is too large\n", maxsize);
+        assertf(maxsize<800e6, "Maxsize {:d} is too large\n", maxsize);
             // Very large sizes would overflow the way we store ints inside floats in FOFparticles
         
         if (p!=NULL) free(p);
@@ -274,7 +274,7 @@ class SOcell {
 
         /*
         if (omp_get_thread_num()==0) 
-            STDLOG(1,"Setting up SO with mag_roche= %f min_radius= %f Rdensmax2= %f alpha_eligible= %f\n", 
+            STDLOG(1,"Setting up SO with mag_roche= {:f} min_radius= {:f} Rdensmax2= {:f} alpha_eligible= {:f}\n", 
                 mag_roche, sqrt(min_radius2)/FOF_RESCALE, sqrt(Rdensmax2)/FOF_RESCALE, sqrt(alpha_eligible2));
         */
 
@@ -464,7 +464,7 @@ FOFloat partial_search(int len, int mass, FOFloat shell_max_rad2, int &size_thre
         }
     }
     // record result
-    // assertf(size_thresh+mass>0, "Found a zero mass interior to a SO shell, len = %d", len);
+    // assertf(size_thresh+mass>0, "Found a zero mass interior to a SO shell, len = {:d}", len);
     inv_enc_den = (x*sqrt(x))/((size_thresh+mass)*threshold);
     
     if (size_thresh==len) {
@@ -862,9 +862,9 @@ inline int compute_cellindex(posstruct &p) {
     int i = floor((p.x+CP->halfinvcpd)*CP->cpd)-refcell.x;
     int j = floor((p.y+CP->halfinvcpd)*CP->cpd)-refcell.y;
     int k = floor((p.z+CP->halfinvcpd)*CP->cpd)-refcell.z;
-    // assertf(i>=0&&i<256, "Bad cell index i=%d", i);
-    // assertf(j>=0&&j<256, "Bad cell index j=%d", j);
-    // assertf(k>=0&&k<256, "Bad cell index k=%d", k);
+    // assertf(i>=0&&i<256, "Bad cell index i={:d}", i);
+    // assertf(j>=0&&j<256, "Bad cell index j={:d}", j);
+    // assertf(k>=0&&k<256, "Bad cell index k={:d}", k);
     return (i<<16)|(j<<8)|k;
 }
 
@@ -873,9 +873,9 @@ inline FOFparticle compute_cellcenter(int cellidx) {
     int k = (cellidx&0xff);
     int j = (cellidx&0xff00)>>8;
     int i = (cellidx&0xff0000)>>16;
-    // assertf(i>=0&&i<256, "Bad cell index i=%d", i);
-    // assertf(j>=0&&j<256, "Bad cell index j=%d", j);
-    // assertf(k>=0&&k<256, "Bad cell index k=%d", k);
+    // assertf(i>=0&&i<256, "Bad cell index i={:d}", i);
+    // assertf(j>=0&&j<256, "Bad cell index j={:d}", j);
+    // assertf(k>=0&&k<256, "Bad cell index k={:d}", k);
     posstruct p;
     p.z = CP->invcpd*(k+refcell.z);
     p.y = CP->invcpd*(j+refcell.y);

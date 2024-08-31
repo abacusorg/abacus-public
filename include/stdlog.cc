@@ -2,7 +2,7 @@
 #define STDLOG_INCLUDE
 
 // Use: stdlog.open() and stdlog.close() at the top level code.
-// STDLOG(...) uses pprint() so it should handle many C++ types.
+// STDLOG(...) uses {fmt} so it should handle many C++ types.
 // QUIT(...) writes to the log and aborts the program.
 // assertf(test,...) does the test and writes to the log if failed.
 
@@ -32,7 +32,7 @@ int stdlog_threshold_global = 1;
 
 // C++-style variadic args don't work well across compilation units, so ensure a pure-string
 // entry point for modules like the GPU directs
-void stdlog_hook(int verbosity, const char* str){
+void stdlog_hook(int verbosity, const std::string &str){
     STDLOG(verbosity, str);
 }
 
@@ -40,17 +40,17 @@ void stdlog_hook(int verbosity, const char* str){
 #define STDLOG_TIMESTAMP do { \
 	time_t tnow = time(NULL); \
 	std::string time( ctime(&tnow) ); \
-	STDLOG(0,"Timestamp %s\n", time.substr(0,time.length()-1)); \
+	STDLOG(0,"Timestamp {:s}\n", time.substr(0,time.length()-1)); \
     } while (0)
 
-#define QUIT(...) do { fprintf(stderr,"Fatal error (QUIT): "); \
-    fpprint(std::cerr, __VA_ARGS__); \
+#define QUIT(...) do { fmt::print(stderr,"Fatal error (QUIT): "); \
+    fmt::print(stderr, __VA_ARGS__); \
     STDLOG(0,"Fatal error (QUIT)\n"); STDLOG(0,__VA_ARGS__); \
 	assert(0==98); } while(0)
 
 #define WARNING(...) do { STDLOG(0,"WARNING:\n"); STDLOG(0,__VA_ARGS__); \
-        fprintf(stderr,"Warning: "); \
-    fpprint(std::cerr, __VA_ARGS__); } while(0)
+        fmt::print(stderr,"Warning: "); \
+    fmt::print(stderr, __VA_ARGS__); } while(0)
 
 // This is a form of assert, but it requires a printf style message.
 // Be sure to terminate it with a \n.
@@ -59,9 +59,9 @@ void stdlog_hook(int verbosity, const char* str){
 
 #define assertf(_mytest,...) do { \
     if (UNLIKELY(!(_mytest))) { \
-        STDLOG(0,"Failed Assertion: %s\n", #_mytest); STDLOG(1,__VA_ARGS__); \
-        fprintf(stderr,"Failed Assertion: %s\n", #_mytest); \
-	fpprint(std::cerr, __VA_ARGS__); \
+        STDLOG(0,"Failed Assertion: {:s}\n", #_mytest); STDLOG(1,__VA_ARGS__); \
+        fmt::print(stderr,"Failed Assertion: {:s}\n", #_mytest); \
+	fmt::print(stderr, __VA_ARGS__); \
         assert(0==99); \
     }} while(0)
 

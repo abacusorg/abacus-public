@@ -122,7 +122,7 @@ void OutputNonL0Taggable(int slab) {
         SB->StoreArenaNonBlocking(FieldPIDSlabB, slab);
     }
 
-    STDLOG(1,"Wrote %d, %d non-L0 Taggable particles in subsamples A, B for slab %d.\n", nfield[0], nfield[1], slab);
+    STDLOG(1,"Wrote {:d}, {:d} non-L0 Taggable particles in subsamples A, B for slab {:d}.\n", nfield[0], nfield[1], slab);
 }
 
 

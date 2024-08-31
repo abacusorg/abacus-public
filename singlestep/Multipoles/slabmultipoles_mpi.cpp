@@ -169,7 +169,7 @@ int SlabMultipolesMPI::CheckAnyMPIDone(){
             int done = 0;
             MPI_Test(&handle[i], &done, MPI_STATUS_IGNORE);
             if(done){
-                STDLOG(2, "Multipoles y-z MPI transpose done on slab %d\n", i);
+                STDLOG(2, "Multipoles y-z MPI transpose done on slab {:d}\n", i);
                 mpi_status[i] = 2;
                 free(sendbuf[i]);
                 ret = 1;
@@ -241,7 +241,7 @@ void SlabMultipolesMPI::ComputeMultipoleFFT( int x, FLOAT3 *spos,
 void SlabMultipolesMPI::ComputeFFTZ(int x, MTCOMPLEX *outslab){
     // out: [cpd, rml, node_ky_size]
 
-    assertf(mpi_status[x] == 2, "ComputeFFTZ() called before MPI receive done on slab %d?\n", x);
+    assertf(mpi_status[x] == 2, "ComputeFFTZ() called before MPI receive done on slab {:d}?\n", x);
 
     // unpack recvbuf into ztmp
     // recvbuf holds each node's chunk, one after the other

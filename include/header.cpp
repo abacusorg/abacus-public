@@ -33,10 +33,11 @@
 #include <stdint.h>
 #include <unistd.h>
 
-#define uint32 uint32_t
-#define int32 int32_t
-#define uint64 uint64_t
-#define int64 int64_t
+#include "threevector.hh"
+
+// TODO: use compiled lib rather than header-only
+#include <fmt/std.h>
+#include <fmt/ostream.h>
 
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
@@ -67,3 +68,4 @@ typedef float DFLOAT;
 
 using namespace std;
 
+#endif
