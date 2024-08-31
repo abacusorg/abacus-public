@@ -132,7 +132,7 @@ void MakeAnalyticDerivatives(int maxorder, int innerradius) {
     for(int a=0;a<=maxorder;a+=2)
         for(int b=0;b<=maxorder-a;b+=2)
                 if( a+b>2) {
-					printf("% 2d % 2d % 2f % 2f % 2f \n", a, b, double(AnalyticDerivatives[a][b][0]), double(rd2[ rmap(a,b,0)] ),   double(AnalyticDerivatives[a][b][0] - rd2[ rmap(a,b,0)] )   );
+					fmt::print("{: 2d} {: 2d} {: 2f} {: 2f} {: 2f} \n", a, b, double(AnalyticDerivatives[a][b][0]), double(rd2[ rmap(a,b,0)] ),   double(AnalyticDerivatives[a][b][0] - rd2[ rmap(a,b,0)] )   );
                     AnalyticDerivatives[a][b][0] -= rd2[ rmap(a,b,0) ];
                 }
 
@@ -153,7 +153,7 @@ int main(void) {
 	for(int innerradius=1; innerradius<=9; innerradius+=1) {
 		if(innerradius == 9){innerradius = 16;};
 		
-        printf("making innerradius = %d\n", innerradius);
+        fmt::print("making innerradius = {:d}\n", innerradius);
 
         MakeAnalyticDerivatives(order, innerradius);
 

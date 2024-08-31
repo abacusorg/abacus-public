@@ -70,6 +70,8 @@ the cell.  At present, we're just storing 0.
 #include "threevector.hh"
 #include "cell_header.h"
 
+#include <fmt/format.h>
+
 #include <type_traits>
 
 template <int N>
@@ -84,11 +86,11 @@ class packN{
     ~packN(void) { }
 
     void print_char() {
-         printf("Char binary: ");
+         fmt::print("Char binary: ");
          for (int i = 0; i < N; i++){
-            printf("%02x ", c[i]);
+            fmt::print("{:02x} ", c[i]);
          }
-         printf("\n");
+         fmt::print("\n");
     }
 
     // Routines to decide if this is a cell or a particle.
@@ -106,9 +108,9 @@ class packN{
     }
 
     void print_short(SHORT s[6]) {
-         printf("Short decimal: %d %d %d %d %d %d\n",
+         fmt::print("Short decimal: {:d} {:d} {:d} {:d} {:d} {:d}\n",
              s[0], s[1], s[2], s[3], s[4], s[5]);
-         printf("Short binary: %03x %03x  %03x %03x  %03x %03x\n",
+         fmt::print("Short binary: {:03x} {:03x}  {:03x} {:03x}  {:03x} {:03x}\n",
              s[0], s[1], s[2], s[3], s[4], s[5]);
         }
                  
@@ -399,10 +401,10 @@ void endian() {
     id = id*16+8;
     id = id*16+9;
     id = id*16+10;
-    printf("Testing %llx\nTesting ",id);
+    fmt::print("Testing {:x}\nTesting ",id);
     unsigned char *c = (unsigned char *)&id;
-    for (int j=0; j<8;j++) printf("%02x ", c[j]);
-    printf("\n\n");
+    for (int j=0; j<8;j++) fmt::print("{:02x} ", c[j]);
+    fmt::print("\n\n");
     // We find that on Intel, a long long int has the MS byte at the end.
 
     uint32_t fid;
@@ -414,10 +416,10 @@ void endian() {
     fid = fid*16+6;
     fid = fid*16+7;
     fid = fid*16+8;
-    printf("Testing %x\nTesting ",fid);
+    fmt::print("Testing {:x}\nTesting ",fid);
     c = (unsigned char *)&fid;
-    for (int j=0; j<4;j++) printf("%02x ", c[j]);
-    printf("\n\n");
+    for (int j=0; j<4;j++) fmt::print("{:02x} ", c[j]);
+    fmt::print("\n\n");
     // Similarly for 32-bit ints.
 }
 
@@ -462,17 +464,17 @@ int main() {
         pos[0] += (c[0]+0.5)/cpd-0.5;
         pos[1] += (c[1]+0.5)/cpd-0.5;
         pos[2] += (c[2]+0.5)/cpd-0.5;
-        printf("Original %d %d %d  %f %f %f  %f %f %f %lld\n",
+        fmt::print("Original {:d} {:d} {:d}  {:f} {:f} {:f}  {:f} {:f} {:f} {:d}\n",
                 c[0], c[1], c[2], 
                 pos[0], pos[1], pos[2],
                 vel[0], vel[1], vel[2], id);
-        printf("Restored %d %d %d  %f %f %f  %f %f %f %lld\n",
+        fmt::print("Restored {:d} {:d} {:d}  {:f} {:f} {:f}  {:f} {:f} {:f} {:d}\n",
                 tc[0], tc[1], tc[2], tpos[0], tpos[1], tpos[2], tvel[0], tvel[1], tvel[2], id);
-        printf("Residual %d %d %d  %f %f %f  %f %f %f %lld\n",
+        fmt::print("Residual {:d} {:d} {:d}  {:f} {:f} {:f}  {:f} {:f} {:f} {:d}\n",
                 tc[0]-c[0], tc[1]-c[1], tc[2]-c[2], 
                 tpos[0]-pos[0], tpos[1]-pos[1], tpos[2]-pos[2], 
                 tvel[0]-vel[0], tvel[1]-vel[1], tvel[2]-vel[2], id-tid);
-        printf("\n");
+        fmt::print("\n");
         WORST(worst_c,tc[0]-c[0]);
         WORST(worst_c,tc[1]-c[1]);
         WORST(worst_c,tc[0]-c[0]);
@@ -484,9 +486,9 @@ int main() {
         WORST(worst_vel,tvel[2]-vel[2]);
         WORST(worst_id,tid-id);
     }
-    printf("Largest position residual is %e (box), %f (cell)\n", worst_pos, worst_pos*cpd);
-    printf("Largest velocity residual is %e (box), %f (cell)\n", worst_vel, worst_vel*cpd);
-    printf("Largest id residual is %d\n", worst_id);
+    fmt::print("Largest position residual is {:e} (box), {:f} (cell)\n", worst_pos, worst_pos*cpd);
+    fmt::print("Largest velocity residual is {:e} (box), {:f} (cell)\n", worst_vel, worst_vel*cpd);
+    fmt::print("Largest id residual is {:d}\n", worst_id);
     return 0; 
 }
 

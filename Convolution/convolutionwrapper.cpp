@@ -92,54 +92,54 @@ void dumpstats(OutofCoreConvolution *OCC, const fs::path &fn) {
     double discrepency = OCC->CS.ConvolveWallClock - accountedtime;
 
     int computecores = OCC->CS.ComputeCores;
-    fprintf(fp,"Convolution parameters:  RamAllocated = %dMB CacheSizeMB = %4.1fMB nreal_cores=%d blocksize=%d zwidth=%d cpd=%d order=%d",
+    fmt::print(fp,"Convolution parameters:  RamAllocated = {:d}MB CacheSizeMB = {:4.1f}MB nreal_cores={:d} blocksize={:d} zwidth={:d} cpd={:d} order={:d}",
         (int) (OCC->CS.totalMemoryAllocated/(1<<20)), OCC->CS.runtime_ConvolutionCacheSizeMB, computecores, (int) OCC->CP.blocksize, (int) OCC->CP.zwidth, OCC->CP.runtime_cpd, OCC->CP.runtime_order);
 
 #ifdef CONVIOTHREADED
-    fprintf(fp, " niothread=%d", OCC->CP.niothreads);
+    fmt::print(fp, " niothread={:d}", OCC->CP.niothreads);
 #endif
-    fprintf(fp,"\n\n");
+    fmt::print(fp,"\n\n");
 
-    fprintf(fp,"\t ConvolutionWallClock:  %2.2e seconds \n", OCC->CS.ConvolveWallClock );
-    fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Array Swizzling", OCC->CS.ArraySwizzle );
+    fmt::print(fp,"\t ConvolutionWallClock:  {:2.2e} seconds \n", OCC->CS.ConvolveWallClock );
+    fmt::print(fp,"\t \t {:50s} : {:1.2e} seconds\n", "Array Swizzling", OCC->CS.ArraySwizzle );
     
 #ifdef CONVIOTHREADED
     double e = OCC->CS.ReadDerivativesBytes/OCC->CS.ReadDerivatives/(1.0e+6);
-    fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "ReadDiskDerivatives [per thread]", OCC->CS.ReadDerivatives, e );
+    fmt::print(fp,"\t \t {:50s} : {:1.2e} seconds --> rate was {:4.0f} MB/s\n", "ReadDiskDerivatives [per thread]", OCC->CS.ReadDerivatives, e );
     
     e = OCC->CS.ReadMultipolesBytes/OCC->CS.ReadMultipoles/(1.0e+6);
-    fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "ReadDiskMultipoles [per thread]", OCC->CS.ReadMultipoles, e );
+    fmt::print(fp,"\t \t {:50s} : {:1.2e} seconds --> rate was {:4.0f} MB/s\n", "ReadDiskMultipoles [per thread]", OCC->CS.ReadMultipoles, e );
 	
 #ifdef PARALLEL
     e = OCC->CS.TransposeBufferingBytes/OCC->CS.TransposeBuffering/(1.0e+6);
-    fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "Transpose Buffering", OCC->CS.TransposeBuffering, e );
+    fmt::print(fp,"\t \t {:50s} : {:1.2e} seconds --> rate was {:4.0f} MB/s\n", "Transpose Buffering", OCC->CS.TransposeBuffering, e );
 	
     e = OCC->CS.TransposeAlltoAllvBytes/OCC->CS.TransposeAlltoAllv/(1.0e+6);
-    fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "Transpose MPI AlltoAllv", OCC->CS.TransposeAlltoAllv, e );
+    fmt::print(fp,"\t \t {:50s} : {:1.2e} seconds --> rate was {:4.0f} MB/s\n", "Transpose MPI AlltoAllv", OCC->CS.TransposeAlltoAllv, e );
 #endif
     
     e = OCC->CS.WriteTaylorBytes/OCC->CS.WriteTaylor/(1.0e+6);
-    fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "WriteDiskTaylor [per thread]", OCC->CS.WriteTaylor, e );
+    fmt::print(fp,"\t \t {:50s} : {:1.2e} seconds --> rate was {:4.0f} MB/s\n", "WriteDiskTaylor [per thread]", OCC->CS.WriteTaylor, e );
     
-    fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Waiting for IO thread", OCC->CS.WaitForIO);
+    fmt::print(fp,"\t \t {:50s} : {:1.2e} seconds\n", "Waiting for IO thread", OCC->CS.WaitForIO);
 #else
     double e = OCC->CS.ReadDerivativesBytes/OCC->CS.ReadDerivatives/(1.0e+6);
-    fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "ReadDiskDerivatives", OCC->CS.ReadDerivatives, e );
+    fmt::print(fp,"\t \t {:50s} : {:1.2e} seconds --> rate was {:4.0f} MB/s\n", "ReadDiskDerivatives", OCC->CS.ReadDerivatives, e );
     
     e = OCC->CS.ReadMultipolesBytes/OCC->CS.ReadMultipoles/(1.0e+6);
-    fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "ReadDiskMultipoles", OCC->CS.ReadMultipoles, e );
+    fmt::print(fp,"\t \t {:50s} : {:1.2e} seconds --> rate was {:4.0f} MB/s\n", "ReadDiskMultipoles", OCC->CS.ReadMultipoles, e );
 	
     e = OCC->CS.WriteTaylorBytes/OCC->CS.WriteTaylor/(1.0e+6);
-    fprintf(fp,"\t \t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "WriteDiskTaylor", OCC->CS.WriteTaylor, e );
+    fmt::print(fp,"\t \t {:50s} : {:1.2e} seconds --> rate was {:4.0f} MB/s\n", "WriteDiskTaylor", OCC->CS.WriteTaylor, e );
 #endif
     
     double Gops = ((double) OCC->CS.ops)/(1.0e+9);
-    fprintf(fp,"\t \t %50s : %1.2e seconds for %5.3f billion double precision operations\n", "Convolution Arithmetic", OCC->CS.ConvolutionArithmetic, Gops );
+    fmt::print(fp,"\t \t {:50s} : {:1.2e} seconds for {:5.3f} billion double precision operations\n", "Convolution Arithmetic", OCC->CS.ConvolutionArithmetic, Gops );
     
-    fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Forward FFT Z Multipoles", OCC->CS.ForwardZFFTMultipoles );
-    fprintf(fp,"\t \t %50s : %1.2e seconds\n", "Inverse FFT Z Taylor",         OCC->CS.InverseZFFTTaylor );
+    fmt::print(fp,"\t \t {:50s} : {:1.2e} seconds\n", "Forward FFT Z Multipoles", OCC->CS.ForwardZFFTMultipoles );
+    fmt::print(fp,"\t \t {:50s} : {:1.2e} seconds\n", "Inverse FFT Z Taylor",         OCC->CS.InverseZFFTTaylor );
     
-    fprintf(fp,"\t %50s : %1.2e seconds which is %d%% \n", "Unaccounted remaining wallclock time", discrepency, (int) (discrepency/OCC->CS.ConvolveWallClock*100) );
+    fmt::print(fp,"\t {:50s} : {:1.2e} seconds which is {:d}% \n", "Unaccounted remaining wallclock time", discrepency, (int) (discrepency/OCC->CS.ConvolveWallClock*100) );
 
     double cae = OCC->CS.ConvolutionArithmetic;
     double farithp   = cae/OCC->CS.ConvolveWallClock*100;
@@ -150,16 +150,16 @@ void dumpstats(OutofCoreConvolution *OCC, const fs::path &fn) {
 #endif
     double swzp      = OCC->CS.ArraySwizzle/OCC->CS.ConvolveWallClock*100;
 
-    fprintf(fp,"\n \t Summary: Fourier Transforms = %2.0f%%     Convolution Arithmetic = %2.0f%%     Array Swizzle = %2.0f%%", ffftp, farithp, swzp );
+    fmt::print(fp,"\n \t Summary: Fourier Transforms = {:2.0f}%     Convolution Arithmetic = {:2.0f}%     Array Swizzle = {:2.0f}%", ffftp, farithp, swzp );
 #ifdef CONVIOTHREADED
     double fiow      = OCC->CS.WaitForIO/OCC->CS.ConvolveWallClock*100;
-    fprintf(fp,"\n \t                                  Non-blocking Disk IO = %2.0f%%    Waiting for IO Thread = %2.0f%% \n", fiop, fiow);
+    fmt::print(fp,"\n \t                                  Non-blocking Disk IO = {:2.0f}%    Waiting for IO Thread = {:2.0f}% \n", fiop, fiow);
 #else
-    fprintf(fp,"    Disk IO = %2.0f%% \n", fiop);
+    fmt::print(fp,"    Disk IO = {:2.0f}% \n", fiop);
 #endif
-    fprintf(fp,"\t          Arithmetic rate = %2.0f DGOPS --> rate per core = %1.1f DGOPS\n", Gops/cae, Gops/cae/computecores );
-    fprintf(fp,"\t          [DGOPS == Double Precision Billion operations per second]\n");
-    fprintf(fp,"\n");
+    fmt::print(fp,"\t          Arithmetic rate = {:2.0f} DGOPS --> rate per core = {:1.1f} DGOPS\n", Gops/cae, Gops/cae/computecores );
+    fmt::print(fp,"\t          [DGOPS == Double Precision Billion operations per second]\n");
+    fmt::print(fp,"\n");
 
     fclose(fp);
 }
@@ -237,9 +237,9 @@ int choose_zwidth(int Conv_zwidth, int cpd, ConvolutionParameters &CP){
     STDLOG(0,"You allow a maximum of  {:.2f} MB\n",rambytes/1024/1024.);
     uint64_t swizzlebytes = CP.rml*cpd*cpd*sizeof(Complex);
     if(rambytes < zslabbytes) { 
-        fprintf(stderr, "Each slab requires      %.2f MB\n", zslabbytes/1024/1024.);
-        fprintf(stderr, "You allow a maximum of  %.2f MB\n", rambytes/1024/1024.);
-        fprintf(stderr, "[ERROR] rambytes<zslabbytes\n");
+        fmt::print(stderr, "Each slab requires      {:.2f} MB\n", zslabbytes/1024/1024.);
+        fmt::print(stderr, "You allow a maximum of  {:.2f} MB\n", rambytes/1024/1024.);
+        fmt::print(stderr, "[ERROR] rambytes<zslabbytes\n");
         exit(1);
     }
 
@@ -324,7 +324,7 @@ int main(int argc, char ** argv){
 
 	if (argc!=2) {
 	       // Can't use assertf() or QUIT here: stdlog not yet defined!
-	       fprintf(stderr, "Error: command line must have 1 parameter given, not %d.\nLegal usage: %s PARAM_FILE\n", argc-1, argv[0]);
+	       fmt::print(stderr, "Error: command line must have 1 parameter given, not {:d}.\nLegal usage: {:s} PARAM_FILE\n", argc-1, argv[0]);
 	       assert(0==99);
 	    }
 		

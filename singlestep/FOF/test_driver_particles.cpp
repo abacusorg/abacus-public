@@ -60,7 +60,7 @@ class CellParticles {
 
 	int total = 0;
 	for (int c=0; c<cpd3; c++) total+=n[c];
-	printf("Made %d particles, often %d per cell, %d in the last\n", total, each, np-each*(cpd3-1));
+	fmt::print("Made {:d} particles, often {:d} per cell, {:d} in the last\n", total, each, np-each*(cpd3-1));
 
 	srand48(123);
 	for (int p=0; p<np; p++) {
@@ -83,7 +83,7 @@ class CellParticles {
 	    vel[k].y = floor(pos[k].y*cpd);
 	    vel[k].z = floor(pos[k].z*cpd);
 	    pos[k] -= (vel[k]+float3(0.5,0.5,0.5))*invcpd;   // Cell-centered pos
-	    // printf("%f %f %f\n", pos[k].x*cpd, pos[k].y*cpd, pos[k].z*cpd);
+	    // fmt::print("{:f} {:f} {:f}\n", pos[k].x*cpd, pos[k].y*cpd, pos[k].z*cpd);
 	    // assert(pos[k].x>=-invcpd/2.0 && pos[k].x<=invcpd/2.0);
 	    // assert(pos[k].y>=-invcpd/2.0 && pos[k].y<=invcpd/2.0);
 	    // assert(pos[k].z>=-invcpd/2.0 && pos[k].z<=invcpd/2.0);

@@ -317,7 +317,7 @@ void GlobalGroupSlab::IndexLinks() {
         NUMA_FOR(j,0,cpd, NO_CLAUSE, FALLBACK_DYNAMIC){
             // Now find the starting point for this Pencil
             GroupLink *start = GFC->GLL->Search(thisslab, j);
-            // printf("Pencil %d %d starts at %d\n", thisslab, j, (int)(start-GFC->GLL->list));
+            // fmt::print("Pencil {:d} {:d} starts at {:d}\n", thisslab, j, (int)(start-GFC->GLL->list));
             // Find the start for each Cell in the pencil
             // This step does dominate the time
             GFC->IndexLinksIndex.Start();
@@ -325,7 +325,7 @@ void GlobalGroupSlab::IndexLinks() {
             GFC->IndexLinksIndex.Stop();
 
             // for (int k=0; k<zwidth; k++) 
-                // printf("%d %d %d starts at %d %d\n", thisslab, j, k, links[s][j].cells[k].start, links[s][j].cells[k].n);
+                // fmt::print("{:d} {:d} {:d} starts at {:d} {:d}\n", thisslab, j, k, links[s][j].cells[k].start, links[s][j].cells[k].n);
         }
         NUMA_FOR_END;
     }
@@ -490,7 +490,7 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                     cglist.resize(0);   // Reset to null list
                     cglist.push_back(LinkID(slab, j, k, g));   // Prime the queue
                     uint64 searching = 0;
-                    // printf("GG %d %d %d %d\n", slab, j, k, g);
+                    // fmt::print("GG {:d} {:d} {:d} {:d}\n", slab, j, k, g);
                     while (searching<cglist.size()) {
                         // We have an unresolved group to search
                         integer3 thiscell = cglist[searching].localcell();  
@@ -503,7 +503,7 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                                 // prematurely.
                         thiscg->close_group();
                         // if (searching>0) {
-                            // printf("Link to %d %d %d %d\n",
+                            // fmt::print("Link to {:d} {:d} {:d} {:d}\n",
                                     // thiscell.x, thiscell.y, thiscell.z, cglist[searching].cellgroup());
                         // }
 
@@ -539,7 +539,7 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                         } // Done with the links from this cell
                         searching++;  // Ready for the next unresolved cellgroup
                     } // End search over graph of cell groups
-                    // printf("Closed with size %d\n", ggsize);
+                    // fmt::print("Closed with size {:d}\n", ggsize);
 
                     // recall that we are using local z
                     int minz_in_primary = minzslab >= ghost_radius && minzslab < zwidth - ghost_radius;
@@ -570,11 +570,11 @@ void GlobalGroupSlab::CreateGlobalGroups() {
 
                             for (uint64 t = 0; t<cglist.size(); t++) {
                                 //integer3 tmp = cglist[t].localcell();
-                                // printf("GGlist: %d %d %d %d\n",
+                                // fmt::print("GGlist: {:d} {:d} {:d} {:d}\n",
                                         // tmp.x, tmp.y, tmp.z, cglist[t].cellgroup());
                                 gg_list->append(cglist[t]);
                             }
-                            // printf("    GGpencil: %d %d %d %d\n", 
+                            // fmt::print("    GGpencil: {:d} {:d} {:d} {:d}\n", 
                                     // (int)cglist.size(), start, ggsize, cumulative_np);
                             gg_pencil->append(GlobalGroup(cglist.size(), start, ggsize, cumulative_np));
                             cumulative_np += ggsize;
@@ -589,7 +589,7 @@ void GlobalGroupSlab::CreateGlobalGroups() {
                 } // End this group
                 gg_pencil->FinishCell();
                 gg_list->FinishCell();
-                // printf("Done with cell %d %d\n", j, k);
+                // fmt::print("Done with cell {:d} {:d}\n", j, k);
             } // End this cell
             gg_pencil->FinishPencil();
             gg_list->FinishPencil();
@@ -703,7 +703,7 @@ void GlobalGroupSlab::GatherGlobalGroups() {
                     integer3 cellijk = cglink->localcell();
                     cellijk.z += zstart;
                     CellGroup *cg = LinkToCellGroup(*cglink);
-                    // printf("%d %d %d %d in %d %d %d n=%d\n", 
+                    // fmt::print("{:d} {:d} {:d} {:d} in {:d} {:d} {:d} n={:d}\n", 
                         // j, k, n, c, cellijk.x, cellijk.y, cellijk.z, cg->size());
                     // CellGroup cg = GFC->cellgroups[cellijk.x][cellijk.y][cellijk.z][cglink->cellgroup()];
                     Cell cell = CP->GetCell(cellijk);
@@ -726,7 +726,7 @@ void GlobalGroupSlab::GatherGlobalGroups() {
                     posstruct offset = GFC->invcpd*(cellijk);
                         // Ok to use single precision because this is only a few cells 
                         // (and L1 group finding is in limited precision too)
-                    // printf("Using offset %f %f %f\n", offset.x, offset.y, offset.z);
+                    // fmt::print("Using offset {:f} {:f} {:f}\n", offset.x, offset.y, offset.z);
                     for (int p=0; p<cg->size(); p++) pos[start+p] = offset+cell.pos[cg->start+p]; 
                     start += cg->size();
                 } // End loop over cellgroups in this global group
@@ -825,7 +825,7 @@ void GlobalGroupSlab::ScatterGlobalGroups() {
                     if (cellijk.z<-diam) cellijk.z+=cpd;
                     posstruct offset = GFC->invcpd*(cellijk);
                         // Ok to use single precision, because this is only a few cells
-                    // printf("Using offset %f %f %f\n", offset.x, offset.y, offset.z);
+                    // fmt::print("Using offset {:f} {:f} {:f}\n", offset.x, offset.y, offset.z);
                     for (int p=0; p<cg->size(); p++) 
                          cell.pos[cg->start+p] = pos[start+p] - offset;
                     start += cg->size();
@@ -1232,7 +1232,7 @@ void GlobalGroupSlab::SimpleOutput() {
     for (int j=0; j<cpd; j++)
         for (int k=0; k<zwidth; k++)  // local k
             for (int n=0; n<globalgroups[j][k].size(); n++)
-                fprintf(fp, "%d %d %d %d %d\n", (int)globalgroups[j][k][n].start,
+                fmt::print(fp, "{:d} {:d} {:d} {:d} {:d}\n", (int)globalgroups[j][k][n].start,
                                 globalgroups[j][k][n].np, slab, j, k);
     fclose(fp);
 
@@ -1242,7 +1242,7 @@ void GlobalGroupSlab::SimpleOutput() {
         for (int k=0; k<zwidth; k++)  // local k
             for (int n=0; n<L1halos[j][k].size(); n++) {
                 HaloStat h = L1halos[j][k][n];
-                fprintf(fp, "%4d %7.4f %7.4f %7.4f %d %4d %3d %3d %7.4f %7.4f %7.4f %d %lu %u %u\n", 
+                fmt::print(fp, "{:4d} {:7.4f} {:7.4f} {:7.4f} {:d} {:4d} {:3d} {:3d} {:7.4f} {:7.4f} {:7.4f} {:d} {:d} {:d} {:d}\n", 
                     h.N, h.x_com[0], h.x_com[1], h.x_com[2], h.r50_com,
                     h.L2_N[0], h.L2_N[1], h.L2_N[2], 
                     h.x_L2com[0], h.x_L2com[1], h.x_L2com[2], 

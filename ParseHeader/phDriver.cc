@@ -65,11 +65,11 @@ int phDriver::parse(const char* buffer, int len, const fs::path fromfilename,
 }
 
 void phDriver::error (const yy::location& l, const std::string& m) {
-    std::cerr << "ParseHeader: " << l << ": " << m << std::endl;
+    fmt::print(std::cerr, "ParseHeader: {}: {}\n", l, m);
 }
      
 void phDriver::error (const std::string& m) {
-    std::cerr << "ParseHeader: " << m << std::endl;
+    fmt::print(std::cerr, "ParseHeader: {}\n", m);
 }
 
 void phDriver::MESSAGE(std::string m, const yy::location& l) {
@@ -327,10 +327,9 @@ void phDriver::checkinit(void) {
   
     for (i=0; i<NSYMS; i++) {
         if ((symtab[i].name!=0) && (*symtab[i].init!=1)) {
-            fprintf(stderr,"symtab[%d].name = %s, init=%d\n",i,symtab[i].name, *symtab[i].init);
+            fmt::print(stderr,"symtab[{:d}].name = {:s}, init={:d}\n",i,symtab[i].name, *symtab[i].init);
             if(Warnings)
-                std::cerr << string("symbol \"") + string(symtab[i].name) + 
-                    string("\" requires a value.\n");
+                fmt::print(stderr, "symbol \"{}\" requires a value.\n", symtab[i].name);
         }
     }
 }

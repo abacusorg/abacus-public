@@ -13,7 +13,7 @@
 
 int main(int argc, char *argv[]) {
     setup_log();
-    printf("Running with %d threads\n", omp_get_max_threads());
+    fmt::print("Running with {:d} threads\n", omp_get_max_threads());
     int cpd = 9;
     CP = new CellParticles;
     // CP->MakeParticles(cpd,3000);
@@ -23,19 +23,19 @@ int main(int argc, char *argv[]) {
     CP->ReadParticles(cpd, "sample.dat", offset);
     GFC = new GroupFindingControl(0.01, 0.007, 0.005, CP->cpd, CP->invcpd, 2, 20, CP->np);
 
-    printf("CPD = %d, b = %f, b*CPD = %f\n", GFC->cpd, GFC->linking_length, GFC->linking_length*GFC->cpd);
+    fmt::print("CPD = {:d}, b = {:f}, b*CPD = {:f}\n", GFC->cpd, GFC->linking_length, GFC->linking_length*GFC->cpd);
 
     for (int s=0; s<CP->cpd; s++) GFC->ConstructCellGroups(s);
-    printf("Finished Constructing Cell Groups\n"); fflush(NULL);
+    fmt::print("Finished Constructing Cell Groups\n"); fflush(NULL);
 
     for (int s=0; s<CP->cpd; s++) FindGroupLinks(s);
-    printf("Finished Finding Group Links\n"); fflush(NULL);
+    fmt::print("Finished Finding Group Links\n"); fflush(NULL);
 
     for (int s=0; s<CP->cpd; s++) FindAndProcessGlobalGroups(s);
-    printf("Finished Global Groups\n"); fflush(NULL);
+    fmt::print("Finished Global Groups\n"); fflush(NULL);
 
     for (int s=0; s<CP->cpd; s++) GFC->DestroyCellGroups(s);
-    printf("Finished Destroying Cell Groups\n"); fflush(NULL);
+    fmt::print("Finished Destroying Cell Groups\n"); fflush(NULL);
 
     GFC->report();
 

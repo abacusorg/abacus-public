@@ -47,12 +47,12 @@ void MakeAnalyticDerivatives(int maxorder, int innerradius) {
     fmt::print("reading derivatives from {:s}\n", fname);
     ifstream fin(fname,ios::in);
     if(!fin.is_open()) {
-        fprintf(stderr,"couldn't open \"%s\"\n",fname);
+        fmt::print(stderr,"couldn't open \"{:s}\"\n",fname);
         exit(1);
     }
     fin >> tmporder >> tmpinneradius;
     if(tmporder<maxorder || tmpinneradius!=innerradius) {
-        fprintf(stderr,"file data does not agree with arguments\n");
+        fmt::print(stderr,"file data does not agree with arguments\n");
         exit(1);
     }
     char num[1024];
@@ -60,7 +60,7 @@ void MakeAnalyticDerivatives(int maxorder, int innerradius) {
         for(int b=a; b<=32-a; b+=2) {
             int atmp, btmp;
             fin >> atmp >> btmp >> num;
-//                   printf("READINGING %3d %3d  %s\n", atmp, btmp, num);
+//                   fmt::print("READINGING {:3d} {:3d}  {:s}\n", atmp, btmp, num);
             assert(a==atmp && b==btmp);
             AnalyticDerivatives[a][b][0] = qd_real(num);
             AnalyticDerivatives[b][a][0] = qd_real(num);
@@ -82,15 +82,15 @@ void MakeAnalyticDerivatives(int maxorder, int innerradius) {
         for(int a=0;a<=32-c;a++) {
             for(int b=0;b<=32-a-c;b++) {
                 if( (AnalyticDerivatives[a][b][c]  > qd_real("0")) || (AnalyticDerivatives[a][b][c] < qd_real("0")) ) { 
-                    // printf("%d %d %d   ", a,b,c);
-                    // cout << AnalyticDerivatives[a][b][c] << endl;
+                    // fmt::print("{:d} {:d} {:d}   ", a,b,c);
+                    // fmt::print("{}\n", AnalyticDerivatives[a][b][c]);
                 }
             }
         }
     }
 
 
-    printf("Done making derivatives \n");
+    fmt::print("Done making derivatives \n");
 }
 
 qd_real PI = qd_real::_pi;
@@ -276,13 +276,13 @@ void TestAcc(int order, int innerradius) {
 
     
 
-    printf("Making Multipoles \n");
+    fmt::print("Making Multipoles \n");
     MakeMultipolesAcc(order);
-    printf("Done Making Multipoles \n");
+    fmt::print("Done Making Multipoles \n");
 
-    printf("Making Taylor \n");
+    fmt::print("Making Taylor \n");
     MakeTaylor(order);
-    printf("End Making Taylor\n");
+    fmt::print("End Making Taylor\n");
 
     
     for(int j=0;j<N;j++) { 
@@ -328,19 +328,19 @@ void TestAcc(int order, int innerradius) {
         re=err/ewald.norm(); //relative error
 
 #if 0        
-        printf("ans: \n");
-        cout << "  " << ans.x << "  " << ans.y << "  " << ans.z << endl;
-        printf("ewald: \n");
-        cout << "  " << ewald.x << "  " << ewald.y << "  " << ewald.z << endl;
-        printf("rel err: \n");
-        cout << "  " << re.x << "  " << re.y << "  " << re.z << endl;
-        printf("\n");
+        fmt::print("ans: \n");
+        fmt::print("  {}  {}  {}\n", ans.x, ans.y, ans.z);
+        fmt::print("ewald: \n");
+        fmt::print("  {}  {}  {}\n", ewald.x, ewald.y, ewald.z);
+        fmt::print("rel err: \n");
+        fmt::print("  {}  {}  {}\n", re.x, re.y, re.z);
+        fmt::print("\n");
 #else
-        printf("relerr = % e  % e  % e\n",
+        fmt::print("relerr = {: e}  {: e}  {: e}\n",
                (double)re.x, (double)re.y, (double)re.z);
 #endif
     }
-    printf("\n");
+    fmt::print("\n");
 }
 
 
@@ -353,7 +353,7 @@ int main(void) {
 
     for(int innerradius=1; innerradius<=9; innerradius+=1) {
 		if(innerradius==9){innerradius = 16;};
-        printf("Acc:\n");
+        fmt::print("Acc:\n");
         TestAcc(32,innerradius);
     }
 

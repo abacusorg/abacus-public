@@ -50,15 +50,15 @@ class iorequest {
     FILE*   fp = nullptr; // File object for writing LightCones
 
     void dumpior() {
-        printf("IOR memory = %p ", memory);
-        printf("sizebytes = %lu ", sizebytes);
-        printf("filename = %s ", filename);
-        printf("command = %d ", command);
-        printf("arenatype = %d ", arenatype);
-        printf("arenaslab = %d ", arenaslab);
-        printf("fileoffset = %lu ", fileoffset);
-        printf("deleteafterwriting = %d ", deleteafterwriting);
-        printf("blocking = %d\n", blocking);
+        fmt::print("IOR memory = {:p} ", memory);
+        fmt::print("sizebytes = {:d} ", sizebytes);
+        fmt::print("filename = {:s} ", filename);
+        fmt::print("command = {:d} ", command);
+        fmt::print("arenatype = {:d} ", arenatype);
+        fmt::print("arenaslab = {:d} ", arenaslab);
+        fmt::print("fileoffset = {:d} ", fileoffset);
+        fmt::print("deleteafterwriting = {:d} ", deleteafterwriting);
+        fmt::print("blocking = {:d}\n", blocking);
     }
 
     iorequest() {

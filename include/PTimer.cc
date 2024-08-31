@@ -59,7 +59,7 @@ inline void PTimerBase<HardwareTimer>::Start(int thread_num) {
     
     assert(g < nprocs);  // If this fails omp_get_max_threads() may not be returning the global max # of threads
     /*if(timeron[g]){
-        printf("Timer %d already on! nprocs = %d\n", g, nprocs);
+        fmt::print("Timer {:d} already on! nprocs = {:d}\n", g, nprocs);
     }*/
     
     assert(!timer[g].on);

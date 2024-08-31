@@ -62,7 +62,7 @@ ULLI linearFFTW(int i, int j, int k) {
 void FormDerivatives(int inner_radius, int order, int far_radius, int slabnumber) {
                 
     int nthread = omp_get_max_threads();
-    printf("Initializing CreateDerivatives with %d OMP threads.\n", nthread);        
+    fmt::print("Initializing CreateDerivatives with {:d} OMP threads.\n", nthread);        
     double *rdfar[nthread];
     double *rdnear[nthread];
     double *FD[nthread];
@@ -80,7 +80,7 @@ void FormDerivatives(int inner_radius, int order, int far_radius, int slabnumber
     int rml = (order+1)*(order+1);
 
     ULLI fdsize = sizeof(double) * rml*CompressedMultipoleLengthXY;
-    printf("Allocating %d GB for slab derivs\n", (int) (fdsize/(1<<30)) );
+    fmt::print("Allocating {:d} GB for slab derivs\n", (int) (fdsize/(1<<30)) );
     double *FDSlab = (double *) malloc(fdsize);
     assert(FDSlab != NULL);
 
@@ -155,7 +155,7 @@ void FormDerivatives(int inner_radius, int order, int far_radius, int slabnumber
 void MergeDerivatives(int inner_radius, int order, int far_radius, double *FarDerivatives) {
     int rml = (order+1)*(order+1);
     ULLI fdsize = sizeof(double) * rml*CompressedMultipoleLengthXY;
-    printf("Allocating %d GB for far derivs\n", (int) (fdsize/(1<<30)) );
+    fmt::print("Allocating {:d} GB for far derivs\n", (int) (fdsize/(1<<30)) );
     double *FDSlab = (double *) malloc(fdsize);
     assert(FDSlab != NULL);
         
@@ -219,21 +219,21 @@ void CreateFourierFiles(int order, int inner_radius, int far_radius) {
 //     int cpd = CPD;
 //
 //     ULLI fdsize = sizeof(double) * CompressedMultipoleLengthXYZ;
-//     printf("Allocating %d GB\n", (int) (2*fdsize/(1<<30)) );
+//     fmt::print("Allocating {:d} GB\n", (int) (2*fdsize/(1<<30)) );
 //     double *FarDerivatives_ab = (double *) malloc(fdsize);
 //     double *FarDerivatives_ba = (double *) malloc(fdsize);
 //     assert( FarDerivatives_ab != NULL );
 //     assert( FarDerivatives_ba != NULL );
 //
 //     ULLI tdsize = sizeof(double)*CPD3;
-//     printf("Allocating %d GB\n", (int) (2*tdsize/(1<<30)) );
+//     fmt::print("Allocating {:d} GB\n", (int) (2*tdsize/(1<<30)) );
 //     double *tdprime = (double *) malloc(tdsize);
 //     double *td = (double *) malloc(tdsize);
 //     assert(tdprime!=NULL);
 //     assert(td!=NULL);
 //
 //     ULLI tmpDsize = sizeof(Complex)*CPD3;
-//     printf("Allocating %d GB\n", (int) (tmpDsize/(1<<30)) );
+//     fmt::print("Allocating {:d} GB\n", (int) (tmpDsize/(1<<30)) );
 //     Complex *tmpD   = (Complex *) malloc(tmpDsize);
 //     assert(tmpD!=NULL);
 //
@@ -253,14 +253,14 @@ void CreateFourierFiles(int order, int inner_radius, int far_radius) {
 //         //NAM: commented this out for large CPD run overnight.
 //         //int wisdomExists = fftw_import_wisdom_from_filename("Part2.wisdom");
 //         //if (!wisdomExists)
-//         //     printf("No wisdom file exists!\n");
+//         //     fmt::print("No wisdom file exists!\n");
 //
 //
 //     plan_forward_1d  =  fftw_plan_dft_1d( CPD, (fftw_complex *) &(in_1d[0]), (fftw_complex *) &(out_1d[0]), FFTW_FORWARD, FFTW_PATIENT);
 //     plan_forward_1d_r2c = fftw_plan_dft_r2c_1d(CPD,  &(in_r2c[0]), (fftw_complex *) &(out_r2c[0]), FFTW_PATIENT);
 //
 //         //if(!wisdomExists)
-//         //        printf("Exporting wisdom to file == %d\n", fftw_export_wisdom_to_filename("Part2.wisdom"));
+//         //        fmt::print("Exporting wisdom to file == {:d}\n", fftw_export_wisdom_to_filename("Part2.wisdom"));
 //         //
 //         //NAM: end commented out section.
 //
@@ -280,7 +280,7 @@ void CreateFourierFiles(int order, int inner_radius, int far_radius) {
 //
 //
 //         part2timer.Stop();
-//         printf("About to begin multipoles lap. Time elapsed = %f\n", part2timer.Elapsed()); fflush(NULL);
+//         fmt::print("About to begin multipoles lap. Time elapsed = {:f}\n", part2timer.Elapsed()); fflush(NULL);
 //         part2timer.Start();
 //
 //     int a,b,c;
@@ -364,7 +364,7 @@ void CreateFourierFiles(int order, int inner_radius, int far_radius) {
 //
 //
 //                 part2timer.Stop();
-//                 printf("Starting yz fftw %d %d %d. Time elapsed = %f\n", a,b,c,part2timer.Elapsed()); fflush(NULL);
+//                 fmt::print("Starting yz fftw {:d} {:d} {:d}. Time elapsed = {:f}\n", a,b,c,part2timer.Elapsed()); fflush(NULL);
 //                 part2timer.Start();
 //
 //         for(int x=0;x<CPD;x++) {
@@ -383,7 +383,7 @@ void CreateFourierFiles(int order, int inner_radius, int far_radius) {
 //
 //
 //                 part2timer.Stop();
-//                 printf("Finished yz fftw %d %d %d. Time elapsed = %f\n",a,b,c, part2timer.Elapsed()); fflush(NULL);
+//                 fmt::print("Finished yz fftw {:d} {:d} {:d}. Time elapsed = {:f}\n",a,b,c, part2timer.Elapsed()); fflush(NULL);
 //                 part2timer.Start();
 //
 //         for(int z=0;z<(CPD+1)/2;z++)
@@ -415,7 +415,7 @@ void CreateFourierFiles(int order, int inner_radius, int far_radius) {
 //
 //
 //                 part2timer.Stop();
-//                 printf("Finished writing %d %d %d. Time elapsed = %f\n",a,b,c, part2timer.Elapsed()); fflush(NULL);
+//                 fmt::print("Finished writing {:d} {:d} {:d}. Time elapsed = {:f}\n",a,b,c, part2timer.Elapsed()); fflush(NULL);
 //                 part2timer.Start();
 //     }
 //
@@ -448,14 +448,14 @@ void Part2(int order, int inner_radius, int far_radius, int MultipoleStart) {
     int cpd = CPD;
 
     ULLI fdsize = sizeof(double) * CompressedMultipoleLengthXYZ;
-    printf("Allocating %d GB for FarDerivatives_ab and _ba in Part2\n", (int) (2*fdsize/(1<<30)) );
+    fmt::print("Allocating {:d} GB for FarDerivatives_ab and _ba in Part2\n", (int) (2*fdsize/(1<<30)) );
     double *FarDerivatives_ab = (double *) malloc(fdsize);
     double *FarDerivatives_ba = (double *) malloc(fdsize);
     assert( FarDerivatives_ab != NULL );
     assert( FarDerivatives_ba != NULL );
 
     ULLI tdsize = sizeof(double)*CPD3;
-    printf("Allocating %d GB for tdprime in Part2\n", (int) (2*tdsize/(1<<30)) );
+    fmt::print("Allocating {:d} GB for tdprime in Part2\n", (int) (2*tdsize/(1<<30)) );
     double *tdprime = (double *) malloc(tdsize);
     double *td = (double *) malloc(tdsize);
     assert(tdprime!=NULL);
@@ -463,7 +463,7 @@ void Part2(int order, int inner_radius, int far_radius, int MultipoleStart) {
 
     // ULLI tmpDsize = sizeof(Complex)*CPD3;
     ULLI tmpDsize = sizeof(Complex)*CPD*CPD*(CPD+1)/2;
-    printf("Allocating %d GB for tmpD in Part2\n", (int) (tmpDsize/(1<<30)) );
+    fmt::print("Allocating {:d} GB for tmpD in Part2\n", (int) (tmpDsize/(1<<30)) );
     Complex *tmpD   = (Complex *) malloc(tmpDsize);
     assert(tmpD!=NULL);
 
@@ -472,7 +472,7 @@ void Part2(int order, int inner_radius, int far_radius, int MultipoleStart) {
     int MultipoleNumber[rml];
     ULLI diskbuffersize = sizeof(double)*MultipoleBuffer*(CPD+1)/2*CompressedMultipoleLengthXY;
         // This is enough to hold all the z slabs for these multipoles
-    printf("Allocating %d GB for diskbuffer in Part2, enough for %d multipoles, %llu\n", (int) (diskbuffersize/(1<<30)), MultipoleBuffer, diskbuffersize/sizeof(double));
+    fmt::print("Allocating {:d} GB for diskbuffer in Part2, enough for {:d} multipoles, {:d}\n", (int) (diskbuffersize/(1<<30)), MultipoleBuffer, diskbuffersize/sizeof(double));
     double *diskbuffer   = (double *) malloc(diskbuffersize);
     assert(diskbuffer!=NULL);
     int MultipoleCount = 0;
@@ -480,11 +480,11 @@ void Part2(int order, int inner_radius, int far_radius, int MultipoleStart) {
     if (MultipoleStart!=0) {
         if (MultipoleStart%MultipoleBuffer>0) {
              // We only deal with entire buffers, round down
-             printf("Apparent size of fourier file was %d, but didn't divide buffer size %d evenly.  Adjusting\n", MultipoleStart, MultipoleBuffer);
+             fmt::print("Apparent size of fourier file was {:d}, but didn't divide buffer size {:d} evenly.  Adjusting\n", MultipoleStart, MultipoleBuffer);
              MultipoleStart = (MultipoleStart/MultipoleBuffer)*MultipoleBuffer;
         }
     }
-    printf("We will start at multipole %d\n", MultipoleStart);
+    fmt::print("We will start at multipole {:d}\n", MultipoleStart);
 
 
     // The X-Y FFTs are just a simple 2D C->C FFT
@@ -510,9 +510,9 @@ void Part2(int order, int inner_radius, int far_radius, int MultipoleStart) {
     //plan_forward_1d  =  fftw_plan_dft_1d( CPD, (fftw_complex *) &(in_1d[0]), (fftw_complex *) &(out_1d[0]), FFTW_FORWARD, FFTW_PATIENT);
     //plan_forward_1d_r2c = fftw_plan_dft_r2c_1d(CPD,  &(in_r2c[0]), (fftw_complex *) &(out_r2c[0]), FFTW_PATIENT);
 
-        printf("Planning fftw with omp\n");
+        fmt::print("Planning fftw with omp\n");
         fftw_plan_with_nthreads(omp_get_max_threads());
-        printf("Done planning with %d threads\n", omp_get_max_threads());
+        fmt::print("Done planning with {:d} threads\n", omp_get_max_threads());
 
 
     // This is the plan to do the 2d CPD*CPD complex-to-complex XY FFTs
@@ -532,7 +532,7 @@ void Part2(int order, int inner_radius, int far_radius, int MultipoleStart) {
         (fftw_complex *) &(out_r2c[0]), NULL, ostride, odist,
         FFTW_PATIENT);
 
-        printf("Plans created.\n");
+        fmt::print("Plans created.\n");
 
 
 
@@ -541,7 +541,7 @@ void Part2(int order, int inner_radius, int far_radius, int MultipoleStart) {
 
 
         part2timer.Stop();
-        printf("About to begin multipoles lap. Time elapsed = %f\n", part2timer.Elapsed()); fflush(NULL);
+        fmt::print("About to begin multipoles lap. Time elapsed = {:f}\n", part2timer.Elapsed()); fflush(NULL);
         part2timer.Start();
 
     int a,b,c;
@@ -572,14 +572,14 @@ void Part2(int order, int inner_radius, int far_radius, int MultipoleStart) {
         fclose(fpfar);
                 
                 part2timer.Stop();
-                // printf("Done reading farderivs %d %d %d. Time elapsed = %f\n", a,b,c,part2timer.Elapsed()); fflush(NULL);
+                // fmt::print("Done reading farderivs {:d} {:d} {:d}. Time elapsed = {:f}\n", a,b,c,part2timer.Elapsed()); fflush(NULL);
                 part2timer.Start();
 
         // We've loaded in [k][i][j] with j<=i for one [m], only in first octant.
         // First, we reflect [i][j] to fill the first octant.
 
 
-        // printf("A: %d %d %d %d: \n", a,b,c, order); fflush(NULL);
+        // fmt::print("A: {:d} {:d} {:d} {:d}: \n", a,b,c, order); fflush(NULL);
                 
         #pragma omp parallel for schedule(static)
         for(int k=0;k<=CPDHALF;k++)
@@ -591,7 +591,7 @@ void Part2(int order, int inner_radius, int far_radius, int MultipoleStart) {
                 }
                                 
                                 
-        printf("."); fflush(NULL);
+        fmt::print("."); fflush(NULL);
 
         // Now we fill the other octants
 
@@ -654,7 +654,7 @@ void Part2(int order, int inner_radius, int far_radius, int MultipoleStart) {
         // now write back into the global array
                                                         
         part2timer.Stop();
-        // printf("Done with td population %d %d %d. Time elapsed = %f\n", a,b,c,part2timer.Elapsed()); fflush(NULL);
+        // fmt::print("Done with td population {:d} {:d} {:d}. Time elapsed = {:f}\n", a,b,c,part2timer.Elapsed()); fflush(NULL);
         part2timer.Start();
 
         int m = mab;
@@ -684,7 +684,7 @@ void Part2(int order, int inner_radius, int far_radius, int MultipoleStart) {
         double *tmpreal = tdprime;
 
                 part2timer.Stop();
-                // printf("Starting yz fftw %d %d %d. Time elapsed = %f\n", a,b,c,part2timer.Elapsed()); fflush(NULL);
+                // fmt::print("Starting yz fftw {:d} {:d} {:d}. Time elapsed = {:f}\n", a,b,c,part2timer.Elapsed()); fflush(NULL);
                 part2timer.Start();
 
         for(int x=0;x<CPD;x++) {
@@ -704,7 +704,7 @@ void Part2(int order, int inner_radius, int far_radius, int MultipoleStart) {
                 }
 
                 part2timer.Stop();
-                // printf("Finished z fftw %d. Time elapsed = %f\n",m, part2timer.Elapsed()); fflush(NULL);
+                // fmt::print("Finished z fftw {:d}. Time elapsed = {:f}\n",m, part2timer.Elapsed()); fflush(NULL);
                 part2timer.Start();
 
 
@@ -754,7 +754,7 @@ END OLD CODE */
                                 *CompressedMultipoleLengthXY;
             double *buf = diskbuffer+offset;
             // if (z==0) {
-            //     printf("Saving Multipole %d (position %d in file) from buffer %d; offset %llu\n", MultipoleCount, m, MultipoleCount%MultipoleBuffer, offset); fflush(NULL);
+            //     fmt::print("Saving Multipole {:d} (position {:d} in file) from buffer {:d}; offset {:d}\n", MultipoleCount, m, MultipoleCount%MultipoleBuffer, offset); fflush(NULL);
             // }
 
             if( ((a+b+c)%2) == 0 )
@@ -772,7 +772,7 @@ END OLD CODE */
         }
 
                 part2timer.Stop();
-                // printf("Finished xy FFT %d. Time elapsed = %f\n",MultipoleCount, part2timer.Elapsed()); fflush(NULL);
+                // fmt::print("Finished xy FFT {:d}. Time elapsed = {:f}\n",MultipoleCount, part2timer.Elapsed()); fflush(NULL);
                 part2timer.Start();
 
         // Now we're done with this multipole; consider whether to write out
@@ -782,7 +782,7 @@ END OLD CODE */
         if (MultipoleCount%MultipoleBuffer>0 && MultipoleCount<rml) continue;  // Go on to next multipole
 
         int nMult = (MultipoleCount-1)%MultipoleBuffer+1;
-                // printf("Preparing to write %d multipoles\n",nMult); fflush(NULL);
+                // fmt::print("Preparing to write {:d} multipoles\n",nMult); fflush(NULL);
         // This is the number of multipoles we have saved up.
         // If we ended at mod 0, then we must have a full set.
 
@@ -798,7 +798,7 @@ END OLD CODE */
             for (int j=0; j<nMult; j++) {
                 int thisMult = MultipoleCount-nMult+j;
                 // if (z==0) {
-                //     printf("Writing Multipole %d (position %d in file)from buffer %d\n", thisMult, MultipoleNumber[thisMult], thisMult%MultipoleBuffer); fflush(NULL);
+                //     fmt::print("Writing Multipole {:d} (position {:d} in file)from buffer {:d}\n", thisMult, MultipoleNumber[thisMult], thisMult%MultipoleBuffer); fflush(NULL);
                 // }
                 fseek(fp, MultipoleNumber[thisMult]*CompressedMultipoleLengthXY*sizeof(double), SEEK_SET );
                 double *buf = diskbuffer+((thisMult%MultipoleBuffer)*(CPD+1)/2 + z)
@@ -811,7 +811,7 @@ END OLD CODE */
         }
 
                 part2timer.Stop();
-                // printf("Finished writing %d %d %d. Time elapsed = %f\n",a,b,c, part2timer.Elapsed()); fflush(NULL);
+                // fmt::print("Finished writing {:d} {:d} {:d}. Time elapsed = {:f}\n",a,b,c, part2timer.Elapsed()); fflush(NULL);
                 part2timer.Start();
 
     }
@@ -827,23 +827,23 @@ END OLD CODE */
 int main(int argc, char **argv) {
         
 #if QUAD_DOUBLE
-    printf("QUAD_DOUBLE = 1. Using 256-bit precision.\n");
+    fmt::print("QUAD_DOUBLE = 1. Using 256-bit precision.\n");
 #else
-    printf("QUAD_DOUBLE = 0. Using 64-bit precision.\n");
+    fmt::print("QUAD_DOUBLE = 0. Using 64-bit precision.\n");
 #endif
     //myTimer.Start();
     
     //unpack user inputs.
     if( argc!=5 && argc!=6 ) {
-        printf("Usage: %s CPD ORDER INNERRADIUS FARRADIUS [slab]\n", argv[0]);
-        printf("Slab number is optional\n");
+        fmt::print("Usage: {:s} CPD ORDER INNERRADIUS FARRADIUS [slab]\n", argv[0]);
+        fmt::print("Slab number is optional\n");
         exit(1);
     }
 
     CPD = atoi(argv[1]);
     int cpd = CPD;
     CPD3 = CPD*CPD*CPD;
-    printf("CPD = %d \n", cpd);
+    fmt::print("CPD = {:d} \n", cpd);
     assert(CPD%2==1);
 
     CPDHALF = (CPD-1)/2;
@@ -852,21 +852,21 @@ int main(int argc, char **argv) {
     CompressedMultipoleLengthXYZ = ((1+CPD)*(1+CPD)*(3+CPD))/16;
 
     int order = atoi(argv[2]);
-    printf("order = %d \n", order );
+    fmt::print("order = {:d} \n", order );
 
     int inner_radius = atoi(argv[3]);
     assert(inner_radius <= (CPD-1)/2 );
-    printf("inner_radius = %d \n", inner_radius );
+    fmt::print("inner_radius = {:d} \n", inner_radius );
 
     int far_radius = atoi(argv[4]);
     assert( (far_radius >= 1 && far_radius <= 8) || (far_radius == 16));
-    printf("far_radius = %d \n", far_radius );
+    fmt::print("far_radius = {:d} \n", far_radius );
 
     int slabnumber = -1;
     if (argc==6) {
         slabnumber = atoi(argv[5]);
         assert( slabnumber>=0 && slabnumber<=CPDHALF);
-        printf("Doing slab %d only.", slabnumber);
+        fmt::print("Doing slab {:d} only.", slabnumber);
     }
 
     int rml = (order+1)*(order+1);
@@ -886,16 +886,16 @@ int main(int argc, char **argv) {
         MultipoleStart = floor(fs::file_size(fn)/(CompressedMultipoleLengthXY)/sizeof(double));
         // This uses the file size to determine how many multipoles were completed in the last z file
         if (MultipoleStart==rml) {
-            printf("Derivatives already present \n");
+            fmt::print("Derivatives already present \n");
             exit(0);
         }
-        printf("Derivative files were started, but appear to contain only %d of %d multipoles\n",
+        fmt::print("Derivative files were started, but appear to contain only {:d} of {:d} multipoles\n",
             MultipoleStart, rml);
         // If the fourier files are corrupted, delete them to start over
     }
         
     //myTimer.Stop();
-    //printf("Time spent in set up = %f \n", myTimer.Elapsed());
+    //fmt::print("Time spent in set up = {:f} \n", myTimer.Elapsed());
     //myTimer.Clear();
     //myTimer.Start();
     
@@ -905,7 +905,7 @@ int main(int argc, char **argv) {
     if (slabnumber>=0) exit(0);
     //myTimer.Stop();
     //double FormDerivsRuntime = myTimer.Elapsed();
-    //printf("Time spent in FormDerivatives = %f \n", FormDerivsRuntime);
+    //fmt::print("Time spent in FormDerivatives = {:f} \n", FormDerivsRuntime);
     //myTimer.Clear();
     //myTimer.Start();
     //double mergeDerivsRuntime;
@@ -921,18 +921,18 @@ int main(int argc, char **argv) {
         ULLI fdsize = sizeof(double) * rml*CompressedMultipoleLengthXYZ;
                 
         //calculate total far derivatives tensor for entire simulation box by merging components for every cell. {\mathcal{D}^{ABC}_{jkl}} = \mathcal{D}^{ABC}.
-        printf("Allocating %d GB before MergeDerivatives\n", (int) (fdsize/(1<<30)) );
+        fmt::print("Allocating {:d} GB before MergeDerivatives\n", (int) (fdsize/(1<<30)) );
         double *FarDerivatives = (double *) malloc(fdsize);
         assert(FarDerivatives != NULL);
         MergeDerivatives(inner_radius, order, far_radius, FarDerivatives);
         //myTimer.Stop();
         //mergeDerivsRuntime = myTimer.Elapsed();
-        //printf("Time spent in Merge Derivatives = %f \n", mergeDerivsRuntime);
+        //fmt::print("Time spent in Merge Derivatives = {:f} \n", mergeDerivsRuntime);
         //myTimer.Clear();
         //myTimer.Start();
         
         // write out FarDerivatives file
-        fpfar = fopen(fpfar_fn,"wb");
+        fpfar = fopen(fpfar_fn.c_str(),"wb");
         assert(fpfar!=NULL);
         fwrite(&(FarDerivatives[0]), sizeof(double), rml*CompressedMultipoleLengthXYZ, fpfar); 
         free(FarDerivatives);
@@ -944,7 +944,7 @@ int main(int argc, char **argv) {
     if (MultipoleStart==0) CreateFourierFiles(order,inner_radius, far_radius);
     //myTimer.Stop();
     //double CFFRuntime = myTimer.Elapsed();
-    //printf("Time spent in CreateFourierFiles = %f \n", CFFRuntime);
+    //fmt::print("Time spent in CreateFourierFiles = {:f} \n", CFFRuntime);
     //myTimer.Clear();
     //myTimer.Start();
     
@@ -952,7 +952,7 @@ int main(int argc, char **argv) {
     Part2(order, inner_radius, far_radius, MultipoleStart);
     //myTimer.Stop();
     //double Part2Runtime = myTimer.Elapsed();
-    //printf("Time spent in Part2 (not including fftw plan)= %f \n", Part2Runtime);
+    //fmt::print("Time spent in Part2 (not including fftw plan)= {:f} \n", Part2Runtime);
     //myTimer.Clear();
     //myTimer.Start();
     
@@ -960,13 +960,13 @@ int main(int argc, char **argv) {
     
     //myTimer.Stop();
     //double totalRuntime = myTimer.Elapsed();
-    //cout << "total time elapsed: " << totalRuntime << endl;
+    //fmt::print("Total time elapsed: {} \n", totalRuntime);
     
     //FILE * outFile;
     //outFile = fopen("/home/nam/AbacusProject/timing/alan_CreateDerivatives_LoopOptimization_MultipoleOrder_vs_FR_timing.txt", "a");
-    //fprintf(outFile, "%d %d %d %d %d %f %f %f %f\n", 24, CPD, order, inner_radius, far_radius, FormDerivsRuntime, mergeDerivsRuntime, CFFRuntime, Part2Runtime);
+    //fmt::print(outFile, "{:d} {:d} {:d} {:d} {:d} {:f} {:f} {:f} {:f}\n", 24, CPD, order, inner_radius, far_radius, FormDerivsRuntime, mergeDerivsRuntime, CFFRuntime, Part2Runtime);
     //fclose (outFile); 
     
-    printf("\nRUN COMPLETE: double precision = %d, InfDerivSum maxLoopOrder = %d, CPD = %d, order = %d, innerRadius = %d, farRadius = %d.\n",
+    fmt::print("\nRUN COMPLETE: double precision = {:d}, InfDerivSum maxLoopOrder = {:d}, CPD = {:d}, order = {:d}, innerRadius = {:d}, farRadius = {:d}.\n",
         1-QUAD_DOUBLE, MAXLOOPORDER, cpd,order,inner_radius,far_radius);
 }

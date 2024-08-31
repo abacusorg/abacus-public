@@ -213,17 +213,17 @@ void compare_acc(FLOAT3 *acc1, FLOAT3* acc2, int nacc, double rtol){
         max_frac_diff = std::max(max_frac_diff, frac_diff);
         if(frac_diff > rtol || !std::isfinite(frac_diff)){
             nbad++;
-            //std::cout << acc1[i] <<std::endl;
-            //std::cout << acc2[i] <<std::endl;
+            // fmt::print("{}\n", acc1[i]);
+            // fmt::print("{}\n", acc2[i]);
         }
     }
-    printf("\t>>> %d (%.2f%%) mismatched accels\n", nbad, (FLOAT) nbad/nacc*100);
-    printf("\t>>> Max frac error: %.2g \n", max_frac_diff);
+    fmt::print("\t>>> {:d} ({:.2f}%) mismatched accels\n", nbad, (FLOAT) nbad/nacc*100);
+    fmt::print("\t>>> Max frac error: {:.2g} \n", max_frac_diff);
 }
 
-void report(const char* prefix, int64_t ndirect, std::chrono::duration<double> elapsed){
-    std::cout << prefix << " directs time: " << elapsed.count() << " sec" << std::endl;
-    std::cout << "\t" << ndirect/1e9/elapsed.count() << " billion directs per second" << std::endl;
+void report(const std::string &prefix, int64_t ndirect, std::chrono::duration<double> elapsed){
+    fmt::print("{} directs time: {} sec\n", prefix, elapsed.count());
+    fmt::print("\t{} billion directs per second\n", ndirect/1e9/elapsed.count());
 }
 
 int main(int argc, char **argv){
@@ -256,8 +256,8 @@ int main(int argc, char **argv){
         //sinks.Z[j] = 0.;
 	}*/
 
-    printf("eps: %g; rtol: %g\n", eps, rtol);
-    printf("Finished particle generation.  Starting directs.\n");
+    fmt::print("eps: {:g}; rtol: {:g}\n", eps, rtol);
+    fmt::print("Finished particle generation.  Starting directs.\n");
     AVX512Direct dd;
 
     /****************************************/
@@ -280,7 +280,7 @@ int main(int argc, char **argv){
     //    acc[i] /= std::pow(eps, 3);
 
     //for(int i = 0; i < 10; i++)
-    //    printf("(%g, %g, %g)\n", acc[i].x, acc[i].y, acc[i].z);
+    //    fmt::print("({:g}, {:g}, {:g})\n", acc[i].x, acc[i].y, acc[i].z);
 
     // CPU FLOAT3 version
     FLOAT3 *f3sources;

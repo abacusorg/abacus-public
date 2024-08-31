@@ -126,7 +126,7 @@ uint64 ParallelPartition(ListType *list, uint64 N, bool (is_high)(ListType *obj,
         return 0;
     int nthread = omp_get_max_threads();
     #ifdef PPTEST
-    printf("Running on %d OMP threads\n", nthread);
+    fmt::print("Running on {:d} OMP threads\n", nthread);
     #endif
 
     if (2*N<(uint64) nthread) nthread = 1;    // If the list is too small, just do scalar
@@ -142,7 +142,7 @@ uint64 ParallelPartition(ListType *list, uint64 N, bool (is_high)(ListType *obj,
 
     #ifdef PPTEST
     for (int t=0; t<nthread; t++) 
-        printf("Thread %d: begin=%d, mid=%d, end=%d, %d low, %d high\n", t, 
+        fmt::print("Thread {:d}: begin={:d}, mid={:d}, end={:d}, {:d} low, {:d} high\n", t, 
                 sublist[t].begin, sublist[t].mid, sublist[t].end, 
                 sublist[t].numlow(), sublist[t].numhigh());
     #endif
@@ -190,7 +190,7 @@ uint64 ParallelPartition(ListType *list, uint64 N, bool (is_high)(ListType *obj,
 
     #ifdef PPTEST
     for (uint64 j=0; j<plan.size(); j++) 
-        printf("Plan %d: high=%d, low=%d, nswap=%d\n", 
+        fmt::print("Plan {:d}: high={:d}, low={:d}, nswap={:d}\n", 
                 j, plan[j].highstart, plan[j].lowstart, plan[j].nswap);
     #endif                
 
@@ -198,7 +198,7 @@ uint64 ParallelPartition(ListType *list, uint64 N, bool (is_high)(ListType *obj,
     // We reuse the sublist class for this.
     uint64 perthread = totalswap/nthread+1;    // Seeking this much per thread
     #ifdef PPTEST
-    printf("Total second-stage swaps = %d, seeking %d per thread\n", totalswap, perthread);
+    fmt::print("Total second-stage swaps = {:d}, seeking {:d} per thread\n", totalswap, perthread);
     #endif
     int thread = 0;
     uint64 threadtot = 0;
@@ -221,7 +221,7 @@ uint64 ParallelPartition(ListType *list, uint64 N, bool (is_high)(ListType *obj,
     #ifdef PPTEST
     for (int t=0; t<nthread; t++)
         for (uint64 j=0; j<sublist[t].threadplan.size(); j++) 
-            printf("Thread %d, Plan %d: high=%d, low=%d, nswap=%d\n", 
+            fmt::print("Thread {:d}, Plan {:d}: high={:d}, low={:d}, nswap={:d}\n", 
                     t, j, sublist[t].threadplan[j].highstart, 
                     sublist[t].threadplan[j].lowstart, sublist[t].threadplan[j].nswap);
     #endif
@@ -254,49 +254,49 @@ int main() {
     list = (int *)malloc(sizeof(int)*N);
     for (uint64 j=0; j<N; j++) list[j] = j%max;
 
-    // for (uint64 j=0; j<N; j++) printf("%d ", list[j]);
-    // printf("\n");
+    // for (uint64 j=0; j<N; j++) fmt::print("{:d} ", list[j]);
+    // fmt::print("\n");
 
     STimer Part;
     Part.Start();
 
     int slab = 0;
-    printf("\nSlab Goal = %d\n", slab);
+    fmt::print("\nSlab Goal = {:d}\n", slab);
     uint64 mid = ParallelPartition(list, N, slab, int_equal);
-    printf("MidPoint = %d\n", mid);
-    for (uint64 j=0;j<mid; j++) if(list[j]==slab) printf("Fail: list[%d] = %d\n", j, list[j]);
-    for (uint64 j=mid;j<N; j++) if(list[j]!=slab) printf("Fail: list[%d] = %d\n", j, list[j]);
-    for (uint64 j=0;j<N; j++) if(list[j]>max||list[j]<0) printf("Fail: list[%d] = %d\n", j, list[j]);
+    fmt::print("MidPoint = {:d}\n", mid);
+    for (uint64 j=0;j<mid; j++) if(list[j]==slab) fmt::print("Fail: list[{:d}] = {:d}\n", j, list[j]);
+    for (uint64 j=mid;j<N; j++) if(list[j]!=slab) fmt::print("Fail: list[{:d}] = {:d}\n", j, list[j]);
+    for (uint64 j=0;j<N; j++) if(list[j]>max||list[j]<0) fmt::print("Fail: list[{:d}] = {:d}\n", j, list[j]);
 
     slab = 2;
-    printf("\nSlab Goal = %d\n", slab);
+    fmt::print("\nSlab Goal = {:d}\n", slab);
     mid = ParallelPartition(list, N, slab, int_equal);
-    printf("MidPoint = %d\n", mid);
-    for (uint64 j=0;j<mid; j++) if(list[j]==slab) printf("Fail: list[%d] = %d\n", j, list[j]);
-    for (uint64 j=mid;j<N; j++) if(list[j]!=slab) printf("Fail: list[%d] = %d\n", j, list[j]);
-    for (uint64 j=0;j<N; j++) if(list[j]>max||list[j]<0) printf("Fail: list[%d] = %d\n", j, list[j]);
+    fmt::print("MidPoint = {:d}\n", mid);
+    for (uint64 j=0;j<mid; j++) if(list[j]==slab) fmt::print("Fail: list[{:d}] = {:d}\n", j, list[j]);
+    for (uint64 j=mid;j<N; j++) if(list[j]!=slab) fmt::print("Fail: list[{:d}] = {:d}\n", j, list[j]);
+    for (uint64 j=0;j<N; j++) if(list[j]>max||list[j]<0) fmt::print("Fail: list[{:d}] = {:d}\n", j, list[j]);
 
     slab = 2;
-    printf("\nSlab Goal = %d\n", slab);
+    fmt::print("\nSlab Goal = {:d}\n", slab);
     mid = ParallelPartition(list, N, slab, int_equal);
-    printf("MidPoint = %d\n", mid);
-    for (uint64 j=0;j<mid; j++) if(list[j]==slab) printf("Fail: list[%d] = %d\n", j, list[j]);
-    for (uint64 j=mid;j<N; j++) if(list[j]!=slab) printf("Fail: list[%d] = %d\n", j, list[j]);
-    for (uint64 j=0;j<N; j++) if(list[j]>max||list[j]<0) printf("Fail: list[%d] = %d\n", j, list[j]);
+    fmt::print("MidPoint = {:d}\n", mid);
+    for (uint64 j=0;j<mid; j++) if(list[j]==slab) fmt::print("Fail: list[{:d}] = {:d}\n", j, list[j]);
+    for (uint64 j=mid;j<N; j++) if(list[j]!=slab) fmt::print("Fail: list[{:d}] = {:d}\n", j, list[j]);
+    for (uint64 j=0;j<N; j++) if(list[j]>max||list[j]<0) fmt::print("Fail: list[{:d}] = {:d}\n", j, list[j]);
 
     slab = 5;
-    printf("\nSlab Goal = %d\n", slab);
+    fmt::print("\nSlab Goal = {:d}\n", slab);
     mid = ParallelPartition(list, N, slab, int_equal);
-    printf("MidPoint = %d\n", mid);
-    for (uint64 j=0;j<mid; j++) if(list[j]==slab) printf("Fail: list[%d] = %d\n", j, list[j]);
-    for (uint64 j=mid;j<N; j++) if(list[j]!=slab) printf("Fail: list[%d] = %d\n", j, list[j]);
-    for (uint64 j=0;j<N; j++) if(list[j]>max||list[j]<0) printf("Fail: list[%d] = %d\n", j, list[j]);
+    fmt::print("MidPoint = {:d}\n", mid);
+    for (uint64 j=0;j<mid; j++) if(list[j]==slab) fmt::print("Fail: list[{:d}] = {:d}\n", j, list[j]);
+    for (uint64 j=mid;j<N; j++) if(list[j]!=slab) fmt::print("Fail: list[{:d}] = {:d}\n", j, list[j]);
+    for (uint64 j=0;j<N; j++) if(list[j]>max||list[j]<0) fmt::print("Fail: list[{:d}] = {:d}\n", j, list[j]);
 
     Part.Stop();
-    printf("Elapsed Time: %f\n", Part.Elapsed());
+    fmt::print("Elapsed Time: {:f}\n", Part.Elapsed());
 
-    // for (uint64 j=0; j<N; j++) printf("%d ", list[j]);
-    // printf("\n");
+    // for (uint64 j=0; j<N; j++) fmt::print("{:d} ", list[j]);
+    // fmt::print("\n");
     free(list);
     return 0;
 }

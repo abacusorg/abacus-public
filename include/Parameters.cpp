@@ -566,7 +566,7 @@ void Parameters::SortTimeSlices(){
     std::sort(L1OutputRedshifts, L1OutputRedshifts + nTimeSliceL1, greater<double>());
 
     if (! (nTimeSlice > 0 || nTimeSliceSubsample > 0 || nTimeSliceL1 > 0 || OutputEveryStep || StoreForces || NLightCones > 0) )
-        printf("Warning! No output requested. Are you sure you want this?\n");
+        fmt::print("Warning! No output requested. Are you sure you want this?\n");
 }
 
 void Parameters::ProcessStateDirectories(){
@@ -630,79 +630,79 @@ void Parameters::ValidateParameters(void) {
     }
 
     if(np<0) {
-        fprintf(stderr,
-            "[ERROR] np = %lld must be greater than zero!\n", np);
+        fmt::print(stderr,
+            "[ERROR] np = {:d} must be greater than zero!\n", np);
         assert(1==0);
     }
 
 
     if(cpd<0) {
-        fprintf(stderr,
-            "[ERROR] cpd = %d must be greater than zero!\n", cpd);
+        fmt::print(stderr,
+            "[ERROR] cpd = {:d} must be greater than zero!\n", cpd);
         assert(1==0);
     }
 
     if( !( (DirectNewtonRaphson == 1) ||  (DirectNewtonRaphson == 0) ) ) {
-        fprintf(stderr,"DirectNewtonRapson must be 0 or 1\n");
+        fmt::print(stderr,"DirectNewtonRapson must be 0 or 1\n");
         assert(1==0);
     }
 
     if(cpd%2==0) {
-        fprintf(stderr,
-            "[ERROR] cpd = %d  must be odd!\n", cpd);
+        fmt::print(stderr,
+            "[ERROR] cpd = {:d}  must be odd!\n", cpd);
         assert(1==0);
     }
 
     if(NearFieldRadius<=0) {
-        fprintf(stderr, "[ERROR] NearFieldRadius = %d  must be greater than 0\n",
+        fmt::print(stderr, "[ERROR] NearFieldRadius = {:d}  must be greater than 0\n",
             NearFieldRadius );
         assert(1==0);
     }
 
     if(NearFieldRadius>(cpd-1)/2) {
-        fprintf(stderr,
-            "[ERROR] NearFieldRadius = %d must be less than (cpd-1)/2 = %d\n",
+        fmt::print(stderr,
+            "[ERROR] NearFieldRadius = {:d} must be less than (cpd-1)/2 = {:d}\n",
                     NearFieldRadius, (cpd-1)/2  );
         assert(1==0);
     }
 
     if(AllowGroupFinding && GroupRadius<0) {
-        fprintf(stderr, "[ERROR] GroupRadius = %d  must be >= 0\n",
+        fmt::print(stderr, "[ERROR] GroupRadius = {:d}  must be >= 0\n",
             GroupRadius );
         assert(1==0);
     }
 
     if(! (order <= 16 && order >= 0) ) {
-        fprintf(stderr,
-            "[ERROR] order = %d must be less than or equal to 16 and greater than 1\n",
+        fmt::print(stderr,
+            "[ERROR] order = {:d} must be less than or equal to 16 and greater than 1\n",
             order);
         assert(1==0);
     }
 
     if(MAXRAMMB<0) {
-        fprintf(stderr,
-            "[ERROR] MAXRAMMB = %d must be greater than 0 \n",
+        fmt::print(stderr,
+            "[ERROR] MAXRAMMB = {:d} must be greater than 0 \n",
                 MAXRAMMB);
         assert(1==0);
     }
 
     if(MemPerGPUBufferGB<0) {
-        fprintf(stderr,
-            "[ERROR] MemPerGPUBufferGB = %f must be greater than 0 \n",
+        fmt::print(stderr,
+            "[ERROR] MemPerGPUBufferGB = {:f} must be greater than 0 \n",
                 MemPerGPUBufferGB);
         assert(1==0);
     }
 
     if(ConvolutionCacheSizeMB<=0) {
-        fprintf(stderr,
-            "[ERROR] ConvolutionCacheSizeMB = %f must be greater than 0 \n",
+        fmt::print(stderr,
+            "[ERROR] ConvolutionCacheSizeMB = {:f} must be greater than 0 \n",
                 ConvolutionCacheSizeMB);
         assert(1==0);
     }
 
     if(ConvolutionL1CacheSizeMB<=0) {
-        fprintf(stderr,
-            "[ERROR] ConvolutionL1CacheSizeMB = %f must be greater than 0 \n",
+        fmt::print(stderr,
+            "[ERROR] ConvolutionL1CacheSizeMB = {:f} must be greater than 0 \n",
                 ConvolutionL1CacheSizeMB);
         assert(1==0);
     }
@@ -712,45 +712,45 @@ void Parameters::ValidateParameters(void) {
         (DerivativeExpansionRadius!=16) &&
         (DerivativeExpansionRadius!=32) ) {
 
-        fprintf(stderr,
-            "[ERROR] DerivativeExpansionRadius = %d has to be 1-8, 16, or 32\n",
+        fmt::print(stderr,
+            "[ERROR] DerivativeExpansionRadius = {:d} has to be 1-8, 16, or 32\n",
                 DerivativeExpansionRadius);
         assert(1==0);
     }
 
     if( (SofteningLength < 0) || (SofteningLength>BoxSize) ) {
-        fprintf(stderr,
-            "[ERROR] SofteningLength = %e has to be in [0,BoxSize)\n",
+        fmt::print(stderr,
+            "[ERROR] SofteningLength = {:e} has to be in [0,BoxSize)\n",
                 SofteningLength);
         assert(1==0);
     }
 
     if (NumSlabsInsertList<0.0) {
-        fprintf(stderr,
-            "[ERROR] NumslabsInsertList = %e must be >= 0\n",
+        fmt::print(stderr,
+            "[ERROR] NumslabsInsertList = {:e} must be >= 0\n",
                 NumSlabsInsertList);
         assert(1==0);
     }
 
     if (NumSlabsInsertListIC<0.0) {
-        fprintf(stderr,
-            "[ERROR] NumslabsInsertListIC = %e must be >= 0\n",
+        fmt::print(stderr,
+            "[ERROR] NumslabsInsertListIC = {:e} must be >= 0\n",
                 NumSlabsInsertListIC);
         assert(1==0);
     }
 
     if (nTimeSlice<0) {
-        fprintf(stderr,"nTimeSlice must be >=0\n");
+        fmt::print(stderr,"nTimeSlice must be >=0\n");
         assert(1==0);
     }
     
     if(Omega_Smooth<0.0 || Omega_Smooth>Omega_M){
-        fprintf(stderr,"Must have 0<=Omega_Smooth<Omega_M, but told Omega_Smooth = %g\n", Omega_Smooth);
+        fmt::print(stderr,"Must have 0<=Omega_Smooth<Omega_M, but told Omega_Smooth = {:g}\n", Omega_Smooth);
         assert(1==0);
     }
     
     if(abs(Omega_M + Omega_DE + Omega_K - 1.) > 1e-6){
-        fprintf(stderr,"Omega_M + Omega_DE + Omega_K must equal 1, but is %g\n", Omega_M + Omega_DE + Omega_K);
+        fmt::print(stderr,"Omega_M + Omega_DE + Omega_K must equal 1, but is {:g}\n", Omega_M + Omega_DE + Omega_K);
         assert(1==0);
     }
 
@@ -759,10 +759,10 @@ void Parameters::ValidateParameters(void) {
 
     // If invoking LPT, must have displacement-oriented format
     if(LagrangianPTOrder > 1){
-        if(!(strcasecmp(ICFormat, "Zeldovich") == 0 ||
-            strcasecmp(ICFormat, "RVZel") == 0 ||
-            strcasecmp(ICFormat, "RVdoubleZel") == 0)) {
-            fprintf(stderr, "Warning! ICFormat %s is not displacement-oriented and LagrangianPTOrder = %d. Forcing LagrangianPTOrder = 0.\n",
+        if(!((ICFormat == "Zeldovich") ||
+            (ICFormat == "RVZel") ||
+            (ICFormat == "RVdoubleZel"))) {
+            fmt::print(stderr, "Warning! ICFormat {:s} is not displacement-oriented and LagrangianPTOrder = {:d}. Forcing LagrangianPTOrder = 0.\n",
                     ICFormat, LagrangianPTOrder);
             LagrangianPTOrder = 0;
         }
@@ -813,12 +813,12 @@ void Parameters::ValidateParameters(void) {
 
 #ifdef PARALLEL
     if(NumZRanks < 1){
-        fprintf(stderr,"NumZRanks=%d must be >= 1!\n", NumZRanks);
+        fmt::print(stderr,"NumZRanks={:d} must be >= 1!\n", NumZRanks);
         assert(1==0);
     }
 #else
     if(NumZRanks > 1){
-        fprintf(stderr,"Warning: NumZRanks=%d will have no effect because code is not compiled for parallel. Forcing NumZRanks=1.\n", NumZRanks);
+        fmt::print(stderr,"Warning: NumZRanks={:d} will have no effect because code is not compiled for parallel. Forcing NumZRanks=1.\n", NumZRanks);
         NumZRanks = 1;
     }
 #endif

@@ -20,7 +20,7 @@ Maybe we should be trying to construct orthogonal basis vectors first?
 // And only if the dot product is substantial
 #define NullProject(a,x,y,z) norm=x*x+y*y+z*z; dot=(a[0]*x+a[1]*y+a[2]*z); \
     if (norm>scale&&dot*dot>norm*tol) { dot/=norm; a[0]-=dot*x; a[1]-=dot*y; a[2]-=dot*z;} \
-    printf("%f %f %f %f %f\n", a[0],a[1], a[2], norm, dot); \
+    fmt::print("{:f} {:f} {:f} {:f} {:f}\n", a[0],a[1], a[2], norm, dot); \
     while(0)
 
 /// We are given A-lambda*I and we need to find the null-space vector,
@@ -192,10 +192,10 @@ void FindNullSpace(double fvxx, double fvyy, double fvzz,
      vxy *= scale;
      vxz *= scale;
      vyz *= scale;
-    // printf("%f %f %f\n", fvxx, vxy, vxz);
-    // printf("%f %f %f\n", vxy, fvyy, vyz);
-    // printf("%f %f %f\n", vxz, vyz, fvzz);
-    // printf("Cross 1 by 2\n");
+    // fmt::print("{:f} {:f} {:f}\n", fvxx, vxy, vxz);
+    // fmt::print("{:f} {:f} {:f}\n", vxy, fvyy, vyz);
+    // fmt::print("{:f} {:f} {:f}\n", vxz, vyz, fvzz);
+    // fmt::print("Cross 1 by 2\n");
     major[0] = vxy*vyz - vxz*fvyy;
     major[1] = vxz*vxy - fvxx*vyz;
     major[2] = fvxx*fvyy - vxy*vxy;
@@ -203,7 +203,7 @@ void FindNullSpace(double fvxx, double fvyy, double fvzz,
     float norm = major[0]*major[0]+major[1]*major[1]+major[2]*major[2];
     if (fabs(norm)<1e-15) {
         // We failed to find a subspace.  Try the first x third column
-        // printf("Cross 1 by 3\n");
+        // fmt::print("Cross 1 by 3\n");
         major[0] = vxy*fvzz - vxz*vyz;
         major[1] = vxz*vxz - fvxx*fvzz;
         major[2] = fvxx*vyz - vxz*vxy;
@@ -211,7 +211,7 @@ void FindNullSpace(double fvxx, double fvyy, double fvzz,
     }
     if (fabs(norm)<1e-15) {
         // We failed to find a subspace.  Try the second x third column
-        // printf("Cross 2 by 3\n");
+        // fmt::print("Cross 2 by 3\n");
         major[0] = fvyy*fvzz - vyz*vyz;
         major[1] = vyz*vxz - vxy*fvzz;
         major[2] = vxy*vyz - vxz*fvyy;
@@ -235,29 +235,29 @@ void FindNullSpace(double fvxx, double fvyy, double fvzz,
         }
         // Now make up an axis orthogonal to the biggest column
         // Use the cross with (1,0,0)
-        // printf("Cross with x: %e %e %e\n", axis[0], axis[1], axis[2]);
+        // fmt::print("Cross with x: {:e} {:e} {:e}\n", axis[0], axis[1], axis[2]);
         major[0] = 0.0; major[1] = axis[2]; major[2] = -axis[1];
         norm = major[1]*major[1]+major[2]*major[2];
     }
     if (fabs(norm)<1e-15) {
         // Still failed; use a cross with (0,1,0)
-        // printf("Cross with y\n");
+        // fmt::print("Cross with y\n");
         major[0] = -axis[2]; major[1] = 0.0; major[2] = axis[0];
         norm = major[0]*major[0]+major[2]*major[2];
     } 
     if (fabs(norm)<1e-15) {
         // Still failed; use a cross with (0,0,1)
-        // printf("Cross with z\n");
+        // fmt::print("Cross with z\n");
         major[0] = axis[1]; major[1] = -axis[0]; major[2] = 0.0;
         norm = major[0]*major[0]+major[1]*major[1];
     } 
     if (fabs(norm)<1e-15) {
         // We have a triple degeneracy, punt.
-        // printf("Punt\n");
+        // fmt::print("Punt\n");
         major[0] = 0.0; major[1] = 0.0; major[2] = 0.0; norm = 1.0;
         major[fallback] = 1.0;
     }
-    // printf("Norm %e\n", norm);
+    // fmt::print("Norm {:e}\n", norm);
     norm = sqrt(norm);
     major[0] /= norm; major[1] /= norm; major[2] /= norm;
     return;
@@ -273,9 +273,9 @@ void FindEigenvalues(double vxx, double vxy, double vxz,
     // TODO: Do we really need this to be in double precision?
     double p;
     double p1 = vxy*vxy+vxz*vxz+vyz*vyz;
-    // printf("%f %f %f\n", vxx, vxy, vxz);
-    // printf("%f %f %f\n", vxy, vyy, vyz);
-    // printf("%f %f %f\n\n", vxz, vyz, vzz);
+    // fmt::print("{:f} {:f} {:f}\n", vxx, vxy, vxz);
+    // fmt::print("{:f} {:f} {:f}\n", vxy, vyy, vyz);
+    // fmt::print("{:f} {:f} {:f}\n\n", vxz, vyz, vzz);
     if (p1==0) {   // Diagonal matrix
         sigmav[0] = vxx; sigmav[1] = vyy; sigmav[2] = vzz;
         // Put the eigenvalues in descending order
@@ -332,7 +332,7 @@ int main(int argc, char *argv[]) {
     assert(argc==7);
     for (int j=0;j<6; j++) in[j] = atof(argv[j+1]);
     FindEigenvalues( in[0], in[3], in[4], in[1], in[5], in[2], out, major, minor);
-    printf("%f %f %f   %f %f %f    %f %f %f\n", out[0], out[1], out[2], 
+    fmt::print("{:f} {:f} {:f}   {:f} {:f} {:f}    {:f} {:f} {:f}\n", out[0], out[1], out[2], 
         major[0], major[1], major[2],
         minor[0], minor[1], minor[2]);
     return 0;

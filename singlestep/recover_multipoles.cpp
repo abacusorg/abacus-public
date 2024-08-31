@@ -23,7 +23,7 @@ void RecoverReadStateFiles(Parameters &P){
 	
     if (argc!=num_args) {
        // Can't use assertf() or QUIT here: stdlog not yet defined!
-       fprintf(stderr, "recover_multipoles: command line must have 2 parameters given, not %d.\nLegal usage: recover_multipoles <parameter_file> (and, if parallel: <reconstruct_read_files> <reconstruct_multipoles>)\n", argc);
+       fmt::print(stderr, "recover_multipoles: command line must have 2 parameters given, not {:d}.\nLegal usage: recover_multipoles <parameter_file> (and, if parallel: <reconstruct_read_files> <reconstruct_multipoles>)\n", argc);
        assert(0==99);
     }  
 

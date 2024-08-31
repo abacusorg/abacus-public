@@ -23,12 +23,12 @@ public:
 
     void pr(void) { 
         chk();
-        printf("n=%3d::s=%3d::h=%3d::t=%3d::",n,s,h,t);
-        if(s==0) printf("<<empty>>");
+        fmt::print("n={:3d}::s={:3d}::h={:3d}::t={:3d}::",n,s,h,t);
+        if(s==0) fmt::print("<<empty>>");
         else  {
-            for(int i=0;i<s;i++) printf("<%d> ", ring[ (h+i)%n ].arenatype);
+            for(int i=0;i<s;i++) fmt::print("<{:d}> ", ring[ (h+i)%n ].arenatype);
         }
-        printf("\n");
+        fmt::print("\n");
         if(s!=0) {
             for(int i=0;i<s;i++)  ring[ (h+i)%n ].dumpior();
         }

@@ -33,7 +33,7 @@ void ReadDirect::BlockingDirectReadAligned(const fs::path &fn, char *x, size_t l
     	while(bytesread < length) bytesread += read(fd, &(x[bytesread]), length-bytesread);
     }
     else{
-        fprintf(stderr, "read_dio: File aligned, but memory not!\n"); assert(false);
+        fmt::print(stderr, "read_dio: File aligned, but memory not!\n"); assert(false);
         
     while(bytesread<length) {
         size_t bytes2read = min(alignedbytes, length-bytesread);

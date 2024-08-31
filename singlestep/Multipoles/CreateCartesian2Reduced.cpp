@@ -277,16 +277,16 @@ void MaxDividePoly( Polynomial &p, LLI *factor ) {
 
 void DumpCartesian2Reduced(FILE *fp, int order, int a, int b, int c) {
     assert(c==0 || c==1);
-    fprintf(fp,"double Cartesian2Reduced%d_%d_%d_%d(double *cm) { \n",order,a,b,c);
-    fprintf(fp,"double s = 0; \n");
+    fmt::print(fp,"double Cartesian2Reduced{:d}_{:d}_{:d}_{:d}(double *cm) {{ \n",order,a,b,c);
+    fmt::print(fp,"double s = 0; \n");
     for(int i=0;i<completemultipolelength;i++) {
         LLI p = rp[rmap(a,b,c)].C[i];
         if(p!=0) {
-            fprintf(fp,"s += %lld * %lld * cm[%d];\n", ff[rmap(a,b,c)], p, i);
+            fmt::print(fp,"s += {:d} * {:d} * cm[{:d}];\n", ff[rmap(a,b,c)], p, i);
         }
     }
-    fprintf(fp,"return s;\n");
-    fprintf(fp,"}\n");
+    fmt::print(fp,"return s;\n");
+    fmt::print(fp,"}}\n");
 }
 
 void CreateC2R(int order) {
@@ -309,22 +309,22 @@ void CreateC2R(int order) {
         }
     }
 
-    fprintf(fp,"double Cartesian2Reduced%d_0_0_0(double *cm) { return cm[0]; }\n",order);
+    fmt::print(fp,"double Cartesian2Reduced{:d}_0_0_0(double *cm) {{ return cm[0]; }}\n",order);
     FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
         if(a+b+c>0) {
             DumpCartesian2Reduced(fp,order,a,b,c);
         }
     }
 
-    fprintf(fp, "\ntemplate <int Order>\n"
+    fmt::print(fp, "\ntemplate <int Order>\n"
         "void Cartesian2Reduced(double * __restrict__ cm, double * __restrict__ rm);\n\n");
 
-    fprintf(fp,"template <>\nvoid Cartesian2Reduced<%d>(double * __restrict__ cm, double * __restrict__ rm) { \n", order);
+    fmt::print(fp,"template <>\nvoid Cartesian2Reduced<{:d}>(double * __restrict__ cm, double * __restrict__ rm) {{ \n", order);
     FORALL_REDUCED_MULTIPOLES_BOUND(a,b,c,order) {
         int rm = rmap(a,b,c);
-        fprintf(fp," rm[%d] = Cartesian2Reduced%d_%d_%d_%d(cm); \n", rm, order,a,b,c);
+        fmt::print(fp," rm[{:d}] = Cartesian2Reduced{:d}_{:d}_{:d}_{:d}(cm); \n", rm, order,a,b,c);
     }
-    fprintf(fp,"}\n");
+    fmt::print(fp,"}}\n");
 
     fclose(fp);
 }
@@ -336,21 +336,21 @@ void CreateDispatchFunction(){
     fp = fopen(fn, "w");
     assert(fp != NULL);
 
-    fprintf(fp,
+    fmt::print(fp,
         "#include <cstdlib>\n"
         "#include <cstdio>\n"
         "template <int Order>\n"
         "void Cartesian2Reduced(double *cm, double *rm);\n\n"
-        "void DispatchCartesian2Reduced(int order, double *cartesian, double *reduced) {\n"
-        "   switch(order){\n"
+        "void DispatchCartesian2Reduced(int order, double *cartesian, double *reduced) {{\n"
+        "   switch(order){{\n"
     );
 
     for(int i = 0; i <= MAXORDER; i++){
-        fprintf(fp, "        case %d: Cartesian2Reduced<%d>(cartesian, reduced); break;\n", i, i);
+        fmt::print(fp, "        case {:d}: Cartesian2Reduced<{:d}>(cartesian, reduced); break;\n", i, i);
     }
 
-    fprintf(fp, "\n        default: fprintf(stderr, \"Error: unknown order in dispatch\\n\"); exit(1); break;\n"
-        "    }\n}\n");
+    fmt::print(fp, "\n        default: fprintf(stderr, \"Error: unknown order in dispatch\\n\"); exit(1); break;\n"
+        "    }}\n}}\n");
     assert(fclose(fp) == 0);
 }
 

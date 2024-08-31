@@ -523,7 +523,7 @@ class FOFcell {
     // ======================  Routine to permute at the end ==============
 
     inline bool near_boundary(FOFparticle p) {
-	// printf("%f %f %f\n", p.x/boundary, p.y/boundary, p.z/boundary);
+	// fmt::print("{:f} {:f} {:f}\n", p.x/boundary, p.y/boundary, p.z/boundary);
         if (fabs(p.x)>boundary || fabs(p.y)>boundary || fabs(p.z)>boundary) return true;
 		else return false;
     }
@@ -1118,7 +1118,7 @@ int main() {
     for (int j=0; j<Ncell; j++) {
         // ngroup += FOF(pos+j*cellsize, vel+j*cellsize, aux+j*cellsize, acc+j*cellsize, cellsize, b2);
         ngroup += doFOF[omp_get_thread_num()].findgroups(pos+j*cellsize, vel+j*cellsize, aux+j*cellsize, acc+j*cellsize, cellsize);
-	// printf("\n");
+	// fmt::print("\n");
     }
     FOFtime.Stop();
 

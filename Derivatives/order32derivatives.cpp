@@ -27,12 +27,12 @@ Order32Derivatives::Order32Derivatives(int inner) : inner(inner)  {
     fmt::print("reading derivatives from {}\n", fname);
     ifstream fin(fname,ios::in);
     if(!fin.is_open()) {
-        fprintf(stderr,"couldn't open \"%s\"\n",fname);
+        fmt::print(stderr,"couldn't open \"{}\"\n",fname);
         exit(1);
     }
     fin >> tmporder >> tmpinneradius;
     if(tmporder<32 || tmpinneradius!=inner) {
-        fprintf(stderr,"file data does not agree with arguments\n");
+        fmt::print(stderr,"file data does not agree with arguments\n");
         exit(1);
     }
     char num[1024];

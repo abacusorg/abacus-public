@@ -222,23 +222,23 @@ void compare_acc(FLOAT3 *acc1, FLOAT3* acc2, int nacc, double rtol){
         max_frac_diff = std::max(max_frac_diff, frac_diff);
         if(frac_diff > rtol || !std::isfinite(frac_diff)){
             nbad++;
-            //std::cout << acc1[i] <<std::endl;
-            //std::cout << acc2[i] <<std::endl;
+            fmt::print("{}\n", acc1[i]);
+            fmt::print("{}\n", acc2[i]);
         }
     }
-    printf("\t>>> %d (%.2f%%) mismatched accels\n", nbad, (FLOAT) nbad/nacc*100);
-    printf("\t>>> Max frac error: %.2g \n", max_frac_diff);
+    fmt::print("\t>>> {:d} ({:.2f}%) mismatched accels\n", nbad, (FLOAT) nbad/nacc*100);
+    fmt::print("\t>>> Max frac error: {:.2g} \n", max_frac_diff);
     fflush(stdout);
 }
 
-void report(const char* prefix, int64_t npart, int ncell, std::chrono::duration<double> elapsed, int nthread){
+void report(const std::string &prefix, int64_t npart, int ncell, std::chrono::duration<double> elapsed, int nthread){
     double nflop = 842*npart + 360*ncell;  // Q version
     //double nflop = 1199*npart;  // no Q version
 
     auto t = elapsed.count();
 
-    std::cout << prefix << " time: " << t << " sec" << std::endl;
-    printf("\t %.3f Mpart per second (%.3g DP-GFLOPS per thread)\n", npart/1e6/t, nflop/1e9/t/nthread);
+    fmt::print("{} time: {} sec\n", prefix, t);
+    fmt::print("\t {:.3f} Mpart per second ({:.3g} DP-GFLOPS per thread)\n", npart/1e6/t, nflop/1e9/t/nthread);
     fflush(stdout);
 }
 
@@ -261,7 +261,7 @@ int main(int argc, char **argv){
     // ========================== //
     // Set up RNG
     int nthread = omp_get_max_threads();
-    printf("Running with %d threads, ppc %zd\n", nthread, ppc);
+    fmt::print("Running with {:d} threads, ppc {:d}\n", nthread, ppc);
     gsl_rng *rng[nthread];
 
     for(int i = 0; i < nthread; i++){

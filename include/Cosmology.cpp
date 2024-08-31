@@ -1,5 +1,7 @@
 #include "Cosmology.h"
 
+#include <fmt/base.h>
+
 Cosmology::Cosmology(double a_initial, MyCosmology& _C) {
     /// This sets epoch current and next to a_initial, 
     /// as well as initializing the 'early' epoch.
@@ -26,29 +28,29 @@ void Cosmology::CopyEpoch(Epoch& dest, Epoch& source) {
 void Cosmology::printepoch(Epoch& E) {
     /// This does a screen dump of an epoch, for debugging purposes.
     FILE *fp = stdout;
-    fprintf(fp, "\n");
-    fprintf(fp, "         Scale factor = %15.13lf\n", E.a);
-    fprintf(fp, "             Redshift = %15.11lf\n", E.z);
-    fprintf(fp, "                    H = %15.9le\n", E.H);
-    fprintf(fp, "                 Time = %15.9le\n", E.t);
-    fprintf(fp, "               H*Time = %15.13lf\n", E.H*E.t);
-    fprintf(fp, "                 EtaK = %15.9le\n", E.etaK);
-    fprintf(fp, "             a*H*EtaK = %15.13lf\n", E.H*E.etaK*E.a);
-    fprintf(fp, "                 EtaD = %15.9le\n", E.etaD);
-    fprintf(fp, "           a^2*H*EtaD = %15.13lf\n", E.H*E.etaD*E.a*E.a);
-    fprintf(fp, "                    w = %15.12lf\n", E.w);
-    fprintf(fp, "           OmegaHat_m = %15.12lf\n", E.OmegaHat_m);
-    fprintf(fp, "           OmegaHat_X = %15.12lf\n", E.OmegaHat_X);
-    fprintf(fp, "           OmegaHat_K = %15.12lf\n", E.OmegaHat_K);
+    fmt::print(fp, "\n");
+    fmt::print(fp, "         Scale factor = {:15.13f}\n", E.a);
+    fmt::print(fp, "             Redshift = {:15.11f}\n", E.z);
+    fmt::print(fp, "                    H = {:15.9le}\n", E.H);
+    fmt::print(fp, "                 Time = {:15.9le}\n", E.t);
+    fmt::print(fp, "               H*Time = {:15.13f}\n", E.H*E.t);
+    fmt::print(fp, "                 EtaK = {:15.9le}\n", E.etaK);
+    fmt::print(fp, "             a*H*EtaK = {:15.13f}\n", E.H*E.etaK*E.a);
+    fmt::print(fp, "                 EtaD = {:15.9le}\n", E.etaD);
+    fmt::print(fp, "           a^2*H*EtaD = {:15.13f}\n", E.H*E.etaD*E.a*E.a);
+    fmt::print(fp, "                    w = {:15.12f}\n", E.w);
+    fmt::print(fp, "           OmegaHat_m = {:15.12f}\n", E.OmegaHat_m);
+    fmt::print(fp, "           OmegaHat_X = {:15.12f}\n", E.OmegaHat_X);
+    fmt::print(fp, "           OmegaHat_K = {:15.12f}\n", E.OmegaHat_K);
     double total = E.OmegaHat_m + E.OmegaHat_X + E.OmegaHat_K;
-    fprintf(fp, "           Omega_m(a) = %15.12lf\n", E.OmegaHat_m/total);
-    fprintf(fp, "           Omega_X(a) = %15.12lf\n", E.OmegaHat_X/total);
-    fprintf(fp, "           Omega_K(a) = %15.12lf\n", E.OmegaHat_K/total);
-    fprintf(fp, "               growth = %15.13lf\n", E.growth);
-    fprintf(fp, "           growth/a^n = %15.13lf\n", E.growth/pow(E.a,n));
-    fprintf(fp, "                    n = %15.13lf\n", n);
-    fprintf(fp, "             f_growth = %15.13lf\n", E.f_growth);
-    fprintf(fp, "f_growth/Omega_m^0.55 = %15.13lf\n", E.f_growth/pow(E.OmegaHat_m/total,0.55));
+    fmt::print(fp, "           Omega_m(a) = {:15.12f}\n", E.OmegaHat_m/total);
+    fmt::print(fp, "           Omega_X(a) = {:15.12f}\n", E.OmegaHat_X/total);
+    fmt::print(fp, "           Omega_K(a) = {:15.12f}\n", E.OmegaHat_K/total);
+    fmt::print(fp, "               growth = {:15.13f}\n", E.growth);
+    fmt::print(fp, "           growth/a^n = {:15.13f}\n", E.growth/pow(E.a,n));
+    fmt::print(fp, "                    n = {:15.13f}\n", n);
+    fmt::print(fp, "             f_growth = {:15.13f}\n", E.f_growth);
+    fmt::print(fp, "f_growth/Omega_m^0.55 = {:15.13f}\n", E.f_growth/pow(E.OmegaHat_m/total,0.55));
 }
 
 void Cosmology::InitializeEarly(double a_early) {
@@ -227,7 +229,7 @@ double Cosmology::t2a(double t) {
     do {
         BuildEpoch(search,search,a);
         f = search.t - t;
-	// STDLOG(1,"t2a(): a=%12.8f   t=%12.8f\n", a, search.t);
+	// STDLOG(1,"t2a(): a={:12.8f}   t={:12.8f}\n", a, search.t);
         BuildEpoch(search,search,a-dela);
         fp = search.t;
         BuildEpoch(search,search,a+dela);
@@ -235,7 +237,7 @@ double Cosmology::t2a(double t) {
         da = - f/fp;
         a += da;
         n++;
-	// STDLOG(1,"t2a(): a=%12.8f    da=%12.4e\n", a, da);
+	// STDLOG(1,"t2a(): a={:12.8f}    da={:12.4e}\n", a, da);
         //    } while(fabs(f)/t>1.0e-15 || fabs(da)>1e-13);
     } while(fabs(da)>1e-14);
     BuildEpoch(next,search,a);

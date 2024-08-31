@@ -44,13 +44,13 @@ void Spiral::Create(double3 *pp, double3 *vv, int *id, long long int _n, double 
 
     assert(N==_n);
 
-    printf("   N1D: %lld\n", N1D);
-    printf("     N: %lld\n", N);
-    printf("  kvec: % e  % e  % e\n", kvec.x, kvec.y, kvec.z);
-    printf(" phase: % e  % e  % e\n", phase.x, phase.y, phase.z);
-    printf(" Ainit: % e\n", Ainitial);
-    printf("Across: % e\n", Across);
-    printf("fsmooth: % e\n", fsmooth);
+    fmt::print("   N1D: {:d}\n", N1D);
+    fmt::print("     N: {:d}\n", N);
+    fmt::print("  kvec: {: e}  {: e}  {: e}\n", kvec.x, kvec.y, kvec.z);
+    fmt::print(" phase: {: e}  {: e}  {: e}\n", phase.x, phase.y, phase.z);
+    fmt::print(" Ainit: {: e}\n", Ainitial);
+    fmt::print("Across: {: e}\n", Across);
+    fmt::print("fsmooth: {: e}\n", fsmooth);
     
     kvec *= 2*M_PI; // we specify k-vector w/o the 2 pi for ease of writing...
 
@@ -128,10 +128,10 @@ void Spiral::Project(double3 *pp, double3 *vv, int *id, long long int np) {
     double angle = acos( xhat.dot(khat) );
     double X = 1.0/knorm;
 
-//    fprintf(fp,"#  Rotating solution %f degrees about ", angle*180/M_PI);
-//    fprintf(fp," (% f, % f, % f)\n", rotaxis.x, rotaxis.y, rotaxis.z);
-    printf("Rotating solution %f degrees about ", angle*180/M_PI);
-    printf("(% f, % f, % f)\n", rotaxis.x, rotaxis.y, rotaxis.z);
+//    fmt::print(fp,"#  Rotating solution {:f} degrees about ", angle*180/M_PI);
+//    fmt::print(fp," ({: f}, {: f}, {: f})\n", rotaxis.x, rotaxis.y, rotaxis.z);
+    fmt::print("Rotating solution {:f} degrees about ", angle*180/M_PI);
+    fmt::print("({: f}, {: f}, {: f})\n", rotaxis.x, rotaxis.y, rotaxis.z);
 
     double3 pmin = double3(1e30);
     for(int p=0; p<N; p++) {
@@ -184,7 +184,7 @@ void writespiral(const fs::path &fn, double3 * pos, double3 * vel, long long int
 int main(int argc, char **argv){
 
 	if (argc != 12) {
-		printf("Usage: makespiralic <n1d> <a initial> <across> <kvec x y z> <phase x y z> <f_smooth> <output filename> ");
+		fmt::print("Usage: makespiralic <n1d> <a initial> <across> <kvec x y z> <phase x y z> <f_smooth> <output filename> ");
 		return 1;
 	}
 	long long int n1d = atoi(argv[1]);

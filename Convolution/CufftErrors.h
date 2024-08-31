@@ -5,7 +5,7 @@ inline void __checkCudaErrors( cuda::cudaError err, const fs::path &file, const 
 {
     if( cuda::cudaSuccess != err) {
         int dev=0; cuda::cudaGetDevice(&dev);
-        fprintf(stderr, "%s(%i) : CUDA Runtime API error %d on device %d: %s.\n",
+        fmt::print(stderr, "{}({:d}) : CUDA Runtime API error {:d} on device {:d}: {:s}.\n",
                 file, line, (int)err,dev,cuda::cudaGetErrorString( err ) );
         assert(cuda::cudaSuccess == err);//exit(-1);
     }
@@ -18,7 +18,7 @@ inline void __getLastCudaError( const std::string &errorMessage, const fs::path 
 {
     cuda::cudaError_t err = cuda::cudaGetLastError();
     if( cuda::cudaSuccess != err) {
-        fprintf(stderr, "%s(%i) : getLastCudaError() CUDA error : %s : (%d) %s.\n",
+        fmt::print(stderr, "{}({:d}) : getLastCudaError() CUDA error : {:s} : ({:d}) {:s}.\n",
                 file, line, errorMessage, (int)err, cuda::cudaGetErrorString( err ) );
         assert(cuda::cudaSuccess == err);
     }
@@ -31,7 +31,7 @@ inline void __checkCudaErrors( cuda::cufftResult_t err, const fs::path &file, co
 {
     if( cuda::CUFFT_SUCCESS != err) {
         int dev=0; cuda::cudaGetDevice(&dev);
-        fprintf(stderr, "%s(%i) : CUDA Runtime API error %d on device %d\n",
+        fmt::print(stderr, "{}({:d}) : CUDA Runtime API error {:d} on device {:d}\n",
                 file, line, (int)err,dev);
         assert(cuda::CUFFT_SUCCESS == err);//exit(-1);
     }

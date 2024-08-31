@@ -286,8 +286,8 @@ private:
     inline bool is_negative() const { return (x[0] < 0.0); }
 
     // I/O private functions
-    static void error(const char *msg) {
-        std::cerr << "ERROR " << msg << std::endl;
+    static void error(const std::string &msg) {
+     fmt::print(std::cerr, "ERROR {}\n", msg);
     }
 
     int read(const char *s, qd_real &qd) const;

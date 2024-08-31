@@ -399,7 +399,7 @@ public:
 			rdispls[i]    = i * total_slabs_on_node;
 			
 			
-			//printf("%d %d %d %d %d\n", i, sendcounts[i], sdispls[i], recvcounts[i], rdispls[i]);
+			//fmt::print("{:d} {:d} {:d} {:d} {:d}\n", i, sendcounts[i], sdispls[i], recvcounts[i], rdispls[i]);
 #endif
 
 		}

@@ -148,11 +148,11 @@ public:
         for (uint64 j=0; j<length; j++) {
 	    integer3 c1 = list[j].a.localcell();
 	    integer3 c2 = list[j].b.localcell();
-	    printf("%d %d %d %d to %d %d %d %d\n",
+	    fmt::print("{:d} {:d} {:d} {:d} to {:d} {:d} {:d} {:d}\n",
 	        c1.x, c1.y, c1.z, list[j].a.cellgroup(),
 	        c2.x, c2.y, c2.z, list[j].b.cellgroup());
 	}
-	printf("Dump of GLL length %lu\n", length);
+	fmt::print("Dump of GLL length {:d}\n", length);
     }
 
     /** This searches the sorted GroupLinkList to 
@@ -167,7 +167,7 @@ public:
 	ref.a = LinkID(slab, j, 0, 0);
 	if (length==0) return list;
 	uint64 low = 0, high = length-1, mid;
-	// printf("Seeking %d %d = %lld\n", slab, j, ref.a.id);
+	// fmt::print("Seeking {:d} {:d} = {:d}\n", slab, j, ref.a.id);
 	// if (ref < list[low] || ref.a == list[low].a ) return list+low;
 	if (!(list[low]<ref)) return list+low;    // Found at beginning
 	if (list[high] < ref) return list+high+1;   // The end of the list
@@ -191,7 +191,7 @@ int main() {
     GLL = new GroupLinkList(13,1e7);
 
     for (int iter = 0 ; iter<2; iter++) {
-	printf("Size of GLL: %d\n", (int)(GLL->length));
+	fmt::print("Size of GLL: {:d}\n", (int)(GLL->length));
 	#pragma omp parallel for schedule(static)
 	for (int j=0; j<1000; j++) {
 	    for (int k=0; k<1000; k++) {
@@ -199,13 +199,13 @@ int main() {
 		GLL->DoublePush(a,b);
 	    }
 	}
-	printf("Size of GLL: %d\n", (int)GLL->length);
+	fmt::print("Size of GLL: {:d}\n", (int)GLL->length);
 	GLL->CollectGaps();
-	printf("Size of GLL: %d\n", (int)GLL->length);
+	fmt::print("Size of GLL: {:d}\n", (int)GLL->length);
 
 	for (int j=0; j<1e6;j+=100) GLL->list[j].mark_for_deletion();
 	GLL->PartitionAndDiscard();
-	printf("Size of GLL: %d\n", (int)GLL->length);
+	fmt::print("Size of GLL: {:d}\n", (int)GLL->length);
     }
 
     return 0;

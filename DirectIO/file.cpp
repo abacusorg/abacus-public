@@ -19,8 +19,8 @@
 #ifndef assertf
 #define assertf(_mytest,...) do { \
     if (!(_mytest)) { \
-        fprintf(stderr,"Failed Assertion: %s\n", #_mytest); \
-        fprintf(stderr, __VA_ARGS__); \
+        fmt::print(stderr,"Failed Assertion: {:s}\n", #_mytest); \
+        fmt::print(stderr, __VA_ARGS__); \
         assert(0==99); \
     }} while(0)
 #endif

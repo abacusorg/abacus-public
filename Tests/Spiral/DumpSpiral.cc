@@ -57,7 +57,7 @@ void ParseCommandLine(int argc, char **argv, fs::path &infile, fs::path &rotfile
      
     int error = 0;
     for (int index = optind; index < argc; index++) {
-        std::cerr << "Non-option argument " << argv[index] << "\n";
+        fmt::print(std::cerr, "Non-option argument {:s}\n", argv[index]);
         error = 1;
     }
     if(error || infile.empty() || rotfile.empty()) Usage(argv[0]);
@@ -105,7 +105,7 @@ int main(int argc, char **argv) {
 
     ConvertDimensionlessToVpec(ps, np, cp, anow);
     //ConvertDimensionlessToVz(ps, np, cp, anow, C.H(anow));
-    cout << "H(" << anow << ") = " << C.H(anow) << "\n";
+    fmt::print("H({}) = {}\n", anow, C.H(anow));
 
     FILE *out = OpenForWrite(rotfile, true);
     WriteHStream(out, "##\n", "# ");
@@ -117,7 +117,7 @@ int main(int argc, char **argv) {
     //    FinalizeHeader(out); // don't want the EOH token here...
 
     for(int p=0; p<np; p++) {
-        fprintf(out, "% e % e\n", ps[p].position.x, ps[p].velocity.x);
+        fmt::print(out, "{: e} {: e}\n", ps[p].position.x, ps[p].velocity.x);
     }
 
     fclose(out);

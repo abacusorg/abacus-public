@@ -465,7 +465,7 @@ void IO_Terminate() {
         for(auto &fileiter : orderedcrc){
             const std::string filename = fileiter.first;
             CRC32 crc = fileiter.second;
-            fprintf(fp, "%" PRIu32 " %" PRIu64 " %s\n", crc.finalize(), crc.size, filename.c_str());
+            fmt::print(fp, "{:d} {:d} {}\n", crc.finalize(), crc.size, filename);
         }
         fclose(fp);
     }

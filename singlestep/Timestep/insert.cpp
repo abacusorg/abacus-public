@@ -55,9 +55,9 @@ class ilstruct {
 
     // A method for dumping ASCII
     inline void print () {
-        printf("pos: %e %e %e; vel: %e %e %e; aux: %s; newslab: %d; key: %d\n", 
+        fmt::print("pos: {:e} {:e} {:e}; vel: {:e} {:e} {:e}; aux: {:s}; newslab: {:d}; key: {:d}\n", 
                 pos.x, pos.y, pos.z, vel.x, vel.y, vel.z, 
-                aux.tostring().c_str(), newslab, _k);
+                aux.tostring(), newslab, _k);
         return;
     }
 
@@ -225,9 +225,9 @@ public:
             velstruct v = *vel;
             auxstruct a = *aux;
             integer3 c = newcell;
-            printf("Trying to push a particle to slab %d from slab %d.  This is larger than FINISH_WAIT_RADIUS = %d.\n",
+            fmt::print("Trying to push a particle to slab {:d} from slab {:d}.  This is larger than FINISH_WAIT_RADIUS = {:d}.\n",
                 newcell.x, x, FINISH_WAIT_RADIUS);
-            printf("pos: %e %e %e; vel: %e %e %e; aux: %s; cell: %d %d %d\n", p.x, p.y, p.z, v.x, v.y, v.z, a.tostring().c_str(), c.x, c.y, c.z);
+            fmt::print("pos: {:e} {:e} {:e}; vel: {:e} {:e} {:e}; aux: {:s}; cell: {:d} {:d} {:d}\n", p.x, p.y, p.z, v.x, v.y, v.z, a.tostring(), c.x, c.y, c.z);
             assertf(slab_distance <= FINISH_WAIT_RADIUS,
                 "Trying to push a particle to slab {:d} from slab {:d}.  This is larger than FINISH_WAIT_RADIUS = {:d}.",
                 x, newcell.x, FINISH_WAIT_RADIUS);
@@ -299,7 +299,7 @@ ilstruct *InsertList::PartitionAndSort(int slab, uint64 *_slablength) {
     // The following appears to be a superfluous check as well
     for(uint64 i = 1 ; i < slablength; i++)
         if(ilnew[i-1].k > ilnew[i].k){
-            printf("List of size %zu unsorted\n", slablength);
+            fmt::print("List of size {:d} unsorted\n", slablength);
             FILE *f = fopen("ilparticles.dat", "wb");
             for(i = 0; i < slablength; i++)
                 fwrite(&(list[mid + i].k), sizeof(unsigned int), 1, f);

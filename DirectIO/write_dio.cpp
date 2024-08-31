@@ -44,7 +44,7 @@ void WriteDirect::BlockingWrite_Append_Aligned(const fs::path &fn, char *x, size
     	}
     }
     else{
-        fprintf(stderr, "write_dio: File aligned, but memory not!\n"); assert(false);
+        fmt::print(stderr, "write_dio: File aligned, but memory not!\n"); assert(false);
 
         /*
         // One should strive to always pass aligned buffers to Direct IO

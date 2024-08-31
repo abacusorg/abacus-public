@@ -144,11 +144,11 @@ class FaceSet {
 
         int fPcellstart = fP->get_pencil_size();
 
-        // printf("Cell %d %d %d for bit %02x\n", face->slab, j, k, face->edgebit >> 25 );
+        // fmt::print("Cell {:d} {:d} {:d} for bit {:02x}\n", face->slab, j, k, face->edgebit >> 25 );
         
         // Take a look at the CellGroups, which include singlet boundary particles
         for (int g=0; g<cg.size(); g++) {
-            // printf("CG %d: %d %d %02x\n", g, cg[g].start, cg[g].size(), cg[g].n>>25);
+            // fmt::print("CG {:d}: {:d} {:d} {:02x}\n", g, cg[g].start, cg[g].size(), cg[g].n>>25);
             if (cg[g].test(face->edgebit)!=0) {
                 // Group is in the face
                 // But now we want to find the particles in the face
@@ -164,7 +164,7 @@ class FaceSet {
                         // This is done regardless of whether this will
                         // end up unused, as a single particle pseudoGroup.
                         FaceGroupParticle pp = FaceGroupParticle(*ppos,0);
-                        // printf("FGPart: %f %f %f -> %f %f %f %f\n",
+                        // fmt::print("FGPart: {:f} {:f} {:f} -> {:f} {:f} {:f} {:f}\n",
                                 // ppos->x, ppos->y, ppos->z,
                                 // pp.x/FOF_RESCALE, pp.y/FOF_RESCALE, pp.z/FOF_RESCALE, pp.n);
                         fP->append(pp);
@@ -185,7 +185,7 @@ class FaceSet {
                     // the PseudoParticle list with its cellgroup number.
                     // No need to create a FaceGroup
                     BBmin.fi.n = g;
-                    // printf("PsPart: %f %f %f, n=%f r=%f\n",
+                    // fmt::print("PsPart: {:f} {:f} {:f}, n={:f} r={:f}\n",
                                 // midpos->x/FOF_RESCALE, midpos->y/FOF_RESCALE, midpos->z/FOF_RESCALE, midpos->n, 0.0);
                     pP->append(BBmin);
                     pR->append(0.0);
@@ -206,7 +206,7 @@ class FaceSet {
                     BBmin.y = 0.5*(BBmin.y+BBmax.y);
                     BBmin.z = 0.5*(BBmin.z+BBmax.z);
                     BBmin.fi.n = -1-facegroupnum;  // Overwrite the index
-                    // printf("PsPart: %f %f %f, n=%d r=%f\n",
+                    // fmt::print("PsPart: {:f} {:f} {:f}, n={:d} r={:f}\n",
                                 // midpos->x/FOF_RESCALE, midpos->y/FOF_RESCALE, midpos->z/FOF_RESCALE, midpos->index(), sqrt(radius[0])/FOF_RESCALE);
                     pP->append(BBmin);
                     pR->append(sqrt(radius));
@@ -305,7 +305,7 @@ void SearchPair(CellFaceSlab &c1, int j1, int k1,
     k1 = GFC->WrapSlab(k1);
     j2 = GFC->WrapSlab(j2);
     k2 = GFC->WrapSlab(k2);
-    // printf("%d %d %d to %d %d %d\n", i1, j1, k1, i2, j2, k2);
+    // fmt::print("{:d} {:d} {:d} to {:d} {:d} {:d}\n", i1, j1, k1, i2, j2, k2);
 
 
     CellPtr<FacePseudoParticle> pP1 = c1.pseudoParticles[j1][k1];
@@ -325,20 +325,20 @@ void SearchPair(CellFaceSlab &c1, int j1, int k1,
         for (int q=0; q<pP2.size(); q++) {
             // We need the square distance compared to (link+r1+r2)**2
             FOFloat b2 = b1+pR2[q];
-            // printf("%d %f to %d %f = %f vs %f\n",
+            // fmt::print("{:d} {:f} to {:d} {:f} = {:f} vs {:f}\n",
                     // p, pR1[p]/FOF_RESCALE, q, pR2[q]/FOF_RESCALE, 
                 // pP1[p].diff2(pP2.ptr(q),offset)/FOF_RESCALE/FOF_RESCALE, b2*b2/FOF_RESCALE/FOF_RESCALE);
             if (pP1[p].diff2(pP2.ptr(q),&offset)<b2*b2) {
                 // We've found a pair of pseudogroups
                 // if (pR1[p]==0) 
-                // printf("Candidate: %d %d %d %d to %d %d %d %d\n",
+                // fmt::print("Candidate: {:d} {:d} {:d} {:d} to {:d} {:d} {:d} {:d}\n",
                         // i1, j1, k1, pP1[p].index(),
                         // i2, j2, k2, pP2[q].index());
                 // Any time index()<0, we get valgrind errors
                 if (pP1[p].index()>=0) {
                     if (pP2[q].index()>=0) {
                         // A pair of singlets.  Just link them.
-                        // printf("Link: %d %d %d %d to %d %d %d %d\n",
+                        // fmt::print("Link: {:d} {:d} {:d} {:d} to {:d} {:d} {:d} {:d}\n",
                                 // i1, j1, k1, pP1[p].index(),
                                 // i2, j2, k2, pP2[q].index());
                         GFC->GLL->DoublePush(LinkID(i1, j1, k1, pP1[p].index()),
@@ -351,7 +351,7 @@ void SearchPair(CellFaceSlab &c1, int j1, int k1,
                             FOFloat d2 = pP1[p].diff2(fp,&offset);
                             if (d2<bsq) {
                                 // We've found a pair
-                                // printf("Link: %d %d %d %d to %d %d %d %d %d\n",
+                                // fmt::print("Link: {:d} {:d} {:d} {:d} to {:d} {:d} {:d} {:d} {:d}\n",
                                     // i1, j1, k1, pP1[p].index(),
                                     // i2, j2, k2, pP2[q].index(), fg->cellgroupID);
                                 GFC->GLL->DoublePush(LinkID(i1, j1, k1, pP1[p].index()),
@@ -371,7 +371,7 @@ void SearchPair(CellFaceSlab &c1, int j1, int k1,
                             if (d2<bsq) {
                             // if (pP2[q].diff2(fp)<bsq) 
                                 // We've found a pair
-                                // printf("Link: %d %d %d %d %d to %d %d %d %d\n",
+                                // fmt::print("Link: {:d} {:d} {:d} {:d} {:d} to {:d} {:d} {:d} {:d}\n",
                                     // i1, j1, k1, pP1[p].index(),fg->cellgroupID,
                                     // i2, j2, k2, pP2[q].index()); 
                                 GFC->GLL->DoublePush(LinkID(i1, j1, k1, fg->cellgroupID),
@@ -389,7 +389,7 @@ void SearchPair(CellFaceSlab &c1, int j1, int k1,
                             for (int qq=0; qq<fg2->n; qq++, fp2++) {
                                 if (fp1->diff2(fp2,&offset)<bsq) {
                                     // We've found a pair
-                                    // printf("Link: %d %d %d %d %d to %d %d %d %d %d\n",
+                                    // fmt::print("Link: {:d} {:d} {:d} {:d} {:d} to {:d} {:d} {:d} {:d} {:d}\n",
                                         // i1, j1, k1, pP1[p].index(),fg1->cellgroupID,
                                         // i2, j2, k2, pP2[q].index(), fg2->cellgroupID); 
                                     GFC->GLL->DoublePush(LinkID(i1, j1, k1, fg1->cellgroupID),

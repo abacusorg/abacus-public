@@ -230,7 +230,7 @@ unsigned int interpolate(unsigned int minvalue[], unsigned int pstart[], unsigne
         if (pstart[i+1]>=goal) {
             // The goal is between pstart[i] and pstart[i+1].
             // Also guaranteed that pstart[i+1]>pstart[i], else we would have already stopped
-            // printf("Seeking %d.  pstart[%d]=%d, pstart[+]=%d\n", goal, i, pstart[i], pstart[i+1]);
+            // fmt::print("Seeking {:d}.  pstart[{:d}]={:d}, pstart[+]={:d}\n", goal, i, pstart[i], pstart[i+1]);
             return minvalue[i]+int((float)(minvalue[i+1]-minvalue[i])*(goal-pstart[i])/(pstart[i+1]-pstart[i]));
         }
     }
@@ -294,7 +294,7 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
     if (Nsublist<Nparts) Nsublist = Nparts;
     sublistsize = N/Nsublist;
 
-    // printf("For %d particles, planning %d sublists of %d particles. %d partitions.\n", 
+    // fmt::print("For {:d} particles, planning {:d} sublists of {:d} particles. {:d} partitions.\n", 
         // N, Nsublist, sublistsize, Nparts);
 
     // We aim to divide each sublist into Nparts parts, with partition values 
@@ -357,7 +357,7 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
     // re-search for the index[] values.  
 
     // for (int k=0; k<Nparts; k++) 
-        // printf("Partition %02d at key %7d has %7d particles, starting at %7d\n", 
+        // fmt::print("Partition {:02d} at key {:7d} has {:7d} particles, starting at {:7d}\n", 
                 // k, minvalue[k], partsize[k], pstart[k]);
 
     MM_RefinePartition.Start();
@@ -382,9 +382,9 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
 
     MM_RefinePartition.Stop();
 
-    // printf("Rebalancing the partition\n");
+    // fmt::print("Rebalancing the partition\n");
     // for (int k=0; k<Nparts; k++) 
-        // printf("Partition %02d at key %7d has %7d particles, starting at %7d\n", 
+        // fmt::print("Partition {:02d} at key {:7d} has {:7d} particles, starting at {:7d}\n", 
                 // k, newminvalue[k], partsize[k], pstart[k]);
 
 
@@ -403,7 +403,7 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
         int j;
         for (j=0; j<Nsublist; j++) {
             m[j].Setup(a+index[j*Nparts+k], index[j*Nparts+k+1]-index[j*Nparts+k]);
-            // printf("FIFO input %d:  %d %d   %d\n", j, index[j*Nparts+k], index[j*Nparts+k+1], index[j*Nparts+k+1]-index[j*Nparts+k]);
+            // fmt::print("FIFO input {:d}:  {:d} {:d}   {:d}\n", j, index[j*Nparts+k], index[j*Nparts+k+1], index[j*Nparts+k+1]-index[j*Nparts+k]);
             }
             // This loads the leaf-level input lists 
             // with direct pointers to the partitions.
@@ -414,7 +414,7 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
             int jj = j-n;    // Starting point of the last cycle
             for (int i=0; i<n-1; i+=2, j++) {
                 m[j].Setup(m+jj+i, m+jj+i+1, FIFO_SIZE);
-                // printf("FIFO merge %d: %d %d\n", j, jj+i, jj+i+1);
+                // fmt::print("FIFO merge {:d}: {:d} {:d}\n", j, jj+i, jj+i+1);
             }
                 // We define a new queue that will merge two of the previous set
 
@@ -490,29 +490,29 @@ int main() {
             // Setting this up to be a little inhomogeneous, to see if the rebalancing is working.
         //il[N/3].set_key(0);   // Just to check if this is trouble
 
-        printf("."); fflush(NULL);
+        fmt::print("."); fflush(NULL);
         time.Start();
         mm.mmsort(il, out, N, 525*0xFFFF, 1<<20, 256);
         time.Stop();
     
     }
 
-    printf("\nTime to sort %d objects with %d threads, %d times: %f sec, %f Mobj/sec\n", N, omp_get_max_threads(), Iter, time.Elapsed(), Iter*N/1e6/time.Elapsed());
-    printf("Wall-clock Time to Sort & Partition Sublists: %f\n", MM_Sorting.Elapsed());
-    printf("    Sort Sublist (P): %f\n", MM_SortPart.Elapsed()/omp_get_max_threads());
-    printf("    Bisect (P):       %f\n", MM_Bisect.Elapsed()/omp_get_max_threads());
+    fmt::print("\nTime to sort {:d} objects with {:d} threads, {:d} times: {:f} sec, {:f} Mobj/sec\n", N, omp_get_max_threads(), Iter, time.Elapsed(), Iter*N/1e6/time.Elapsed());
+    fmt::print("Wall-clock Time to Sort & Partition Sublists: {:f}\n", MM_Sorting.Elapsed());
+    fmt::print("    Sort Sublist (P): {:f}\n", MM_SortPart.Elapsed()/omp_get_max_threads());
+    fmt::print("    Bisect (P):       {:f}\n", MM_Bisect.Elapsed()/omp_get_max_threads());
 
-    printf("Indexing:             %f\n", MM_Indexing.Elapsed());
-    printf("Refine Partition:     %f\n", MM_RefinePartition.Elapsed());
+    fmt::print("Indexing:             {:f}\n", MM_Indexing.Elapsed());
+    fmt::print("Refine Partition:     {:f}\n", MM_RefinePartition.Elapsed());
 
-    printf("Wall-clock Time to Merge the Partitions: %f\n", MM_Merging.Elapsed());
-    printf("    Popping (P):      %f\n", MM_Popping.Elapsed()/omp_get_max_threads());
+    fmt::print("Wall-clock Time to Merge the Partitions: {:f}\n", MM_Merging.Elapsed());
+    fmt::print("    Popping (P):      {:f}\n", MM_Popping.Elapsed()/omp_get_max_threads());
 
     for (int j=0;j+1<N;j++) if(out[j].key()>out[j+1].key())
-        { printf("Failed key(%d) = %d, key(%d) = %d\n", j, out[j].key(), j+1, out[j+1].key());
+        { fmt::print("Failed key({:d}) = {:d}, key({:d}) = {:d}\n", j, out[j].key(), j+1, out[j+1].key());
         return 1;
         }
-    printf("List is verified to be sorted!\n");
+    fmt::print("List is verified to be sorted!\n");
     return 0;
 }
 

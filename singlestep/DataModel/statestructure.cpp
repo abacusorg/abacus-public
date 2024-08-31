@@ -425,7 +425,7 @@ void State::write_to_file(const fs::path &dir, const fs::path &suffix) {
     WPR(cpd_state                      , ISYM);
     WPR(order_state                    , ISYM);
 
-    fprintf(statefp,"%s", header());
+    fmt::print(statefp, header());
 
     WPR(MaxVelocity		 , FSYM);
     WPR(MaxAcceleration		 , FSYM);
@@ -440,7 +440,7 @@ void State::write_to_file(const fs::path &dir, const fs::path &suffix) {
     WPR(LPTVelScale              , ESYM);
 
     time_t now  = time(0);
-    fprintf(statefp,"#State written:%s\n",asctime(localtime(&now)) );
+    fmt::print(statefp,"#State written:{:s}\n",asctime(localtime(&now)) );
     FinalizeHeader(statefp);
 
     fclose(statefp);

@@ -27,19 +27,19 @@ uint64_t unpack_packN(packN<N> *data, size_t datasize, int nthread, int zspace, 
     // Is reading the whole file then parsing it more efficient than doing fread from disk?
     // This way certainly uses more memory.
     if(datasize%N != 0){ //ensure the file is sensible
-        fprintf(stderr, "[Error] Datasize %zd of file not divisible by %d.  Is this a pack%d file?\n", datasize, N, N);
+        fmt::print(stderr, "[Error] Datasize {:d} of file not divisible by {:d}.  Is this a pack{:d} file?\n", datasize, N, N);
         exit(1);
     }
     uint64_t max_NP = datasize/N;  // upper limit on the number of particles
     
     if (datasize == 0){
-        printf("[Warning] empty pack%d buffer encountered\n", N);
+        fmt::print("[Warning] empty pack{:d} buffer encountered\n", N);
         return 0;
     }
 
     int do_subsample = subsample_frac > 0 && subsample_frac < 1;  // do we need to bother hashing?
     if(do_subsample){
-        fprintf(stderr, "subsampling not implemented with parallel rewrite\n");
+        fmt::print(stderr, "subsampling not implemented with parallel rewrite\n");
         exit(1);
     }
 
@@ -79,7 +79,8 @@ uint64_t unpack_packN(packN<N> *data, size_t datasize, int nthread, int zspace, 
             }
         }
         if (tid != nthread){
-            fprintf(stderr, "Didn't find divisions for all threads! tid=%d, nthread=%d\n", tid, nthread);
+            // TODO: will fail for very small L0 files, for example.
+            fmt::print(stderr, "Didn't find divisions for all threads! tid={:d}, nthread={:d}\n", tid, nthread);
             exit(1);  // technically not an error, but probably indicates a bug
         }
         np_real += n_thisthread;  // get the last thread's count
@@ -94,7 +95,7 @@ uint64_t unpack_packN(packN<N> *data, size_t datasize, int nthread, int zspace, 
         uint64_t i = writestart[tid];  // where to start writing
         
         if(!data[jstart].iscell()){
-            fprintf(stderr, "Thread not starting on a cell!\n");
+            fmt::print(stderr, "Thread not starting on a cell!\n");
             exit(1);
         }
         
@@ -107,7 +108,7 @@ uint64_t unpack_packN(packN<N> *data, size_t datasize, int nthread, int zspace, 
             if (p.iscell()) {
                 current_cell = p.unpack_cell();
                 if(!current_cell.islegal()){
-                    fprintf(stderr, "Illegal pack14 cell encountered.\n");
+                    fmt::print(stderr, "Illegal pack14 cell encountered.\n");
                     exit(1);
                 }
             } else {
@@ -140,13 +141,13 @@ uint64_t unpack_packN(packN<N> *data, size_t datasize, int nthread, int zspace, 
             // All threads except last should have written up to writestart[tid+1]
             if(tid < nthread-1){
                 if (i != writestart[tid+1]){
-                    fprintf(stderr, "Wrong thread count! i=%zu != writestart[tid+1]=%zu for tid=%d\n", i, writestart[tid+1], tid);
+                    fmt::print(stderr, "Wrong thread count! i={:d} != writestart[tid+1]={:d} for tid={:d}\n", i, writestart[tid+1], tid);
                     exit(1);
                 }
             }
             else{
                 if(i != np_real){
-                    fprintf(stderr, "Last thread wrong thread count! i=%zu vs np_real=%zu\n", i, np_real);
+                    fmt::print(stderr, "Last thread wrong thread count! i={:d} vs np_real={:d}\n", i, np_real);
                     exit(1);
                 }
             }

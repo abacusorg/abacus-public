@@ -10,7 +10,7 @@
     SingleStepSetup.Start();
 
     if(argc < 2) {
-       fprintf(stderr, "%s: command line must have at least 1 parameter given.\nUsage: %s <parameter_file> [nslabs]\n", argv[0], argv[0]);
+       fmt::print(stderr, "{:s}: command line must have at least 1 parameter given.\nUsage: {:s} <parameter_file> [nslabs]\n", argv[0], argv[0]);
        exit(1);
     }
     

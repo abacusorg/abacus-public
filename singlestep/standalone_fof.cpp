@@ -14,7 +14,7 @@
     SingleStepSetup.Start();
 
     if(argc < 3) {
-       fprintf(stderr, "%s: command line must have at least 2 parameters given.\nUsage: %s <time slice directory> <parameter file>\n", argv[0], argv[0]);
+       fmt::print(stderr, "{:s}: command line must have at least 2 parameters given.\nUsage: {:s} <time slice directory> <parameter file>\n", argv[0], argv[0]);
        exit(1);
     }
 
@@ -105,6 +105,6 @@
      
     stdlog.close();
     
-    fprintf(stderr, "%s completed successfully!\n", argv[0]);
+    fmt::print(stderr, "{:s} completed successfully!\n", argv[0]);
     exit(0);
 }

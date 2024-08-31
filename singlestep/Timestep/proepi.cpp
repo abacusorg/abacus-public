@@ -391,7 +391,7 @@ void Epilogue(Parameters &P, bool MakeIC) {
         STDLOG(1,"Direct Interactions: CPU ({:d}) and GPU ({:d})\n",
                     NFD->DirectInteractions_CPU,NFD->TotalDirectInteractions_GPU);
         if(!(NFD->DirectInteractions_CPU == NFD->TotalDirectInteractions_GPU)){
-            printf("Error:\n\tDirect Interactions differ between CPU (%lu) and GPU (%lu)\n",
+            fmt::print("Error:\n\tDirect Interactions differ between CPU ({:d}) and GPU ({:d})\n",
                     NFD->DirectInteractions_CPU,NFD->TotalDirectInteractions_GPU);
             //assert(NFD->DirectInteractions_CPU == NFD->TotalDirectInteractions_GPU);
         }

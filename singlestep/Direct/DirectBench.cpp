@@ -99,7 +99,7 @@ long long int CreateInput(int cpd, double mean_ppc, int slab,
         }   
     }       
             
-    printf("\t\tTotal NP for slab %d: %lld | Max PPC: %d | Min PPC %d\n",slab,total,maxppc,minppc);
+    fmt::print("\t\tTotal NP for slab {:d}: {:d} | Max PPC: {:d} | Min PPC {:d}\n",slab,total,maxppc,minppc);
     gsl_rng_free(pos_rng);
     gsl_rng_free(rng);
     return total;    
@@ -158,7 +158,7 @@ void ExecuteSlabCPU(int slabID, int * predicate,
             }           
         }           
     }
-    //if(predicate == NULL) printf("\t\tCPU reports %lld interactions for slab %d\n",DI_slab,slabID);
+    //if(predicate == NULL) fmt::print("\t\tCPU reports {:d} interactions for slab {:d}\n",DI_slab,slabID);
 
 }
 int slabcomplete[WIDTH];
@@ -214,7 +214,7 @@ void BenchmarkGPU(FLOAT3 ** pos, int ** c_start, int ** c_np, FLOAT3 ** acc,
         int *NPslab,
         FLOAT eps ){
 #ifdef CUDADIRECT
-    printf("\tRunning GPU benchmark...\n");
+    fmt::print("\tRunning GPU benchmark...\n");
     STimer wc;
     wc.Clear();
     wc.Start();
@@ -230,11 +230,11 @@ void BenchmarkGPU(FLOAT3 ** pos, int ** c_start, int ** c_np, FLOAT3 ** acc,
         UnpinSlabs(slabs_to_unpin, 1);
     }
     long long unsigned int GPUDI = DeviceGetDI();
-    //printf("\t\tGPU reports %lld DI for slabs %d - %d\n",GPUDI,NFR,nslabs-NFR-1);
+    //fmt::print("\t\tGPU reports {:d} DI for slabs {:d} - {:d}\n",GPUDI,NFR,nslabs-NFR-1);
     wc.Stop();
-    printf("\t\tDone.\n");
+    fmt::print("\t\tDone.\n");
 #else
-    printf("\tNot compiled with CUDA directs; skipping GPU benchmark.\n");
+    fmt::print("\tNot compiled with CUDA directs; skipping GPU benchmark.\n");
 #endif
 }
 
@@ -243,7 +243,7 @@ void BenchmarkCPU(FLOAT3 ** pos, int ** c_start, int ** c_np, FLOAT3 ** acc,
         int *NPslab,
         FLOAT eps){
 
-    printf("\tRunning CPU benchmark...\n");
+    fmt::print("\tRunning CPU benchmark...\n");
     STimer wc;
     wc.Clear();
     wc.Start();
@@ -263,9 +263,9 @@ void CheckGPUCPU(int nslab, int *NPslab, FLOAT3 ** a_gpu, FLOAT3 ** a_cpu, int m
     int nfail = 0;
     
     if (mode == 1)
-        printf("\tCross-checking GPU-GPU accelerations...");
+        fmt::print("\tCross-checking GPU-GPU accelerations...");
     if (mode == 0)
-        printf("\tCross-checking GPU-CPU accelerations...");
+        fmt::print("\tCross-checking GPU-CPU accelerations...");
     
     double tol = mode == 1 ? 0 : 1e-1;
     const char* cpu_str = mode == 1 ? "GPU 2" : "CPU";
@@ -276,10 +276,10 @@ void CheckGPUCPU(int nslab, int *NPslab, FLOAT3 ** a_gpu, FLOAT3 ** a_cpu, int m
             FLOAT3 delta = (a_gpu[i])[n]-(a_cpu[i])[n];
             FLOAT3 sigma = (a_gpu[i])[n]+(a_cpu[i])[n];
             if( abs(delta.norm()/sigma.norm()) > tol){
-                //printf("Bad value for particle %d in slab %d\n",n,i);
-                //printf("\tGPU: ( %f, %f, %f )\n", (a_gpu[i])[n].x,(a_gpu[i])[n].y,(a_gpu[i])[n].z);
-                //printf("\t%s: ( %f, %f, %f )\n", cpu_str, (a_cpu[i])[n].x,(a_cpu[i])[n].y,(a_cpu[i])[n].z);
-                //printf("\tdel: ( %f, %f, %f )\n", delta.x,delta.y,delta.z);
+                //fmt::print("Bad value for particle {:d} in slab {:d}\n",n,i);
+                //fmt::print("\tGPU: ( {:f}, {:f}, {:f} )\n", (a_gpu[i])[n].x,(a_gpu[i])[n].y,(a_gpu[i])[n].z);
+                //fmt::print("\t{:s}: ( {:f}, {:f}, {:f} )\n", cpu_str, (a_cpu[i])[n].x,(a_cpu[i])[n].y,(a_cpu[i])[n].z);
+                //fmt::print("\tdel: ( {:f}, {:f}, {:f} )\n", delta.x,delta.y,delta.z);
                 nfail++;
                 //assert(delta.norm()/sigma.norm() <= tol);
                 delta_m_bad += abs(delta.norm()/sigma.norm());
@@ -289,10 +289,10 @@ void CheckGPUCPU(int nslab, int *NPslab, FLOAT3 ** a_gpu, FLOAT3 ** a_cpu, int m
     }
     
     if(nfail != 0){
-        printf("\t FAILED.  Number of failed particles: %d.\n\tMean relative error: %f\n\tMean relative error of failed particles: %f\n", nfail, delta_m/NP, delta_m_bad/nfail);
+        fmt::print("\t FAILED.  Number of failed particles: {:d}.\n\tMean relative error: {:f}\n\tMean relative error of failed particles: {:f}\n", nfail, delta_m/NP, delta_m_bad/nfail);
     }
     else{
-        printf("\tPassed.\n\tMean relative error: %f\n", delta_m/NP);
+        fmt::print("\tPassed.\n\tMean relative error: {:f}\n", delta_m/NP);
     }
 
 }
@@ -301,8 +301,8 @@ void CheckGPUCPU(int nslab, int *NPslab, FLOAT3 ** a_gpu, FLOAT3 ** a_cpu, int m
 
 int main(int argc, char ** argv){
     if(argc != 5){
-        printf("Usage: %s [cpd] [mean ppc] [n slabs] [mode]\n",argv[0]);
-        printf("\tModes:\n\t\t0: Run both, no check\n\t\t1: Run both (GPU twice, CPU once), check\n\t\t2: GPU only\n\t\t3: CPUOnly\n");
+        fmt::print("Usage: {:s} [cpd] [mean ppc] [n slabs] [mode]\n",argv[0]);
+        fmt::print("\tModes:\n\t\t0: Run both, no check\n\t\t1: Run both (GPU twice, CPU once), check\n\t\t2: GPU only\n\t\t3: CPUOnly\n");
         return 1;
     }
     int cpd = atoi(argv[1]);
@@ -310,7 +310,7 @@ int main(int argc, char ** argv){
     int slabs = atoi(argv[3]);
     int check = atoi(argv[4]);
 
-    printf("Benchmarking directs with %d slabs (%d will be executed) of %d cells with a mean %f particles per cell\n",
+    fmt::print("Benchmarking directs with {:d} slabs ({:d} will be executed) of {:d} cells with a mean {:f} particles per cell\n",
             slabs,slabs - 2*NFR, cpd*cpd,ppc);
     FLOAT3  * pos[slabs];
     FLOAT3  * acc_cpu[slabs];
@@ -327,7 +327,7 @@ int main(int argc, char ** argv){
     int nthread = omp_get_max_threads();
     DD = new Direct[nthread];
     
-    printf("\tCreating Test slabs...\n");
+    fmt::print("\tCreating Test slabs...\n");
     STimer input; input.Clear(); input.Start();
     for(int i = 0; i < slabs; i++)
     {
@@ -356,7 +356,7 @@ int main(int argc, char ** argv){
     double eps = .0625/256; //.1/(ppc *cpd);
 
     input.Stop();
-    printf("\tDone. Created %f million effective particles and %f Gdirect interactions at eps = %e\n\t\t\t--->%f Mp/s\n", Mp, GDirect,eps,Mp/input.Elapsed());
+    fmt::print("\tDone. Created {:f} million effective particles and {:f} Gdirect interactions at eps = {:e}\n\t\t\t--->{:f} Mp/s\n", Mp, GDirect,eps,Mp/input.Elapsed());
 
 
     STimer gpu; gpu.Clear(); gpu.Start();
@@ -373,7 +373,7 @@ int main(int argc, char ** argv){
     }
 
     if(check < 3) 
-        printf("\tGPU: %f s for %f Gd/s (%f Mp/s)\n\n",gpu_time,GDirect/gpu_time,Mp/gpu_time);
+        fmt::print("\tGPU: {:f} s for {:f} Gd/s ({:f} Mp/s)\n\n",gpu_time,GDirect/gpu_time,Mp/gpu_time);
 
     STimer cpu; cpu.Clear(); cpu.Start();
     if(check!= 2) 
@@ -382,7 +382,7 @@ int main(int argc, char ** argv){
     double cpu_time = cpu.Elapsed();
 
     if(check!= 2) 
-        printf("\tCPU: %f s for %f Gd/s (%f Mp/s)\n\n",cpu_time,GDirect/cpu_time,Mp/cpu_time);
+        fmt::print("\tCPU: {:f} s for {:f} Gd/s ({:f} Mp/s)\n\n",cpu_time,GDirect/cpu_time,Mp/cpu_time);
 
     if(check == 1) 
         CheckGPUCPU(slabs,NPslab,acc_gpu, acc_cpu, 0);

@@ -118,8 +118,8 @@ void WriteNodeSlabs() {
             assertf(fm!=NULL, "Couldn't create nodeslabs file {}\n", mname);
 			
             for (int j=0; j<MPI_size_x; j++) {
-                fprintf(fp, "%d\n", first[j]);
-                fprintf(fm, "%d\n", first[j]);
+                fmt::print(fp, "{:d}\n", first[j]);
+                fmt::print(fm, "{:d}\n", first[j]);
 				
             }
 			

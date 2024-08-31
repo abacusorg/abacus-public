@@ -231,12 +231,12 @@ void compare_multipoles(double *cm1, double* cm2, int64_t n, double rtol){
         max_frac_diff = std::max(max_frac_diff, frac_diff);
         if(frac_diff > rtol || !std::isfinite(frac_diff)){
             nbad++;
-            //std::cout << cm1[i] <<std::endl;
-            //std::cout << cm2[i] <<std::endl;
+            // fmt::print("{}\n", cm1[i]);
+            // fmt::print("{}\n", cm2[i]);
         }
     }
-    printf("\t>>> %zd (%.2f%%) mismatched multipoles\n", nbad, (FLOAT) nbad/n*100);
-    printf("\t>>> Max frac error: %.2g \n", max_frac_diff);
+    fmt::print("\t>>> {:d} ({:.2f}%) mismatched multipoles\n", nbad, (FLOAT) nbad/n*100);
+    fmt::print("\t>>> Max frac error: {:.2g} \n", max_frac_diff);
     fflush(stdout);
 }
 
@@ -245,8 +245,8 @@ void report(const char* prefix, int64_t npart, std::chrono::duration<double> ela
     double nflop = 385; //  FMA version: order 2: ?; order 8: 385 (per particle)
     auto t = elapsed.count();
 
-    std::cout << prefix << " time: " << t << " sec" << std::endl;
-    printf("\t%.3f Mpart per second (%.2g DP-GFLOPS per thread)\n", npart/1e6/t, nflop*npart/1e9/t/nthread);
+    fmt::print("{} time: {} sec\n", prefix, t);
+    fmt::print("\t{:.3f} Mpart per second ({:.2g} DP-GFLOPS per thread)\n", npart/1e6/t, nflop*npart/1e9/t/nthread);
     std::cout.flush();
 }
 
@@ -269,7 +269,7 @@ int main(int argc, char **argv){
     // ========================== //
     // Set up RNG
     int nthread = omp_get_max_threads();
-    printf("Running with %d threads, ppc %zd\n", nthread, ppc);
+    fmt::print("Running with {:d} threads, ppc {:d}\n", nthread, ppc);
     gsl_rng *rng[nthread];
 
     for(int i = 0; i < nthread; i++){

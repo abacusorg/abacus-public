@@ -82,7 +82,7 @@ void ParseHeader::ReadHeader(HeaderStream &in) {
     phdriver->trace_scanning = false;
     int result = phdriver->parse(in.buffer, in.bufferlength, in.name, 1, 0, false);
     if(result!=0) {
-        std::cerr << "HS::parseit: there were errors parsing \"" << in.name << "\" ...exiting.\n";
+        fmt::print(std::cerr, "HS::parseit: there were errors parsing \"{}\" ...exiting.\n", in.name);
         exit(1);
     }
     phdriver->ResetParser();

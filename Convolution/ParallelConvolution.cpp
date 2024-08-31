@@ -845,45 +845,45 @@ void ParallelConvolution::dumpstats() {
     double discrepancy = CS.ConvolveWallClock - accountedtime;
 	
     int computecores = CS.ComputeCores;
-    fprintf(fp,"Convolution parameters:  RamAllocated = %4.1fMiB CacheSize = %4.1fMiB nreal_cores=%d blocksize=%d zwidth=%d cpd=%d order=%d",
+    fmt::print(fp,"Convolution parameters:  RamAllocated = {:4.1f}MiB CacheSize = {:4.1f}MiB nreal_cores={:d} blocksize={:d} zwidth={:d} cpd={:d} order={:d}",
 	         (double) CS.totalMemoryAllocated/(1<<20), P.ConvolutionCacheSizeMB, computecores, (int) blocksize, (int) znode, (int) cpd, (int) order);
 			 
 
-     fprintf(fp,"\n\n");
+     fmt::print(fp,"\n\n");
 	 
-     fprintf(fp,"ConvolutionWallClock:  %2.2e seconds \n", CS.ConvolveWallClock );
-     fprintf(fp,"\t %50s : %1.2e seconds\n", "Constructor", CS.Constructor );
-     fprintf(fp,"\t %50s : %1.2e seconds\n", "Allocating Multipole/Taylor", CS.AllocMT);
+     fmt::print(fp,"ConvolutionWallClock:  {:2.2e} seconds \n", CS.ConvolveWallClock );
+     fmt::print(fp,"\t {:50s} : {:1.2e} seconds\n", "Constructor", CS.Constructor );
+     fmt::print(fp,"\t {:50s} : {:1.2e} seconds\n", "Allocating Multipole/Taylor", CS.AllocMT);
 	 
-     fprintf(fp,"\t %50s : %1.2e seconds\n", "Mmaping Multipole/Taylor (part of alloc)", CS.MmapMT);
-     fprintf(fp,"\t %50s : %1.2e seconds\n", "Munmaping Multipole/Taylor (part of alloc)", CS.MunmapMT);
+     fmt::print(fp,"\t {:50s} : {:1.2e} seconds\n", "Mmaping Multipole/Taylor (part of alloc)", CS.MmapMT);
+     fmt::print(fp,"\t {:50s} : {:1.2e} seconds\n", "Munmaping Multipole/Taylor (part of alloc)", CS.MunmapMT);
 	 
-     fprintf(fp,"\t %50s : %1.2e seconds\n", "Allocating Derivatives", CS.AllocDerivs);	 
+     fmt::print(fp,"\t {:50s} : {:1.2e} seconds\n", "Allocating Derivatives", CS.AllocDerivs);	 
 	 
-     fprintf(fp,"\t %50s : %1.2e seconds\n", "Mmaping Derivatives (part of alloc)", CS.MmapDerivs);
-     fprintf(fp,"\t %50s : %1.2e seconds\n", "Munmaping Derivatives (part of alloc)", CS.MunmapDerivs);
+     fmt::print(fp,"\t {:50s} : {:1.2e} seconds\n", "Mmaping Derivatives (part of alloc)", CS.MmapDerivs);
+     fmt::print(fp,"\t {:50s} : {:1.2e} seconds\n", "Munmaping Derivatives (part of alloc)", CS.MunmapDerivs);
 	 
-     fprintf(fp,"\t %50s : %1.2e seconds\n", "Array Swizzling", CS.ArraySwizzle );
+     fmt::print(fp,"\t {:50s} : {:1.2e} seconds\n", "Array Swizzling", CS.ArraySwizzle );
 
      double e = CS.ReadDerivatives ? CS.ReadDerivativesBytes/CS.ReadDerivatives/(1.0e+6) : 0.;
-     fprintf(fp,"\t %50s : %1.2e seconds --> rate was %4.0f MB/s\n", "ReadDiskDerivatives", CS.ReadDerivatives, e );
+     fmt::print(fp,"\t {:50s} : {:1.2e} seconds --> rate was {:4.0f} MB/s\n", "ReadDiskDerivatives", CS.ReadDerivatives, e );
 
 
      double Gops = ((double) CS.ops)/(1.0e+9);
-     fprintf(fp,"\t %50s : %1.2e seconds for %5.3f billion double precision operations per node\n", "Convolution Arithmetic", CS.ConvolutionArithmetic, Gops/MPI_size );
+     fmt::print(fp,"\t {:50s} : {:1.2e} seconds for {:5.3f} billion double precision operations per node\n", "Convolution Arithmetic", CS.ConvolutionArithmetic, Gops/MPI_size );
 	 
-     fprintf(fp,"\t %50s : %1.2e seconds\n", "FFT Planning", CS.FFTPlanning );
-     fprintf(fp,"\t %50s : %1.2e seconds\n", "Forward FFT Z Multipoles", CS.ForwardZFFTMultipoles );
-     fprintf(fp,"\t %50s : %1.2e seconds\n", "Inverse FFT Z Taylor",         CS.InverseZFFTTaylor );
+     fmt::print(fp,"\t {:50s} : {:1.2e} seconds\n", "FFT Planning", CS.FFTPlanning );
+     fmt::print(fp,"\t {:50s} : {:1.2e} seconds\n", "Forward FFT Z Multipoles", CS.ForwardZFFTMultipoles );
+     fmt::print(fp,"\t {:50s} : {:1.2e} seconds\n", "Inverse FFT Z Taylor",         CS.InverseZFFTTaylor );
 	 
-     fprintf(fp,"\t %50s : %1.2e seconds\n", "Queuing MPI send/recv for Taylors", CS.QueueTaylors );
+     fmt::print(fp,"\t {:50s} : {:1.2e} seconds\n", "Queuing MPI send/recv for Taylors", CS.QueueTaylors );
 	 
-     fprintf(fp,"\t %50s : %1.2e seconds\n", "Destructor", CS.Destructor );
-     fprintf(fp,"\t %50s : %1.2e seconds\n", "fftw thread clean up (part of destructor)", CS.ThreadCleanUp );
+     fmt::print(fp,"\t {:50s} : {:1.2e} seconds\n", "Destructor", CS.Destructor );
+     fmt::print(fp,"\t {:50s} : {:1.2e} seconds\n", "fftw thread clean up (part of destructor)", CS.ThreadCleanUp );
 	 
 	 
 
-     fprintf(fp,"%50s : %1.2e seconds which is %d%% \n", "Unaccounted remaining wallclock time", discrepancy, (int) (discrepancy/CS.ConvolveWallClock*100) );
+     fmt::print(fp,"{:50s} : {:1.2e} seconds which is {:d}% \n", "Unaccounted remaining wallclock time", discrepancy, (int) (discrepancy/CS.ConvolveWallClock*100) );
 
      double cae       = CS.ConvolutionArithmetic;
      double farithp   = cae/CS.ConvolveWallClock*100;
@@ -896,12 +896,12 @@ void ParallelConvolution::dumpstats() {
 
      double swzp      = CS.ArraySwizzle/CS.ConvolveWallClock*100;
 
-     fprintf(fp,"\nSummary: Fourier Transforms = %2.0f%%     Convolution Arithmetic = %2.0f%%     Array Swizzle = %2.0f%%    Disk IO = %2.0f%%     ", ffftp, farithp, swzp, fiop );
+     fmt::print(fp,"\nSummary: Fourier Transforms = {:2.0f}%     Convolution Arithmetic = {:2.0f}%     Array Swizzle = {:2.0f}%    Disk IO = {:2.0f}%     ", ffftp, farithp, swzp, fiop );
 
-     fprintf(fp,"\nSet up (con/destructor + allocs/mmaps) = %2.0f%%     FFT planning = %2.0f%%     FFT thread clean up = %2.0f%%   Queuing Taylor MPI send/recv = %2.0f%%    \n", setupp, planp, fclean, sendp);
-     fprintf(fp,"          Arithmetic rate = %2.0f DGOPS --> rate per core = %1.1f DGOPS\n", cae ? Gops/cae : 0, cae ? Gops/cae/computecores/MPI_size : 0);
-     fprintf(fp,"          [DGOPS == Double Precision Billion operations per second]\n");
-     fprintf(fp,"\n");
+     fmt::print(fp,"\nSet up (con/destructor + allocs/mmaps) = {:2.0f}%     FFT planning = {:2.0f}%     FFT thread clean up = {:2.0f}%   Queuing Taylor MPI send/recv = {:2.0f}%    \n", setupp, planp, fclean, sendp);
+     fmt::print(fp,"          Arithmetic rate = {:2.0f} DGOPS --> rate per core = {:1.1f} DGOPS\n", cae ? Gops/cae : 0, cae ? Gops/cae/computecores/MPI_size : 0);
+     fmt::print(fp,"          [DGOPS == Double Precision Billion operations per second]\n");
+     fmt::print(fp,"\n");
      
     fclose(fp);
 }

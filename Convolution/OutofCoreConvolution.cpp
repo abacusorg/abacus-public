@@ -373,7 +373,7 @@ void OutofCoreConvolution::Convolve() {
     // Plane buffer will only hold one z-slab at a time
     s = sizeof(Complex) * rml * cpd * cpd;
     int memalign_ret = posix_memalign((void **) &PlaneBuffer, PAGE_SIZE,s);
-    if(PlaneBuffer == NULL) printf("Tried to alloc aligned %.2f MB\n", (double) s/1024/1024.);
+    if(PlaneBuffer == NULL) fmt::print("Tried to alloc aligned {:.2f} MB\n", (double) s/1024/1024.);
     assert(memalign_ret == 0);
     assert(PlaneBuffer != NULL);
     CS.totalMemoryAllocated += s;

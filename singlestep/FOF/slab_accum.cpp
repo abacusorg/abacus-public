@@ -110,7 +110,7 @@ class SlabAccumBuffer {
 	// We provide this destructor explicitly, so it can be called in a loop
     	if (data!=NULL) {
 	    #ifdef TEST
-	    printf("Freeing memory at %p\n", data);
+	    fmt::print("Freeing memory at {:p}\n", data);
 	    #endif
 	    free(data); 
 	    data = NULL;
@@ -133,7 +133,7 @@ class SlabAccumBuffer {
 
     // Call setup to initialize the buffer
     void setup(int _maxsize) {
-	// printf("Allocating to size %d\n", _maxsize); fflush(NULL);
+	// fmt::print("Allocating to size {:d}\n", _maxsize); fflush(NULL);
 	size_t bytes = 4096;
 	while (bytes<_maxsize*sizeof(T)) bytes <<= 1;
 	    // Shift up to the next factor of 2 in bytes.
@@ -143,7 +143,7 @@ class SlabAccumBuffer {
 		// Save user from themselves
 	int ret = posix_memalign((void **)&data, PAGE_SIZE, bytes); assert(ret==0);
 	#ifdef TEST
-	printf("Allocated %d at position %p\n", maxsize, data);
+	fmt::print("Allocated {:d} at position {:p}\n", maxsize, data);
 	#endif
     }
 
@@ -166,7 +166,7 @@ class SlabAccumBuffer {
 	} else {
 	    // We've exhausted this buffer
 	    // Save off the current buffer
-	    // printf("Exceeded a buffer: [%d,%d)\n", start, maxsize);
+	    // fmt::print("Exceeded a buffer: [{:d},{:d})\n", start, maxsize);
 	    SlabAccumBuffer<T> *p = previous;
 	    previous = new SlabAccumBuffer<T>;
 	    previous->previous = p;
@@ -185,7 +185,7 @@ class SlabAccumBuffer {
 	    }
 	    setup(maxsize);
 	    // Copy the old data and set up the new buffer.
-	    // printf("Copying %d from old to new\n", size-start);
+	    // fmt::print("Copying {:d} from old to new\n", size-start);
 	    memcpy(data, previous->data+start, (size-start)*sizeof(T));
 	    size = (size-start);
 	    start = 0;
@@ -373,7 +373,7 @@ class SlabAccum {
 	    for (int j=0; j<cpd; j++) pencils[j].cells = cells+j*zwidth;
 	}
 	if (buffers==NULL) {
-	    // printf("%lu\n",(sizeof(SlabAccumBuffer<T>)));
+	    // fmt::print("{:d}\n",(sizeof(SlabAccumBuffer<T>)));
 	    assert(sizeof(SlabAccumBuffer<T>)==CACHE_LINE_SIZE);
 	    // Adjust the SlabAccumBuffer padding, if this fails
 	    maxthreads = omp_get_max_threads();
@@ -409,7 +409,7 @@ class SlabAccum {
 	int g = omp_get_thread_num();
 	pencils[pnum].buffer = buffers+g;
 	pencils[pnum].StartPencil();
-	// printf("Starting Pencil %d with Thread %d\n", pnum, g);
+	// fmt::print("Starting Pencil {:d} with Thread {:d}\n", pnum, g);
 	return pencils+pnum;
     }
 
@@ -566,7 +566,7 @@ int main() {
 
     #pragma omp parallel for schedule(static)
     for (int y=0; y<cpd; y++) {
-	if (y==0) printf("Running with %d threads\n", omp_get_num_threads());
+	if (y==0) fmt::print("Running with {:d} threads\n", omp_get_num_threads());
 	PencilAccum<INT> *p = s.StartPencil(y);
 	for (int z=0; z<cpd; z++) {
 	    for (int n=0;n<nn;n++) {
@@ -580,7 +580,7 @@ int main() {
 
     int tot = 0;
     for (int y=0; y<cpd; y++) tot += s[y]._size;
-    printf("Found %d objects by buffer or %d objects by pencil.  Expected %d\n", 
+    fmt::print("Found {:d} objects by buffer or {:d} objects by pencil.  Expected {:d}\n", 
     		(int)(s.get_slab_size()), tot, cpd*cpd*nn);
 
     for (int y=0; y<cpd; y+=20) {
@@ -588,7 +588,7 @@ int main() {
 	    for (int n=0;n<nn;n+=20) {
 	        int val = n+nn*(z+y*cpd);
 		if (val-s[y][z][n]!=0) {
-		    printf("Error: %d %d %d = %d  vs  %d\n", y, z, n, val, s[y][z][n]);
+		    fmt::print("Error: {:d} {:d} {:d} = {:d}  vs  {:d}\n", y, z, n, val, s[y][z][n]);
 		    fflush(NULL);
 		    exit(1);
 		}
@@ -605,7 +605,7 @@ int main() {
 	    for (int n=0;n<nn;n+=20) {
 	        int val = n+nn*(z+y*cpd);
 		if (val-dest[val]!=0) {
-		    printf("Error B: %d %d %d = %d  vs  %d\n", y, z, n, val, dest[val]);
+		    fmt::print("Error B: {:d} {:d} {:d} = {:d}  vs  {:d}\n", y, z, n, val, dest[val]);
 		    fflush(NULL);
 		    exit(1);
 		}
@@ -614,7 +614,7 @@ int main() {
     }
     s.destroy();
     free(dest);
-    printf("Test successful!\n");
+    fmt::print("Test successful!\n");
 }
 
 #endif 

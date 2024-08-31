@@ -181,7 +181,7 @@ int main(int argc, char **argv) {
 
     if (argc!=3) {
        // Can't use assertf() or QUIT here: stdlog not yet defined!
-       fprintf(stderr, "singlestep(): command line must have 3 parameters given, not %d.\nLegal usage: singlestep PARAMETER_FILE MAKE_IC\n\tPARAMETER_FILE: path to parameter file (usually called abacus.par)\n\tMAKE_IC: 0 or 1, whether this is an IC step.\n", argc);
+       fmt::print(stderr, "singlestep(): command line must have 3 parameters given, not {:d}.\nLegal usage: singlestep PARAMETER_FILE MAKE_IC\n\tPARAMETER_FILE: path to parameter file (usually called abacus.par)\n\tMAKE_IC: 0 or 1, whether this is an IC step.\n", argc);
        return 1;
     }
 

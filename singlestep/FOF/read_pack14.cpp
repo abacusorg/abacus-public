@@ -201,7 +201,7 @@ public:
             if (clast==''&&c=='\n') break;
             clast = c;
         }
-        // printf("Skipped a %d byte header\n", numhead);
+        // fmt::print("Skipped a {:d} byte header\n", numhead);
 
         while (fread(&particle, sizeof(pack14), 1, fp)==1) {
             if (particle.iscell()) {

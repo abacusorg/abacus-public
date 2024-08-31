@@ -3,6 +3,9 @@
 #include <cassert>
 #include <stdio.h>
 #include <stdlib.h>
+
+#include <fmt/format.h>
+
 class AnalyticSpiral {
 public:
     AnalyticSpiral(float Ainitial, float Across, float Astop, float Astep, int grid1d, float fsmooth);
@@ -195,7 +198,7 @@ void AnalyticSpiral::PMintegrate( float Aexpn, float Astep ) {
 int main(int argc, char **argv) {
 
     if(argc!=5) {
-        printf("usage: AnalyticSpiral <ainitial> <across> <afinal> <fsmooth>\n");
+        fmt::print("usage: AnalyticSpiral <ainitial> <across> <afinal> <fsmooth>\n");
         exit(1);
     }
 
@@ -211,7 +214,7 @@ int main(int argc, char **argv) {
     fp = fopen("analytic","w");
     assert(fp!=NULL);
     for(int p=0;p<8192;p++) {
-        fprintf(fp,"%e %e \n", AS.x[p]-0.5, AS.px[p] );
+        fmt::print(fp,"{:e} {:e} \n", AS.x[p]-0.5, AS.px[p] );
     }
     fclose(fp);
 }
