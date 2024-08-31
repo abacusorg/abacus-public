@@ -295,10 +295,8 @@ void CreateC2R(int order) {
 
     fillmultipoleindices(order);
 
-    FILE *fp;   
-    char fn[1024];
-    sprintf(fn,"Cartesian2Reduced%d.cpp",order);
-    fp = fopen(fn,"w");
+    FILE *fp;
+    fp = fopen(fmt::format("Cartesian2Reduced{:d}.cpp",order).c_str(),"w");
     assert(fp!=NULL);
 
     int a,b,c;
@@ -331,9 +329,7 @@ void CreateC2R(int order) {
 
 void CreateDispatchFunction(){
     FILE *fp;
-    char fn[1024];
-    sprintf(fn, "Cartesian2ReducedDispatch.cpp");
-    fp = fopen(fn, "w");
+    fp = fopen("Cartesian2ReducedDispatch.cpp", "w");
     assert(fp != NULL);
 
     fmt::print(fp,

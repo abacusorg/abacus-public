@@ -1,4 +1,5 @@
 #include "config.h"
+#include <string>
 
 // These are the logical (i.e. global) indices that track the z-range belonging to this node
 // Initialized in parallel.cpp
@@ -21,7 +22,7 @@ int MPI_rank_z = 0, MPI_size_z = 1;
 int GHOST_RADIUS = 0;        // in the read state
 int MERGE_GHOST_RADIUS = 0;  // in the write state
 
-char NodeString[8] = "";     // Set to "" for serial, ".NNNN" for MPI
+std::string NodeString;     // Set to "" for serial, ".NNNN" for MPI
 
 int _world_rank;  // purely informational, do not use
 

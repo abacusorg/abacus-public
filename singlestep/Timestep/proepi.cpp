@@ -628,26 +628,26 @@ void InitWriteState(int MakeIC, const std::string pipeline, const fs::path parfn
     assert(WriteState.FullStepNumber == ReadState.FullStepNumber+1);  // already did this in load_read_state()
     WriteState.LPTStepNumber = LPTStepNumber();
 
-    if(strcmp(P.StateIOMode, "overwrite") == 0){
+    if(P.StateIOMode == "overwrite"){
         WriteState.OverwriteState = 1;
         STDLOG(1, "StateIOMode = \"overwrite\"; write state will overwrite read state\n");
     }
-    if(strcmp(P.StateIOMode, "stripe") == 0){
+    if(P.StateIOMode == "stripe"){
         WriteState.StripeState = 1;
         assertf(0, "State striping currently not implemented\n");
     }
 
-    if(strcmp(P.Conv_IOMode, "stripe") == 0){
+    if(P.Conv_IOMode == "stripe"){
         WriteState.StripeConvState = 1;
         STDLOG(1,"Striping multipoles and taylors\n");
     }
-    else if(strcmp(P.Conv_IOMode, "overwrite") == 0){
+    else if(P.Conv_IOMode == "overwrite"){
         WriteState.OverwriteConvState = 1;
         STDLOG(1,"Overwriting multipoles and taylors\n");
     }
 
-    strcpy(WriteState.Pipeline, pipeline);
-    strcpy(WriteState.ParameterFileName, parfn);
+    WriteState.Pipeline = pipeline;
+    WriteState.ParameterFileName = parfn;
 
     // Check if WriteStateDirectory/state exists, and fail if it does
     fs::path wstatefn = P.WriteStateDirectory / "state";
@@ -878,10 +878,10 @@ void InitGroupFinding(int MakeIC){
                     P.GroupRadius, P.MinL1HaloNP, P.np, use_aux_dens);
 
         if(use_aux_dens){
-            sprintf(WriteState.GroupFindingDensitySource, "aux");
+            WriteState.GroupFindingDensitySource = "aux";
         } else {
             assertf(NFD, "Must have acc dens if not using aux dens!\n");
-            sprintf(WriteState.GroupFindingDensitySource, "acc");
+            WriteState.GroupFindingDensitySource = "acc";
         }
 
         #ifdef SPHERICAL_OVERDENSITY

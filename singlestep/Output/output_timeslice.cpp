@@ -9,30 +9,30 @@
 
 #include "appendarena.cpp"
 
-AppendArena *get_AA_by_format(const char* format){
+AppendArena *get_AA_by_format(const std::string &format){
     AppendArena *AA;
 
-    if (strcmp(format,"RVdouble")==0) {
+    if (format == "RVdouble") {
         STDLOG(1,"Using Output Format RVdouble\n");
         AA = new OutputRVdouble();
 
-    } else if (strcmp(format,"Pack9")==0) {
+    } else if (format == "Pack9") {
         STDLOG(1,"Using Output Format Pack9\n");
         AA = new OutputPacked<9>();
 
-    } else if (strcmp(format,"Pack")==0 or strcmp(format,"Pack14")==0) {
+    } else if (format == "Pack" or format == "Pack14") {
         STDLOG(1,"Using Output Format Pack14\n");
         AA = new OutputPacked<14>();
         
-    } else if (strcmp(format,"Heitmann")==0) {
+    } else if (format == "Heitmann") {
         STDLOG(1,"Using Output Format Heitmann\n");
         AA = new OutputHeitmann();
 
-    } else if (strcmp(format,"RVdoublePID")==0) {
+    } else if (format == "RVdoublePID") {
         STDLOG(1,"Using Output Format RVdoublePID\n");
         AA = new OutputRVdoublePID();
 
-    } else if (strcmp(format,"RVZel")==0) {
+    } else if (format == "RVZel") {
         STDLOG(1,"Using Output Format RVZel\n");
         AA = new OutputRVZel();
         
@@ -44,9 +44,9 @@ AppendArena *get_AA_by_format(const char* format){
     return AA;
 }
 
-AppendArena *get_PID_AA_by_format(const char* format){
+AppendArena *get_PID_AA_by_format(const std::string &format){
     AppendArena *PID_AA;
-    if (strcmp(P.OutputFormat,"Pack9")==0) {
+    if (P.OutputFormat == "Pack9") {
         PID_AA = new OutputPID(); 
         STDLOG(2, "Chose PID timeslice append arena to complement pack9 RVs.\n");
     }
@@ -91,24 +91,16 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
 
     // Write the header to its own file
     if(slab == 0){
-        char filename[1024];
-        int ret = snprintf(filename, 1024, "%s/slice%5.3f/header",  
-            P.OutputDirectory, 
-            ReadState.Redshift);
-        assert(ret >= 0 && ret < 1024);
-        WriteHeaderFile(filename);
+        WriteHeaderFile(P.OutputDirectory / fmt::format("slice{:5.3f}/header", ReadState.Redshift));
     }
 
     STDLOG(4,"Adding header to slab file\n");  
     // and also add the header to the slab file
     if (!P.OmitOutputHeader) {
-        AA->addheader((const char *) P.header());
-        AA->addheader((const char *) ReadState.header());
-        char head[1024];
-        sprintf(head, "\nOutputType = \"FieldTimeSlice\"\n"); 
-        AA->addheader((const char *) head);
-        sprintf(head, "SlabNumber = %d\n", slab);
-        AA->addheader((const char *) head);
+        AA->addheader(P.header());
+        AA->addheader(ReadState.header());
+        AA->addheader("\nOutputType = \"FieldTimeSlice\"\n");
+        AA->addheader(fmt::format("SlabNumber = {:d}\n", slab));
         // For sanity, be careful that the previous lines end with a \n!
         AA->finalize_header();
     }

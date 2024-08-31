@@ -36,7 +36,7 @@ public:
     uint64 NsubsampleA, NsubsampleB;  // subsample A and B counts
 
     // This factory function is the primary entry point to construct an ICFile object
-    static unique_ptr<ICFile> FromFormat(const char *format, int _slab);
+    static unique_ptr<ICFile> FromFormat(const std::string& format, int _slab);
 
     // Unpack the particles in the arena and push them to the Insert List
     uint64 unpack_to_IL(double convert_pos, double convert_vel);

@@ -131,11 +131,11 @@ class GroupFindingControl {
     
 
 
-        char onoff[5];
+        std::string onoff;
         #ifdef AVXFOF
-            sprintf(onoff, "on");
+            onoff = "on";
         #else
-            sprintf(onoff, "off");
+            onoff = "off";
         #endif
         STDLOG(0,"Group finding sizeof(FOFloat)={:d}, sizeof(FLOAT)={:d}, AVXFOF is {:s}\n", sizeof(FOFloat), sizeof(FLOAT), onoff);
 

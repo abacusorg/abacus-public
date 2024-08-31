@@ -47,7 +47,7 @@ void InitializeParallelTopology() {
         // We let MPI_Cart_create() assign a rank that may be different from the COMM_WORLD rank!
         // But we'll only ever use the comm_2d rank
         MPI_Comm_rank(comm_2d, &MPI_rank);
-        sprintf(NodeString,".%04d",MPI_rank);
+        NodeString = fmt::format(".{:04d}",MPI_rank);
 
         // Now establish this node's 2D rank
         int coords[ndims];

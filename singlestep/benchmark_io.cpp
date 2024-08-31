@@ -15,7 +15,7 @@
     }
     
     P.ReadParameters(argv[1],0);
-    strcpy(WriteState.ParameterFileName, argv[1]);
+    WriteState.ParameterFileName = argv[1];
 
     setup_log(); // STDLOG and assertf now available
     STDLOG(0,"Read Parameter file {:s}\n", argv[1]);

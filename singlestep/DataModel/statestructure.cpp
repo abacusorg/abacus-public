@@ -36,10 +36,10 @@ public:
     int order_state;
     
     fs::path ParameterFileName;   // State must contain a pointer to the Parameter file
-    char CodeVersion[1024];
-    char OutputFormatVersion[1024];
-    char RunTime[1024];
-    char MachineName[1024];
+    std::string CodeVersion;
+    std::string OutputFormatVersion;
+    std::string RunTime;
+    std::string MachineName;
     int NodeRankX;   // The MPI X rank, 0 if serial
     int NodeRankZ;   // The MPI Z rank, 0 if serial or 1D
     int NodeSizeX;   // The MPI X size, 1 if serial
@@ -47,7 +47,7 @@ public:
     double ppd;		// Particles per dimension
     int64 ippd;     // The closest integer value to NP^(1/3)
     int DoublePrecision;  // =1 if code is using double precision positions
-    char SofteningType[128];  // The force law.  This is here because it's a compile-time parameter.
+    std::string SofteningType;  // The force law.  This is here because it's a compile-time parameter.
     double SofteningLengthNow;  // Effective Plummer length, used for timestepping.  Same units as BoxSize.
     double SofteningLengthNowInternal;  // The equivalent length for the current softening technique.  Same units as BoxSize.
 
@@ -122,8 +122,8 @@ public:
     // files.  We will collect that information here.
     std::string output_header;
     void make_output_header();
-    const char *header() { 
-    	return output_header.c_str(); 	// Standard C-style char[] string
+    std::string header() { 
+    	return output_header;
     }
     int DoTimeSliceOutput;
     int OutputIsAllowed;
@@ -136,7 +136,7 @@ public:
     int DidGroupFindingOutput;  // did we already do group output on the positions in this state?
     int LastTimeSliceOutput;  // index of the most recent time slice
     int LastSubsampleOutput;  // index of the most recent time slice subsample
-    char GroupFindingDensitySource[128];
+    std::string GroupFindingDensitySource;
     
     double LPTVelScale;  // normalization for the aux compression of the LPT vel
 
@@ -145,7 +145,7 @@ public:
     int StripeState;
     int StripeConvState;
 
-    char Pipeline[64];
+    std::string Pipeline;
 
     fs::path LogDirectory;  // step-numbered log directory
 
@@ -181,19 +181,13 @@ public:
     	installscalar("ParameterFileName",ParameterFileName,DONT_CARE);
     	installscalar("ppd",ppd,DONT_CARE);
         installscalar("SofteningType", SofteningType,DONT_CARE);
-        installvector("SofteningLengthNow", &SofteningLengthNow, LEN_DONTNEED, 2, 0, MUST_DEFINE);
+        installscalar("SofteningLengthNow", SofteningLengthNow, MUST_DEFINE);
         installscalar("SofteningLengthNowInternal", SofteningLengthNowInternal,MUST_DEFINE);
 
-    	sprintf(CodeVersion,"version_not_defined");
+    	CodeVersion = "version_not_defined";
     	installscalar("CodeVersion",CodeVersion,DONT_CARE);
-    	sprintf(OutputFormatVersion,"version_not_defined");
+    	OutputFormatVersion = "version_not_defined";
     	installscalar("OutputFormatVersion",OutputFormatVersion,DONT_CARE);
-        // These will now be set in BuildWriteState();
-        // Don't bother loading these in ReadState
-    	// time_t timet = time(0);
-    	// string now = string(asctime(localtime(&timet)));
-    	// sprintf(RunTime,"%s",now.substr(0,now.length()-1).c_str()); //valid
-    	// gethostname(MachineName,1024); //valid
     	installscalar("DoublePrecision",DoublePrecision, DONT_CARE);
 
         installscalar("ScaleFactor",ScaleFactor, MUST_DEFINE);
@@ -320,15 +314,15 @@ void State::read_from_file(const fs::path &fn) {
 
 
 #define PRQUOTEME(X) #X
-#define WPR(X,XSYM) {int ret = snprintf(tmp, 1024, PRQUOTEME(%26s = %XSYM\n), PRQUOTEME(X), X); assert(ret >= 0 && ret < 1024); ss << tmp;}
-#define WPRS(X,XSYM) {int ret = snprintf(tmp, 1024, "%26s = \"%s\" \n", PRQUOTEME(X), X); assert(ret >= 0 && ret < 1024); ss << tmp;}
+#define WPR(X,XSYM) {ss << fmt::format(PRQUOTEME({:>26} = {:XSYM}\n), PRQUOTEME(X), X);}
+#define WPRS(X,XSYM) {ss << fmt::format("{:>26} = \"{}\" \n", PRQUOTEME(X), X);}
 
 void State::make_output_header() {
     // We're going to output most, but not all of the fields, into a 
     // nice header.  This will be prepended to many output files.
     // It also will get used to write the state.
     // Only those items that are setup in BuildWriteState should be in here.
-    char tmp[1024];
+    
     std::stringstream ss;
 
     WPRS(Pipeline                 , s);

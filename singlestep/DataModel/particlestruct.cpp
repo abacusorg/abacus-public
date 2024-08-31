@@ -318,9 +318,7 @@ public:
     }
 
     std::string tostring(){
-        std::stringstream stream;
-        stream << "0x" << std::hex << aux << std::hex << aux2;
-        return stream.str();
+        return fmt::format("0x{:016x}{:08x}", static_cast<long unsigned int>(aux), static_cast<unsigned int>(aux2));
     }    
 };
 

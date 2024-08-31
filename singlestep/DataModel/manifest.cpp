@@ -59,7 +59,7 @@ class DependencyRecord {
     DependencyRecord() { begin = end = 0; }
 
     /// Load the status of this dependency 
-    void Load(SlabDependency *d, int finished_slab, const char label[]) {
+    void Load(SlabDependency *d, int finished_slab, const std::string &label) {
         end = finished_slab;
 		
         // Don't look past the slabs this node owns

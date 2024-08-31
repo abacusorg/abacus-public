@@ -17,17 +17,19 @@ void BuildWriteState(double da){
         
 	// Fill in the logistical reporting fields
 #ifdef GITVERSION
-	STDLOG(0,"Git Hash = %s\n", GITVERSION);
-	strncpy(WriteState.CodeVersion, GITVERSION, 1024);
+	STDLOG(0,"Git Hash = {:s}\n", GITVERSION);
+	WriteState.CodeVersion = GITVERSION;
 #endif
-	strncpy(WriteState.OutputFormatVersion, "v2.2", 1024);
+	WriteState.OutputFormatVersion = "v2.2";
         // v2.0 is the first versioned format (so named because this was the Abacus release version at the time)
         // v2.0 uses RVint with the full 2**20 range; halo_info at 296 bytes.
         // v2.2 uses RVint with a 1,000,000 range; halo_info at 296 bytes.
 	time_t timet = time(0);
 	string now = string(asctime(localtime(&timet)));
-	sprintf(WriteState.RunTime,"%s",now.substr(0,now.length()-1).c_str());
-	gethostname(WriteState.MachineName,1024);
+	WriteState.RunTime = now.substr(0,now.length()-1);
+    char hostname[1024];
+	gethostname(hostname,1024);
+    WriteState.MachineName = hostname;
     WriteState.NodeRankX = MPI_rank_x;
     WriteState.NodeRankZ = MPI_rank_z;
     WriteState.NodeSizeX = MPI_size_x;
@@ -106,16 +108,16 @@ void BuildWriteState(double da){
 
     // Now scale the softening to match the minimum Plummer orbital period
 #if defined DIRECTCUBICSPLINE
-    strcpy(WriteState.SofteningType, "cubic_spline");
+    WriteState.SofteningType = "cubic_spline";
     WriteState.SofteningLengthNowInternal = WriteState.SofteningLengthNow * 1.10064;
 #elif defined DIRECTSINGLESPLINE
-    strcpy(WriteState.SofteningType, "single_spline");
+    WriteState.SofteningType ="single_spline";
     WriteState.SofteningLengthNowInternal = WriteState.SofteningLengthNow * 2.15517;
 #elif defined DIRECTCUBICPLUMMER
-    strcpy(WriteState.SofteningType, "cubic_plummer");
+    WriteState.SofteningType = "cubic_plummer";
     WriteState.SofteningLengthNowInternal = WriteState.SofteningLengthNow * 1.;
 #else
-    strcpy(WriteState.SofteningType, "plummer");
+    WriteState.SofteningType = "plummer";
     WriteState.SofteningLengthNowInternal = WriteState.SofteningLengthNow;
 #endif
 }

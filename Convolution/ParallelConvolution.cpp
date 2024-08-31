@@ -367,9 +367,8 @@ void ParallelConvolution::AllocDerivs(){
 void ParallelConvolution::LoadDerivatives(int z) {
 	int z_file = z + zstart;	
 
-    const char *f32str = sizeof(DFLOAT) == 4 ? "_float32" : "";
-	const char *twoDstr = MPI_size_z > 1 ? "_2D" : "";
-	const char *fnfmt = "%s/fourierspace%s%s_%d_%d_%d_%d_%d";
+    const std::string f32str = sizeof(DFLOAT) == 4 ? "_float32" : "";
+	const std::string twoDstr = MPI_size_z > 1 ? "_2D" : "";
 	
     // note the derivatives are stored in z-slabs, not x-slabs
     fs::path fn = P.DerivativesDirectory / fmt::format(

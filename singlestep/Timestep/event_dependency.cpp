@@ -19,7 +19,7 @@ class EventDependency : public Dependency {
     virtual int action() = 0;
 
 public:
-    EventDependency(const char *name) : Dependency(name) { }
+    EventDependency(const std::string &name) : Dependency(name) { }
 
     int Attempt(){
         

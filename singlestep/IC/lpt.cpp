@@ -164,7 +164,7 @@ void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
         /*
         // If we were only supplied with Zel'dovich displacements, then construct the linear theory velocity
         // Or, if we're doing 3LPT, then we also want the ZA velocity for the next step
-        else if(strcmp(P.ICFormat, "Zeldovich") == 0 || P.LagrangianPTOrder > 2){
+        else if(P.ICFormat == "Zeldovich" || P.LagrangianPTOrder > 2){
             // TODO: where are we applying f_growth in the RVZel path?
             vel1 = WriteState.f_growth*displ1*convert_velocity;
         }*/

@@ -1367,13 +1367,10 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
     AA->initialize(L0TimeSlice, slab, CP->cpd, ReadState.VelZSpace_to_Canonical);
 
     // add the ParseHeader
-    AA->addheader((const char *) P.header());
-    AA->addheader((const char *) ReadState.header());
-    char head[1024];
-    sprintf(head, "\nOutputType = \"L0TimeSlice\"\n"); 
-    AA->addheader((const char *) head);
-    sprintf(head, "SlabNumber = %d\n", slab);
-    AA->addheader((const char *) head);
+    AA->addheader(P.header());
+    AA->addheader(ReadState.header());
+    AA->addheader("\nOutputType = \"L0TimeSlice\"\n");
+    AA->addheader(fmt::format("SlabNumber = {:d}\n", slab));
     // For sanity, be careful that the previous lines end with a \n!
     AA->finalize_header();
 
@@ -1427,7 +1424,7 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
                         posstruct _p = pos[pi] - offset;
                         velstruct _v = vel[pi] - TOFLOAT3(acc[pi])*unkick_factor;
                         AA->addparticle(j, _p, _v, aux[pi]);
-                        if (strcmp(P.OutputFormat,"Pack9")==0) pTimeSlicePIDs->append(TaggedPID(aux[pi]));
+                        if (P.OutputFormat == "Pack9") pTimeSlicePIDs->append(TaggedPID(aux[pi]));
                         n_added++;
                     }
                     AA->endcell(j);
@@ -1442,7 +1439,7 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
 
     }
 
-    if (strcmp(P.OutputFormat,"Pack9")==0){
+    if (P.OutputFormat == "Pack9"){
         SB->AllocateSpecificSize(L0TimeSlicePIDs, slab, TimeSlicePIDs.get_slab_bytes());
         TimeSlicePIDs.copy_to_ptr((TaggedPID *)SB->GetSlabPtr(L0TimeSlicePIDs, slab));
         SB->StoreArenaNonBlocking(L0TimeSlicePIDs, slab);

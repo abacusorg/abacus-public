@@ -33,15 +33,15 @@ void GetAD(int maxorder) {
     
     for(int a=0;a<ODIM;a+=2) for(int b=0;b<ODIM;b+=2) AD[a][b] = 0;
 
-    FILE *fp = fopen("Order32","r"); //reads in infinite lattice derivs from file, Order32?
-    assert(fp!=NULL);
-    char num[256];
+    std::ifstream fp("Order32"); //reads in infinite lattice derivs from file, Order32?
+    assert(fp.is_open());
+    std::string num;
     for(int i=0; i<79; i++) {
         int a, b;
-        int dummy = fscanf(fp,"%d %d %s",&a, &b, num);
+        fp >> a >> b >> num;
         AD[a][b] = qd_real(num);
     }
-    fclose(fp);
+    fp.close();
 
     for(int a=0;a<ODIM;a+=2) 
         for(int b=0;b<a;b+=2) 

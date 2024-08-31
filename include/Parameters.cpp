@@ -26,7 +26,7 @@ NB: When adding parameters, you should add:
 class Parameters: public ParseHeader {
 public:
     
-    char SimName[1024]; //What to call this run
+    std::string SimName; //What to call this run
     long long int np;
     int cpd;
     int order;
@@ -41,8 +41,8 @@ public:
     double  ConvolutionL1CacheSizeMB; // Set to manually override the detected cache size
     int AllowDirectIO;        // ==1 for a normal disk, ==0 for a ramdisk or sometimes network file system
     int ForceBlockingIO;   // ==1 if you want to force all IO to be blocking.
-    char StateIOMode[64];  //  "normal", "slosh", "overwrite", "stripe"
-    char Conv_IOMode[64];  //  "normal", "slosh", "overwrite", "stripe"
+    std::string StateIOMode;  //  "normal", "slosh", "overwrite", "stripe"
+    std::string Conv_IOMode;  //  "normal", "slosh", "overwrite", "stripe"
     
     int OMP_NUM_THREADS;  // Number of OpenMP threads.  0 does not modify the system value (usually OMP_NUM_THREADS, or all threads).
                         // Negative values use that many fewer than the max.
@@ -90,7 +90,7 @@ public:
     fs::path BackupDirectory; // The directory from which to restore backups (the Python code also writes backups here)
     
     int OutputEveryStep; //Force timeslices to be output every step if 1
-    char OutputFormat[1024];                // The format of the Output files
+    std::string OutputFormat;                // The format of the Output files
     int  OmitOutputHeader;                // =1 if you want to skip the ascii header
 
     double FinalRedshift;        // When to stop.  This will override TimeSliceRedshifts.
@@ -252,9 +252,9 @@ public:
         ForceBlockingIO = 0;
         installscalar("ForceBlockingIO",ForceBlockingIO,DONT_CARE);
 
-        sprintf(StateIOMode, "normal");
+        StateIOMode = "normal";
         installscalar("StateIOMode", StateIOMode, DONT_CARE);
-        sprintf(Conv_IOMode, "normal");
+        Conv_IOMode = "normal";
         installscalar("Conv_IOMode", Conv_IOMode, DONT_CARE);
 
         OMP_NUM_THREADS = 0;
@@ -333,8 +333,8 @@ public:
         installscalar("ParticleSubsampleA", ParticleSubsampleA, DONT_CARE);
         installscalar("ParticleSubsampleB", ParticleSubsampleB, DONT_CARE); 
 		
-        strcpy(OutputFormat,"RVdouble");
-        // strcpy(OutputFormat,"Packed");
+        OutputFormat = "RVdouble";
+        // OutputFormat = "Packed";
         installscalar("OutputFormat",OutputFormat,DONT_CARE);
         OmitOutputHeader = 0;
         installscalar("OmitOutputHeader",OmitOutputHeader,DONT_CARE);
@@ -398,15 +398,7 @@ public:
         Conv_zwidth = -1;
         installscalar("Conv_zwidth", Conv_zwidth, DONT_CARE);
 
-        // Using staticly allocated memory didn't seem to work with installvector
-        IODirs = (char**) malloc(MAX_IODIRS*sizeof(char*));
-        char *block = (char *) malloc(MAX_IODIRS*1024*sizeof(char));
-        for(int i = 0; i < MAX_IODIRS; i++){
-            IODirs[i] = block + 1024*i;
-            strcpy(IODirs[i], STRUNDEF);
-            IODirThreads[i] = -1;
-        }
-        installvector("IODirs", IODirs, &nIODirs, MAX_IODIRS, 1024, DONT_CARE);
+        installvector("IODirs", IODirs, &nIODirs, MAX_IODIRS, 1, DONT_CARE);
         installvector("IODirThreads", IODirThreads, LEN_DONTNEED, MAX_IODIRS, 1, DONT_CARE);
 
         // If GPUThreadCoreStart is undefined, GPU threads will not be bound to cores
@@ -494,10 +486,8 @@ public:
     HeaderStream *hs;
     ~Parameters(void) {
         delete hs;
-        free(IODirs[0]);
-        free(IODirs);
     }
-    char *header() { 
+    std::string header() { 
         assert(hs!=NULL); assert(hs->buffer!=NULL);
         return hs->buffer;        // This is just a standard C-style string.
     }
@@ -554,10 +544,9 @@ private:
     void SortTimeSlices();
 };
 
-// Convert a whole string to lower case, in place.
-void strlower(char* str){
-    for ( ; *str; ++str)
-        *str = tolower(*str);
+void strlower(std::string &str){
+    for (int i = 0; i < str.size(); i++)
+        str[i] = tolower(str[i]);
 }
 
 void Parameters::SortTimeSlices(){
@@ -794,20 +783,20 @@ void Parameters::ValidateParameters(void) {
         assert(IODirThreads[i] >= 1);
 
     assertf(
-        strcmp(StateIOMode, "normal") == 0 ||
-        strcmp(StateIOMode, "overwrite") == 0 ||
-        strcmp(StateIOMode, "slosh") == 0 ||
-        strcmp(StateIOMode, "stripe") == 0,
-        "StateIOMode = \"%s\" must be one of normal, overwrite, slosh, stripe.",
+        (StateIOMode == "normal") ||
+        (StateIOMode == "overwrite") ||
+        (StateIOMode == "slosh") ||
+        (StateIOMode == "stripe"),
+        "StateIOMode = \"{:s}\" must be one of normal, overwrite, slosh, stripe.",
         StateIOMode
         );
 
     assertf(
-        strcmp(Conv_IOMode, "normal") == 0 ||
-        strcmp(Conv_IOMode, "overwrite") == 0 ||
-        strcmp(Conv_IOMode, "slosh") == 0 ||
-        strcmp(Conv_IOMode, "stripe") == 0,
-        "Conv_IOMode = \"%s\" must be one of normal, overwrite, slosh, stripe.",
+        (Conv_IOMode == "normal") ||
+        (Conv_IOMode == "overwrite") ||
+        (Conv_IOMode == "slosh") ||
+        (Conv_IOMode == "stripe"),
+        "Conv_IOMode = \"{:s}\" must be one of normal, overwrite, slosh, stripe.",
         Conv_IOMode
         );
 

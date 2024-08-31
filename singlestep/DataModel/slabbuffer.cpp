@@ -345,15 +345,13 @@ int SlabBuffer::WantChecksum(int type){
 fs::path SlabBuffer::WriteSlabPath(int type, int slab) {
     slab = Grid->WrapSlab(slab);
 
-    char slabnum[16];
+    std::string slabstr;
     if(P.NumZRanks > 1)
-        sprintf(slabnum,"%04d.%03d",slab,MPI_rank_z);
+        slabstr = fmt::format("{:04d}.{:03d}", slab, MPI_rank_z);
     else
-        sprintf(slabnum,"%04d",slab);
-    char stepnum[8]; sprintf(stepnum,"%04d",ReadState.FullStepNumber);
-    char redshift[16]; sprintf(redshift, "%5.3f", ReadState.Redshift);
-    std::stringstream ss;
-    std::string s;
+        slabstr = fmt::format("{:04d}", slab);
+    std::string stepstr = fmt::format("{:04d}", ReadState.FullStepNumber);
+    std::string zstr = fmt::format("{:5.3f}", ReadState.Redshift);
 
     if (type >= LightCone0RV && type < NumTypes) {
         int lcn = (type - LightCone0RV) / 3;
@@ -418,13 +416,11 @@ fs::path SlabBuffer::WriteSlabPath(int type, int slab) {
 fs::path SlabBuffer::ReadSlabPath(int type, int slab) {
     slab = Grid->WrapSlab(slab);
 
-    char slabnum[16];
+    std::string slabstr;
     if(P.NumZRanks > 1)
-        sprintf(slabnum,"%04d.%03d",slab,MPI_rank_z);
+        slabstr = fmt::format("{:04d}.{:03d}", slab, MPI_rank_z);
     else
-        sprintf(slabnum,"%04d",slab);
-    std::stringstream ss;
-    std::string s;
+        slabstr = fmt::format("{:04d}", slab);
 
     switch(type) {
         case TaylorSlab     : {

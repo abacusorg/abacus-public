@@ -17,7 +17,7 @@ enum SpinFlag { NOT_ENOUGH_RAM, WAITING_FOR_IO, WAITING_FOR_GPU, WAITING_FOR_MPI
 
 class Dependency {
 public:
-    const char *name;
+    std::string name;
 
     STimer action_timer;
     STimer precon_timer;
@@ -26,7 +26,7 @@ public:
 
     virtual int Attempt() = 0;
 
-    Dependency(const char* _name) : name(_name) { }
+    Dependency(const std::string &name) : name(name) { }
     virtual ~Dependency() { }
     
     double Elapsed(){
@@ -66,8 +66,8 @@ public:
     virtual int precondition(int slab) = 0;
     virtual void action(int slab) = 0;
 
-    SlabDependency(const char* _name, int _cpd, int _initialslab)
-            : Dependency(_name),
+    SlabDependency(const std::string &name, int _cpd, int _initialslab)
+            : Dependency(name),
               cpd(_cpd) {
         
         _executed_status = new int[cpd];

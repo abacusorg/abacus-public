@@ -149,7 +149,7 @@ void GatherTimings() {
 #define ACCUMULATE_THREAD_TOTALS(NAME, RW)\
     do{\
         for (auto &iter : NAME##Time){\
-            if(GetIOThread(iter.first.c_str())-1 == i){\
+            if(GetIOThread(iter.first)-1 == i){\
                 total_##RW##_time += iter.second.Elapsed();\
                 total_##RW##_bytes += NAME##Bytes[iter.first];\
             }\

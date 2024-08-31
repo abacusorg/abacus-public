@@ -298,7 +298,7 @@ void InitializeParallel(int &size, int &rank, int rml, int CPD) {
          assertf(ret>=MPI_THREAD_FUNNELED, "MPI_Init_thread() claims not to support MPI_THREAD_FUNNELED.\n");
          MPI_Comm_size(MPI_COMM_WORLD, &size);
          MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-         sprintf(NodeString,".%04d",rank);
+         NodeString = fmt::format(".{:04d}", rank);
 		 
   		 MPI_Type_contiguous(rml*CPD, MPI_MTCOMPLEX, &MPI_skewer);
   		 MPI_Type_commit(&MPI_skewer);
@@ -352,37 +352,37 @@ int main(int argc, char ** argv){
         STDLOG(1, "Using L3 cache size {:f} MB\n", CP.runtime_ConvolutionCacheSizeMB);
         STDLOG(1, "Using L1 cache size {:f} MB\n", CP.runtime_ConvolutionL1CacheSizeMB);
 	    CP.runtime_DerivativeExpansionRadius = P.DerivativeExpansionRadius;
-	    strcpy(CP.runtime_DerivativesDirectory,P.DerivativesDirectory);
+	    CP.runtime_DerivativesDirectory = P.DerivativesDirectory;
 	    CP.runtime_DIOBufferSizeKB = 1LL<<11;
 	    CP.runtime_AllowDIO = P.AllowDirectIO;
 	    CP.runtime_MaxConvolutionRAMMB = P.MAXRAMMB;
-	    strcpy(CP.runtime_MultipoleDirectory, P.MultipoleDirectory);
+	    CP.runtime_MultipoleDirectory =  P.MultipoleDirectory;
 
         CP.ProfilingMode = P.ProfilingMode;
 
-	    sprintf(CP.runtime_MultipolePrefix, "Multipoles");
+	    CP.runtime_MultipolePrefix = "Multipoles";
 	    CP.runtime_NearFieldRadius = P.NearFieldRadius;
-	    strcpy(CP.runtime_TaylorDirectory, P.TaylorDirectory);
+	    CP.runtime_TaylorDirectory = P.TaylorDirectory;
 	    CP.runtime_cpd = P.cpd;
 	    CP.runtime_order = P.order;
         CP.rml = (P.order+1)*(P.order+1);
         CP.CompressedMultipoleLengthXY = ((1+P.cpd)*(3+P.cpd))/8;
-	    sprintf(CP.runtime_TaylorPrefix, "Taylor");
+	    CP.runtime_TaylorPrefix = "Taylor";
         
-        CP.StripeConvState = strcmp(P.Conv_IOMode, "stripe") == 0;
-        CP.OverwriteConvState = strcmp(P.Conv_IOMode, "overwrite") == 0;
+        CP.StripeConvState = P.Conv_IOMode == "stripe";
+        CP.OverwriteConvState = P.Conv_IOMode == "overwrite";
 
         // Determine number of IO threads
         CP.niothreads = 1;
-        if(strcmp(P.MultipoleDirectory2,STRUNDEF) != 0){
-            strcpy(CP.runtime_MultipoleDirectory2,P.MultipoleDirectory2);
+        if(P.MultipoleDirectory2 != STRUNDEF){
+            CP.runtime_MultipoleDirectory2 = P.MultipoleDirectory2;
 #ifdef CONVIOTHREADED
             // Two IO threads if we were given two Multipole directories
             CP.niothreads = 2;
 #endif
         }
-        if(strcmp(P.TaylorDirectory2,STRUNDEF) != 0){
-            strcpy(CP.runtime_TaylorDirectory2,P.TaylorDirectory2);
+        if(P.TaylorDirectory2 != STRUNDEF){
+            CP.runtime_TaylorDirectory2 = P.TaylorDirectory2;
 #ifdef CONVIOTHREADED
             CP.niothreads = 2;
 #endif

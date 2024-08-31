@@ -55,7 +55,7 @@
 class qd_real {
 public:
     // public constructors
-    inline qd_real(const char *s) {
+    inline qd_real(const std::string &s) {
         if (read(s, *this)) {
             qd_real::error("(qd_real::qd_real): INPUT ERROR.");
             *this = qd_real::_nan;
@@ -108,7 +108,7 @@ public:
     friend qd_real operator*(const int a, const qd_real& b);
 
     // between qd_real's and character strings
-    inline qd_real& operator=(const char *s);
+    inline qd_real& operator=(const std::string &s);
 
     // checking for problems
     inline bool isnan() const {
@@ -290,9 +290,9 @@ private:
      fmt::print(std::cerr, "ERROR {}\n", msg);
     }
 
-    int read(const char *s, qd_real &qd) const;
-    void to_digits(char *s, int &expn, int precision) const;
-    void write(char *s, int len, int precision, bool showpos) const;
+    int read(const std::string &s, qd_real &qd) const;
+    std::string to_digits(int &expn, int precision) const;
+    std::string write(int len, int precision, bool showpos) const;
     void append_expn(std::string &str, int expn) const;
     std::string to_string(int precision, int width,
                           std::ios_base::fmtflags fmt,
@@ -783,7 +783,7 @@ inline qd_real& qd_real::operator=(const int& other) {
     return *this;
 }
 
-inline qd_real& qd_real::operator=(const char *s) {
+inline qd_real& qd_real::operator=(const std::string &s) {
     if (read(s, *this)) {
         qd_real::error("(qd_real::operator=): INPUT ERROR.");
         *this = qd_real::_nan;
@@ -2022,8 +2022,8 @@ qd_real polyeval(const qd_real *c, int n, const qd_real &x) {
 // I/O
 
 /* Read a quad-double from s. */
-int qd_real::read(const char *s, qd_real &qd) const {
-    const char *p = s;
+int qd_real::read(const std::string &s, qd_real &qd) const {
+    const char *p = s.c_str();
     char ch;
     int sign = 0;
     int point = -1;  /* location of decimal point */
@@ -2091,7 +2091,8 @@ int qd_real::read(const char *s, qd_real &qd) const {
     return 0;
 }
 
-void qd_real::to_digits(char *s, int &expn, int precision) const {
+void qd_real::to_digits(std::string &str, int &expn, int precision) const {
+    char *s = str.c_str();
     int D = precision + 1;  /* number of digits to compute */
 
     qd_real r = abs(*this);
@@ -2184,11 +2185,8 @@ void qd_real::to_digits(char *s, int &expn, int precision) const {
    The integer d specifies how many significant digits to write.
    The string s must be able to hold at least (d+8) characters.  
    showpos indicates whether to use the + sign.  */
-void qd_real::write(char *s, int len, int precision, bool showpos) const {
-    std::string str = to_string(precision, 0, 
-                                std::ios_base::scientific, showpos, ' ');
-    strncpy(s, str.c_str(), len-1);
-    s[len-1] = 0;
+std::string qd_real::write(int precision, bool showpos) const {
+    return to_string(precision, 0,  std::ios_base::scientific, showpos, ' ');
 }
 
 void qd_real::append_expn(std::string &str, int expn) const {
@@ -2312,7 +2310,7 @@ std::string qd_real::to_string(int precision, int width,
 }
 
 std::istream &operator>>(std::istream &s, qd_real &qd) {
-    char str[255];
+    std::string str;
     s >> str;
     qd = qd_real(str);
     return s;

@@ -1002,7 +1002,7 @@ public:
 class NoopDep : public SlabDependency {
 public:
     NoopDep(int cpd)
-        : SlabDependency(NULL, cpd, 0){
+        : SlabDependency("NOOP", cpd, 0){
         
         number_of_slabs_executed = cpd;
         raw_number_executed = cpd;
@@ -1017,7 +1017,7 @@ public:
 
 class NoopEvent : public EventDependency {
 public:
-    NoopEvent() : EventDependency(NULL){ }
+    NoopEvent() : EventDependency("NOOP"){ }
 
     int precondition(){ return 1; }
     int action(){ return 0; }

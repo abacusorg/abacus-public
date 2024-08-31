@@ -268,7 +268,7 @@ void CheckGPUCPU(int nslab, int *NPslab, FLOAT3 ** a_gpu, FLOAT3 ** a_cpu, int m
         fmt::print("\tCross-checking GPU-CPU accelerations...");
     
     double tol = mode == 1 ? 0 : 1e-1;
-    const char* cpu_str = mode == 1 ? "GPU 2" : "CPU";
+    const std::string cpu_str = mode == 1 ? "GPU 2" : "CPU";
 
     for(int i = NFR; i < nslab-NFR; i++){
         NP += NPslab[i];

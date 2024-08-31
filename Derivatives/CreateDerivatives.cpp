@@ -14,7 +14,7 @@
         typedef double qd_real;
         #define to_double(x) x;
         #define to_qd_real(x) x;
-        #define qd_real(x) atof(x);
+        #define qd_real(x) std::stod(x);
 #endif
         
 

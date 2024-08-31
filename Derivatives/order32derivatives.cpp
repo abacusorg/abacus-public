@@ -35,7 +35,7 @@ Order32Derivatives::Order32Derivatives(int inner) : inner(inner)  {
         fmt::print(stderr,"file data does not agree with arguments\n");
         exit(1);
     }
-    char num[1024];
+    std::string num;
     for(int a=0; a<=32; a+=2) {
         for(int b=a; b<=32-a; b+=2) {
             int atmp, btmp;

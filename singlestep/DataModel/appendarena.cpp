@@ -160,16 +160,11 @@ class AppendArena {
         p->next+=size; 
     }
 
-    inline void addheader(const char *c) {
+    inline void addheader(const std::string &c) {
         // Write the given string to the arena, without the final \0.
-        int size = 0;
-        while (*c!='\0') {
-            *startdata = *c;
-            startdata++; c++; bytes++;
-        }
-    }
-    inline void addheader(char *c) {
-        addheader((const char *)c);
+        int size = c.size() - 1;
+        memcpy(startdata, c.c_str(), size);
+        startdata += size; bytes += size;
     }
 
     void finalize_header() {

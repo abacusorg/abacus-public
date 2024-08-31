@@ -173,7 +173,7 @@ class Manifest {
     pthread_t thread;	///< The thread object
     int launched;	///< =1 if the thread was launced
 
-    char RecNodeString[7];     // The node string we're reading from
+    std::string RecNodeString;     // The node string we're reading from
 
     Manifest() {
     	m.numarenas = m.numil = m.numlinks = m.numdep = 0;
@@ -251,7 +251,7 @@ void SetupManifest() {
     #ifdef PARALLEL
     int rank = MPI_rank+1;
     if (rank>=MPI_size) rank-=MPI_size;
-    sprintf(ReceiveManifest->RecNodeString,".%04d", rank);
+    RecNodeString = fmt::format(".{:04d}", rank);
     #ifdef IOTHREADED
         // The following routines turn on the non-blocking I/O
         // For now we tie this to IO Threading, but it's not the same threads
