@@ -61,7 +61,7 @@ endif
 MAXORDER := @MAXORDER@
 
 # Really only singlestep and friends should use the following libs. It's not safe to link everything against all the libs here (e.g. tcmalloc)
-SINGLESTEP_LIBS := @LIBS@
+SINGLESTEP_LIBS := @LIBS@ -lstdc++fs
 
 # Some of this setup could surely be done inside configure
 # I think that mostly makes sense for external dependencies,

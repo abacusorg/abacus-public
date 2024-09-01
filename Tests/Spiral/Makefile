@@ -1,9 +1,9 @@
 ROOT_DIR := ../..
 include $(ROOT_DIR)/common.mk
 
-CXXFLAGS := -O3 $(THREAD_LIBS)
+CXXFLAGS += $(THREAD_LIBS)
 CPPFLAGS += $(THREAD_CPPFLAGS) -DDOUBLE_PRECISION
-LIBS := $(FFTW_LIBS)
+LIBS := $(FFTW_LIBS) -lstdc++fs
 
 all:makespiralics makeanalytic
 
