@@ -752,7 +752,6 @@ enable_gpu_convolution
 enable_fof_density
 enable_spherical_overdensity
 enable_parallel
-with_max_gpus
 with_softening
 with_cache_line
 with_page_size
@@ -1443,7 +1442,6 @@ Optional Packages:
   --with-max-order=O      Maximum multipole order [8]
   --with-cuda=PREFIX      Prefix of your CUDA installation [$CUDA_HOME or
                           $CUDA_DIR or $CUDAPATH or /usr/local/cuda]
-  --with-max-gpus=M       Maximum number of GPUs to use [auto]
   --with-softening={plummer | single_spline | cubic_spline | cubic_plummer}
                           Near-force softening technique [single_spline]
   --with-cache-line=N     Cache line size in bytes [auto]
@@ -7591,23 +7589,6 @@ printf "%s\n" "compute capability $CUDA_ARCH" >&6; }
 fi
 
 
-# Check whether --with-max-gpus was given.
-if test ${with_max_gpus+y}
-then :
-  withval=$with_max_gpus;
-else case e in #(
-  e) with_max_gpus=32 ;;
-esac
-fi
-
-if test x$with_max_gpus == xauto; then
-    with_max_gpus=$NGPU
-fi
-
-printf "%s\n" "#define MAX_GPUS $with_max_gpus" >>confdefs.h
-
-
-
 # Check whether --with-softening was given.
 if test ${with_softening+y}
 then :
@@ -8051,7 +8032,6 @@ echo
 # These are configurable but uncommon to change
 #echo "Maximum CPD:                     $with_max_cpd"
 #echo "Maximum source length:           $with_max_source_length"
-#echo "Maximum GPUs:                    $with_max_gpus"
 #echo "Ramdisk path:                    $with_ramdisk"
 
 cat >confcache <<\_ACEOF

@@ -263,18 +263,14 @@ void SetInteractionCollection::GPUExecute(int blocking){
 // ====================== GPU configuration =====================
 
 /// Function to get the number of GPUs
-extern "C"
-// Use ./configure --with-max-gpus=1 to force 1 GPU
 int GetNGPU(){
     int ngpu;
     checkCudaErrors(cudaGetDeviceCount(&ngpu));
-    if(ngpu > MAX_GPUS)
-        ngpu = MAX_GPUS;
     return ngpu;
 }
 
 /// Function to get the amount of memory on the GPUs
-extern "C" void GetDeviceInfo(size_t *memGB, std::string &name){
+void GetDeviceInfo(size_t *memGB, std::string &name){
     int ngpu;
     checkCudaErrors(cudaGetDeviceCount(&ngpu));
     *memGB = SIZE_MAX;
@@ -357,7 +353,7 @@ limited by the fraction of CPD**2
 /// Note that we size this to NFRADIUS, which is allowed to be bigger
 /// than P.NearFieldRadius.
 
-extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize, 
+void GPUSetup(int cpd, uint64 MaxBufferSize, 
     int numberGPUs, int bufferperdevice, 
     const std::vector<int> &ThreadCoreStart, int NThreadCores,
     const std::vector<int> &GPUQueueAssignments,
@@ -486,7 +482,7 @@ extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
     init = 1;
 }
 
-extern "C" void StartGPUBufferThreads(){
+void StartGPUBufferThreads(){
     start_gpu_buffer_work = 1;
 }
 

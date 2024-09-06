@@ -1,19 +1,19 @@
 #ifdef CUDADIRECT
 
-extern "C" void GetDeviceInfo(size_t *memGB, std::string &name);
+void GetDeviceInfo(size_t *memGB, std::string &name);
 
-extern "C" int GetNGPU();
-extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
+int GetNGPU();
+extern void GPUSetup(int cpd, uint64 MaxBufferSize,
 		int numberGPUs, int bufferperdevice,
 		const std::vector<int> &ThreadCoreStart, int NThreadCores,
 		const std::vector<int> &GPUQueueAssignments,
 		int *maxsinkblocks, int *maxsourceblocks, int UsePinnedGPUMemory);
-extern "C" void GPUReset();
-extern "C" void StartGPUBufferThreads();
+void GPUReset();
+void StartGPUBufferThreads();
 
-extern "C" void print_gpu_mem_usage();
+void print_gpu_mem_usage();
 
-extern "C" void get_cuda_timers(void*);
+void get_cuda_timers(void*);
 
 // These are the sizes we allocate on the GPU/pinned memory
 extern int MaxSinkBlocks, MaxSourceBlocks;

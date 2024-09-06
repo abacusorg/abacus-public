@@ -197,9 +197,6 @@
 /* "Maximum source length" */
 #undef MAXSOURCELENGTH
 
-/* "Limit on the number of GPUs" */
-#undef MAX_GPUS
-
 /* "Enable multiple MPI communicators" */
 #undef MULTIPLE_MPI_COMM
 
