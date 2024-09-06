@@ -23,7 +23,7 @@ private:
     // This is the main thread loop
     void ThreadWorkLoop(){
         {
-        int io_core = CP.io_cores[thread_num];
+        int io_core = CP.io_cores.at(thread_num);
         if(io_core >= 0){
             set_core_affinity(io_core);
             STDLOG(0, "IO thread {:d} started on core {:d}\n", thread_num, io_core);

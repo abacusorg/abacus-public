@@ -332,14 +332,6 @@ if test x$enable_gpu_directs == xyes; then
     AC_SUBST(CUDA_ARCH)
 fi
 
-AC_ARG_WITH(max-gpus,
-[AS_HELP_STRING([--with-max-gpus=M], [Maximum number of GPUs to use [auto]])],
-	[], with_max_gpus=32)
-if test x$with_max_gpus == xauto; then
-    with_max_gpus=$NGPU
-fi
-AC_DEFINE_UNQUOTED(MAX_GPUS,$with_max_gpus, "Limit on the number of GPUs")
-
 AC_ARG_WITH(softening,
 [AS_HELP_STRING([--with-softening={plummer | single_spline | cubic_spline | cubic_plummer}], [Near-force softening technique [single_spline]])],
 	[], with_softening="single_spline")
@@ -542,7 +534,6 @@ echo
 # These are configurable but uncommon to change
 #echo "Maximum CPD:                     $with_max_cpd"
 #echo "Maximum source length:           $with_max_source_length"
-#echo "Maximum GPUs:                    $with_max_gpus"
 #echo "Ramdisk path:                    $with_ramdisk"
 
 AC_OUTPUT

@@ -9,7 +9,6 @@ ICPositionRange = 1.0
 ICVelocity2Displacement = 1.0
 LightConeDirectory = "./out"
 TimeSliceRedshifts = 0
-nTimeSlice = 1
 GroupRadius = 2
 TimeStepAccel = 0.1
 TimeStepDlna = 0.05

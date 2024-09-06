@@ -245,7 +245,7 @@ void Prologue(Parameters &P, int MakeIC, int NoForces) {
     SetupManifest(2*P.GroupRadius+1);
 
     Grid = new grid(cpd);
-    SB = new SlabBuffer(cpd, order, P.NLightCones);
+    SB = new SlabBuffer(cpd, order, LCOrigin.size());
     CP = new CellParticles(cpd, SB);
 
     STDLOG(2,"Initializing Multipoles\n");
@@ -693,7 +693,7 @@ void InitKernelDensity(){
 }
 
 template<class C, typename T>
-bool contains(C *a, C *b, T e) { return std::find(a, b, e) != b; };
+bool contains(const C &a, const C &b, const T e) { return std::find(a, b, e) != b; };
 
 
 double EvolvingDelta(float z){
@@ -740,12 +740,12 @@ void InitGroupFinding(int MakeIC){
     // Decide if the next step will do group finding
     WriteState.DoGroupFindingOutput = 0;
 
-    for(int i = 0; i < P.nTimeSliceL1; i++){
+    for(int i = 0; i < P.L1OutputRedshifts.size(); i++){
         double L1z = P.L1OutputRedshifts[i];
         double L1a = 1.0/(1+L1z);
 
-        if(contains(P.TimeSliceRedshifts, P.TimeSliceRedshifts + P.nTimeSlice, L1z) || 
-            contains(P.TimeSliceRedshifts_Subsample, P.TimeSliceRedshifts_Subsample + P.nTimeSliceSubsample, L1z)
+        if(contains(P.TimeSliceRedshifts.begin(), P.TimeSliceRedshifts.end(), L1z) || 
+            contains(P.TimeSliceRedshifts_Subsample.begin(), P.TimeSliceRedshifts_Subsample.end(), L1z)
          ) continue;
 
 

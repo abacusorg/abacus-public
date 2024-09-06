@@ -27,8 +27,8 @@ SizeMap BlockingIOReadBytes, BlockingIOWriteBytes;
 SizeMap NonBlockingIOReadBytes, NonBlockingIOWriteBytes;
 
 ChecksumMap FileChecksums;
-double ChecksumTime[MAX_IO_THREADS];
-uint64 ChecksumBytes[MAX_IO_THREADS];
+std::unordered_map<int,double> ChecksumTime;
+std::unordered_map<int,uint64> ChecksumBytes;
 
 int allow_directio_global = 1;    // Set to 0 if we're using a ramdisk, or a network file system
 

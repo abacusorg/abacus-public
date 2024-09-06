@@ -166,7 +166,7 @@ double ChooseTimeStep(int NoForces){
     }
 
     // Perhaps the next output is sooner than this?
-    for (int i = 0; i < P.nTimeSlice; i ++){
+    for (int i = 0; i < P.TimeSliceRedshifts.size(); i ++){
         double tsa = 1.0/(1+P.TimeSliceRedshifts[i]);
         if (ReadState.DoTimeSliceOutput != (i+2) &&
             ReadState.LastTimeSliceOutput != i &&
@@ -186,7 +186,7 @@ double ChooseTimeStep(int NoForces){
     }
     
     // Do we need to output a subsample sooner?
-    for(int i = 0; i < P.nTimeSliceSubsample; i++){
+    for(int i = 0; i < P.TimeSliceRedshifts_Subsample.size(); i++){
         double L1z = P.TimeSliceRedshifts_Subsample[i];
         double L1a = 1.0/(1+L1z);
 

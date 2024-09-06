@@ -91,8 +91,8 @@ public:
         iolog.close();
 
         // Report performance to the global structures
-        ChecksumTime[threadnum-1] += checksum_timer.Elapsed();
-        ChecksumBytes[threadnum-1] += checksum_bytes;
+        ChecksumTime[threadnum] += checksum_timer.Elapsed();
+        ChecksumBytes[threadnum] += checksum_bytes;
     }
 
     void request(iorequest ior){
@@ -419,9 +419,8 @@ void IO_Initialize(const fs::path &logfn, int NumTypes) {
     // Count how many IO threads we need
     // IO thread numbers should be contiguous!
     niothreads = 1;
-    for(int i = 0; i < P.nIODirs; i++)
+    for(int i = 0; i < P.IODirThreads.size(); i++)
         niothreads = max(niothreads, P.IODirThreads[i]);
-    assertf(niothreads < MAX_IO_THREADS, "Too many io threads!\n");
 
     iothreads = new iothread*[niothreads];
     for(int i = 0; i < niothreads; i++){
@@ -474,7 +473,7 @@ void IO_Terminate() {
 // Return the ID of the IO thread that will handle this directory
 // Threads are one-indexed
 int GetIOThread(const fs::path &dir){
-    for(int i = 0; i < P.nIODirs; i++){
+    for(int i = 0; i < P.IODirThreads.size(); i++){
         if(dir == P.IODirs[i]){
             return P.IODirThreads[i];
         }

@@ -168,7 +168,7 @@ void GatherTimings() {
         }\
     } while(0)
 
-    for(int i = 0; i < niothreads; i++){
+    for(int i = 1; i <= niothreads; i++){
         // TODO: could probably move some of this inside the IO thread destructor
         double total_read_time = 0., total_read_bytes = 0.;
         double total_write_time = 0., total_write_bytes = 0.;
@@ -186,7 +186,7 @@ void GatherTimings() {
 
         denom = WallClockDirect.Elapsed();
 #ifdef IOTHREADED
-        std::string threadname = fmt::format("IO Thread {:d}", i+1ll);
+        std::string threadname = fmt::format("IO Thread {:d}", i);
         REPORT(0, threadname, total_time);
 #else
         REPORT(0, "Blocking IO", total_time);

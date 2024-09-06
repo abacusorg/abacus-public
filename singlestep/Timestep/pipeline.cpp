@@ -691,7 +691,7 @@ public:
         if (ReadState.OutputIsAllowed) {
             // TODO: LightCones may need a half un-kick if GFC == NULL
             // but we can probably handle that in the interpolation
-            for(int i = 0; i < P.NLightCones; i++){
+            for(int i = 0; i < LCOrigin.size(); i++){
                 // STDLOG(2,"Outputting LightCone {:d} (origin ({:f},{:f},{:f})) for slab {:d}\n",i,LCOrigin[i].x,LCOrigin[i].y,LCOrigin[i].z,slab);
                 // Start timing
                 // STimer lightConeTimer;

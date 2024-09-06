@@ -49,7 +49,7 @@ def run(plot=True):
 
     #run the problem
     abacus.run('spiral.par2', clean=True, erase_ic=False,
-                param_kwargs=dict(NP = n1d**3, nTimeSlice=1, TimeSliceRedshifts=1/astop -1, SofteningLength=sf, InitialRedshift=1/ainitial - 1, BoxSize=BoxSize)
+                param_kwargs=dict(NP = n1d**3, TimeSliceRedshifts=1/astop -1, SofteningLength=sf, InitialRedshift=1/ainitial - 1, BoxSize=BoxSize)
               )
     
     #plot the results and check the answer

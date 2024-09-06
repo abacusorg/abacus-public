@@ -94,11 +94,8 @@ public:
     int  OmitOutputHeader;                // =1 if you want to skip the ascii header
 
     double FinalRedshift;        // When to stop.  This will override TimeSliceRedshifts.
-	#define MAX_TIMESLICE_REDSHIFTS 1024
-    int    nTimeSlice;
-    int    nTimeSliceSubsample;
-    double TimeSliceRedshifts[MAX_TIMESLICE_REDSHIFTS];
-	double TimeSliceRedshifts_Subsample[MAX_TIMESLICE_REDSHIFTS];
+    std::vector<double> TimeSliceRedshifts;
+    std::vector<double> TimeSliceRedshifts_Subsample;
 
     #define NUM_SUBSAMPLES 2
 	double ParticleSubsampleA; //a consistently sampled small fraction of particles to output during some output steps. 
@@ -124,10 +121,9 @@ public:
     // Could have microstepping instructions
     // Could have group finding or coevolution set instructions
 
-    int  NLightCones;
     int  OutputFullLightCones;
 
-    double LightConeOrigins[3*125];  // Same units as BoxSize
+    std::vector<double> LightConeOrigins;  // Same units as BoxSize
 
     fs::path LightConeDirectory;
     int LightConeCheckAcrossWrap;  // If 1, check for light cone particles that cross the periodic wrap
@@ -146,29 +142,28 @@ public:
     int GPUMinCellSinks;// If AVX directs are compiled, cells with less than this many particles go to cpu
     int ProfilingMode;//If 1, enable profiling mode, i.e. delete the write-state after creating it to run repeatedly on same dat
     
-    #define MAX_IO_THREADS 16
-    int IOCores[MAX_IO_THREADS];  // The cores that the IO threads will be bound to.  -1 means don't bind
-    #define MAX_IODIRS 100
-    fs::path IODirs[MAX_IODIRS];
-    int nIODirs;
-    int IODirThreads[MAX_IODIRS];
+    std::vector<int> IOCores;  // The cores that the IO threads will be bound to.  -1 means don't bind
+    std::vector<fs::path> IODirs;
+    std::vector<int> IODirThreads;
     
     int Conv_OMP_NUM_THREADS;
-    int Conv_IOCores[MAX_IO_THREADS];
+    std::vector<int> Conv_IOCores;
     int Conv_zwidth;
     
     // TODO: this scheme doesn't account for more complicated NUMA architectures
-    int GPUThreadCoreStart[MAX_GPUS];  // The core on which to start placing GPU device threads.
+    std::vector<int> GPUThreadCoreStart;  // The core on which to start placing GPU device threads.
     int NGPUThreadCores;  // The number of free cores on which to place GPU device threads.
-    int GPUQueueAssignments[MAX_GPUS];  // The work queue assignments
+    std::vector<int> GPUQueueAssignments;  // The work queue assignments
     int DirectBPD;
 
     double DensityKernelRad;  // The kernel Radius for the density computation, specified in units of the interparticle spacing.  0 will default to FoFLinkingLength[0]
     double L0DensityThreshold;  // The kernel density required for a particle to be eligible to be in a L0 group; specified in units of the cosmic mean density. This is ignored (uses 0) if DensityKernelRad==0.  Value = 0 triggers code to make a particle eligible if it has any non-self neighbor within DensityKernelRad
 
     int AllowGroupFinding;
-    double FoFLinkingLength[3]; //Linking lengths for level 0,1,2 groupfinding in fractional interparticle spacing 
-    double SODensity[2];  // Overdensities for SO groupfinding level 1 and 2
+    
+    std::vector<double> FoFLinkingLength = std::vector<double>(3); //Linking lengths for level 0,1,2 groupfinding in fractional interparticle spacing 
+    std::vector<double> SODensity = std::vector<double>(2);  // Overdensities for SO groupfinding level 1 and 2
+    
     int MinL1HaloNP; // minimum L1 halo size to output
 	double L1Output_dlna;  // minimum delta ln(a) between L1 halo outputs
     double SO_RocheCoeff; 
@@ -176,9 +171,7 @@ public:
     double SO_NPForMinDensity; 
     int SO_EvolvingThreshold; //allow evolving (redshift-dependent) density threshold 
 
-    #define MAX_L1OUTPUT_REDSHIFTS 1024
-    int nTimeSliceL1; 
-    double L1OutputRedshifts[MAX_L1OUTPUT_REDSHIFTS];
+    std::vector<double> L1OutputRedshifts;
     int OutputAllHaloParticles;  // ==0 normally, to output only taggable L1 particles.  If non-zero, output all particles
 
     double MicrostepTimeStep; // Timestep parameter that controls microstep refinement
@@ -314,8 +307,7 @@ public:
         OutputFullLightCones = 0;
         installscalar("OutputFullLightCones",OutputFullLightCones,DONT_CARE); //if not set, we assume 0
 
-        // NLightCones is the number of x,y,z components, but will be divided by 3 later
-        installvector("LightConeOrigins",LightConeOrigins,&NLightCones,3*125,1,DONT_CARE);
+        installvector("LightConeOrigins",LightConeOrigins,DONT_CARE);
         LightConeCheckAcrossWrap = 0;
         installscalar("LightConeCheckAcrossWrap",LightConeCheckAcrossWrap,DONT_CARE);
         LightConeBoxRepeats = 0;
@@ -324,9 +316,9 @@ public:
         FinalRedshift = -2.0;        // If <-1, then we will cascade back to the minimum of the TimeSliceRedshifts list
         installscalar("FinalRedshift",FinalRedshift,DONT_CARE);
 		
-        installvector("TimeSliceRedshifts",TimeSliceRedshifts,&nTimeSlice,MAX_TIMESLICE_REDSHIFTS,1,DONT_CARE);
-        installvector("TimeSliceRedshifts_Subsample",TimeSliceRedshifts_Subsample,&nTimeSliceSubsample,MAX_TIMESLICE_REDSHIFTS,1,DONT_CARE);
-        installvector("L1OutputRedshifts", L1OutputRedshifts, &nTimeSliceL1, MAX_L1OUTPUT_REDSHIFTS, 1, DONT_CARE);
+        installvector("TimeSliceRedshifts", TimeSliceRedshifts, DONT_CARE);
+        installvector("TimeSliceRedshifts_Subsample", TimeSliceRedshifts_Subsample, DONT_CARE);
+        installvector("L1OutputRedshifts", L1OutputRedshifts, DONT_CARE);
 
         ParticleSubsampleA = 0.;
         ParticleSubsampleB = 0.;
@@ -383,14 +375,8 @@ public:
         PowerSpectrumN1d = 1;
         hs = NULL;
 
-        // default means don't bind to core
-        for (int i = 0; i < MAX_IO_THREADS; i++)
-            IOCores[i] = -1;
-        installvector("IOCores", IOCores, LEN_DONTNEED, MAX_IO_THREADS, 1, DONT_CARE);
-
-        for (int i = 0; i < MAX_IO_THREADS; i++)
-            Conv_IOCores[i] = -1;
-        installvector("Conv_IOCores", Conv_IOCores, LEN_DONTNEED, MAX_IO_THREADS, 1, DONT_CARE);
+        installvector("IOCores", IOCores, DONT_CARE);
+        installvector("Conv_IOCores", Conv_IOCores, DONT_CARE);
 
         Conv_OMP_NUM_THREADS = 0;
         installscalar("Conv_OMP_NUM_THREADS", Conv_OMP_NUM_THREADS, DONT_CARE);
@@ -398,16 +384,12 @@ public:
         Conv_zwidth = -1;
         installscalar("Conv_zwidth", Conv_zwidth, DONT_CARE);
 
-        installvector("IODirs", IODirs, &nIODirs, MAX_IODIRS, 1, DONT_CARE);
-        installvector("IODirThreads", IODirThreads, LEN_DONTNEED, MAX_IODIRS, 1, DONT_CARE);
+        installvector("IODirs", IODirs, DONT_CARE);
+        installvector("IODirThreads", IODirThreads, DONT_CARE);
 
         // If GPUThreadCoreStart is undefined, GPU threads will not be bound to cores
-        for(int i = 0; i < MAX_GPUS; i++){
-            GPUThreadCoreStart[i] = -1;
-            GPUQueueAssignments[i] = i;  // one per GPU
-        }
-        installvector("GPUThreadCoreStart", GPUThreadCoreStart, LEN_DONTNEED, MAX_GPUS, 1, DONT_CARE);
-        installvector("GPUQueueAssignments", GPUQueueAssignments, LEN_DONTNEED, MAX_GPUS, 1, DONT_CARE);
+        installvector("GPUThreadCoreStart", GPUThreadCoreStart, DONT_CARE);
+        installvector("GPUQueueAssignments", GPUQueueAssignments, DONT_CARE);
         NGPUThreadCores = -1;
         installscalar("NGPUThreadCores", NGPUThreadCores, DONT_CARE);
 
@@ -424,10 +406,10 @@ public:
         FoFLinkingLength[0] = .25;
         FoFLinkingLength[1] = .186;
         FoFLinkingLength[2] = .138;
-        installvector("FoFLinkingLength",FoFLinkingLength,LEN_DONTNEED,3,1,DONT_CARE);
+        installvector("FoFLinkingLength",FoFLinkingLength,DONT_CARE);
         SODensity[0] = 200.0;
         SODensity[1] = 800.0;
-        installvector("SODensity",SODensity,LEN_DONTNEED,2,1,DONT_CARE);
+        installvector("SODensity",SODensity,DONT_CARE);
         MinL1HaloNP = 40;
         installscalar("MinL1HaloNP", MinL1HaloNP, DONT_CARE);
 		L1Output_dlna = -1;
@@ -516,25 +498,27 @@ public:
         // not set (value<=-1), then we will the redshifts of
         // the requested outputs.
         // If no TimeSlices are requested, then z=0.
-        if (FinalRedshift>-1) return FinalRedshift;
+        if (FinalRedshift > -1) return FinalRedshift;
+
         double minz = 1e100;
-        int have_minz = 0;
-        for (int i=0; i<nTimeSlice; i++){
-            minz = std::min(minz, TimeSliceRedshifts[i]);
-            have_minz = 1;
+        bool have_minz = false;
+
+        for (const auto& redshift : TimeSliceRedshifts) {
+            minz = std::min(minz, redshift);
+            have_minz = true;
         }
 
-        for (int i=0; i<nTimeSliceSubsample; i++){
-            minz = std::min(minz, TimeSliceRedshifts_Subsample[i]);
-            have_minz = 1;
+        for (const auto& redshift : TimeSliceRedshifts_Subsample) {
+            minz = std::min(minz, redshift);
+            have_minz = true;
         }
 
-        for (int i=0; i<nTimeSliceL1; i++){
-            minz = std::min(minz, L1OutputRedshifts[i]);
-            have_minz = 1;
+        for (const auto& redshift : L1OutputRedshifts) {
+            minz = std::min(minz, redshift);
+            have_minz = true;
         }
-    
-        if(have_minz) return minz;
+
+        if (have_minz) return minz;
         return 0.0;
     }
 
@@ -550,11 +534,11 @@ void strlower(std::string &str){
 }
 
 void Parameters::SortTimeSlices(){
-    std::sort(TimeSliceRedshifts, TimeSliceRedshifts + nTimeSlice, greater<double>());
-    std::sort(TimeSliceRedshifts_Subsample, TimeSliceRedshifts_Subsample + nTimeSliceSubsample, greater<double>());
-    std::sort(L1OutputRedshifts, L1OutputRedshifts + nTimeSliceL1, greater<double>());
+    std::sort(TimeSliceRedshifts.begin(), TimeSliceRedshifts.end(), greater<double>());
+    std::sort(TimeSliceRedshifts_Subsample.begin(), TimeSliceRedshifts_Subsample.end(), greater<double>());
+    std::sort(L1OutputRedshifts.begin(), L1OutputRedshifts.end(), greater<double>());
 
-    if (! (nTimeSlice > 0 || nTimeSliceSubsample > 0 || nTimeSliceL1 > 0 || OutputEveryStep || StoreForces || NLightCones > 0) )
+    if(! (TimeSliceRedshifts.size() > 0 || TimeSliceRedshifts_Subsample.size() > 0 || L1OutputRedshifts.size() > 0 || OutputEveryStep || StoreForces || LightConeOrigins.size()) )
         fmt::print("Warning! No output requested. Are you sure you want this?\n");
 }
 
@@ -727,11 +711,6 @@ void Parameters::ValidateParameters(void) {
                 NumSlabsInsertListIC);
         assert(1==0);
     }
-
-    if (nTimeSlice<0) {
-        fmt::print(stderr,"nTimeSlice must be >=0\n");
-        assert(1==0);
-    }
     
     if(Omega_Smooth<0.0 || Omega_Smooth>Omega_M){
         fmt::print(stderr,"Must have 0<=Omega_Smooth<Omega_M, but told Omega_Smooth = {:g}\n", Omega_Smooth);
@@ -777,10 +756,6 @@ void Parameters::ValidateParameters(void) {
     if (ForceOutputDebug) {
             StoreForces = 2;  // Output near and far separately
     }
-
-    assert(nIODirs < MAX_IODIRS);
-    for (int i = 0; i < nIODirs; i++)
-        assert(IODirThreads[i] >= 1);
 
     assertf(
         (StateIOMode == "normal") ||

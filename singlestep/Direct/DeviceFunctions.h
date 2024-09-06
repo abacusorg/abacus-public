@@ -5,8 +5,8 @@ extern "C" void GetDeviceInfo(size_t *memGB, std::string &name);
 extern "C" int GetNGPU();
 extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize,
 		int numberGPUs, int bufferperdevice,
-		int *ThreadCoreStart, int NThreadCores,
-		int *GPUQueueAssignments,
+		const std::vector<int> &ThreadCoreStart, int NThreadCores,
+		const std::vector<int> &GPUQueueAssignments,
 		int *maxsinkblocks, int *maxsourceblocks, int UsePinnedGPUMemory);
 extern "C" void GPUReset();
 extern "C" void StartGPUBufferThreads();

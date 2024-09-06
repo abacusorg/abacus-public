@@ -81,7 +81,7 @@ public:
     int *first_slabs_all;
     int *total_slabs_all;
 	
-	int io_cores[MAX_IO_THREADS];
+	std::vector<int> io_cores;
     int niothreads;
 
     int ProfilingMode;

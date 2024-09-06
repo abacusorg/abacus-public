@@ -5,7 +5,7 @@
 
 #define LCTOLERANCE 0.0
 
-double3 *LCOrigin;
+std::vector<double3> LCOrigin;
 
 #define c_kms 299792.0
 #define etaktoHMpc (c_kms/100.)
@@ -75,23 +75,21 @@ class LightCone {
 };
 
 void InitializeLightCones(){
-    assertf(P.NLightCones % 3 == 0, "LightConeOrigins must be specified as a list of 3-tuples\n");
-    P.NLightCones /= 3;
+    assertf(P.LightConeOrigins.size() % 3 == 0, "LightConeOrigins must be specified as a list of 3-tuples\n");
 
-    STDLOG(2, "Initializing Light Cones with {:d} observers\n", P.NLightCones);
+    LCOrigin.reserve(P.LightConeOrigins.size() / 3);
+    for(int i = 0; i < P.LightConeOrigins.size() / 3; i++){
+        LCOrigin.push_back(double3(P.LightConeOrigins[3*i], P.LightConeOrigins[3*i+1], P.LightConeOrigins[3*i+2])/P.BoxSize);
+    }
+
+    STDLOG(2, "Initialized Light Cones with {:d} observers\n", LCOrigin.size());
 
 #ifdef USE_LC_AUX_BITS
-    assertf(P.NLightCones <= NUM_LC_AUX_BITS, "Parameter file requests {:d} light cones, but AUX data model supports only {:d}\n", P.NLightCones, NUM_LC_AUX_BITS);
+    assertf(LCOrigin.size() <= NUM_LC_AUX_BITS, "Parameter file requests {:d} light cones, but AUX data model supports only {:d}\n", LCOrigin.size(), NUM_LC_AUX_BITS);
 #endif
-    LCOrigin = new double3[P.NLightCones];
-    for(int i = 0; i < P.NLightCones; i++){
-        LCOrigin[i] = ((double3*) P.LightConeOrigins)[i]/P.BoxSize;  // convert to unit-box units
-    }
 }
 
-void FinalizeLightCones(){
-    delete[] LCOrigin;
-}
+void FinalizeLightCones(){ }
 
 // Return whether a CellCenter is in the light cone, including some tolerance
 inline int LightCone::isCellInLightCone(double3 pos) {

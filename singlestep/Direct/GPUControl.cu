@@ -359,8 +359,8 @@ limited by the fraction of CPD**2
 
 extern "C" void GPUSetup(int cpd, uint64 MaxBufferSize, 
     int numberGPUs, int bufferperdevice, 
-    int *ThreadCoreStart, int NThreadCores,
-    int *GPUQueueAssignments,
+    const std::vector<int> &ThreadCoreStart, int NThreadCores,
+    const std::vector<int> &GPUQueueAssignments,
     int *maxsinkblocks, int *maxsourceblocks,
     int UsePinnedGPUMemory) {
 
