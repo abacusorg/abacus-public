@@ -32,7 +32,6 @@ ifeq (@CUDA_ENABLED@,CUDA_ENABLED)
     NVCC_XCOMPILERFLAGS := 
     CUDA_LIBS := @CUDA_LDFLAGS@ -lcuda -lcudart
     NVCC := @NVCC@
-    CUDA_ARCH := @CUDA_ARCH@
 endif
 
 # git version, like "v2.2.3-27-gc08fe8b1-dirty"

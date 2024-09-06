@@ -4,4 +4,3 @@
 /GeneratedASMKernel.ptx
 /nvtemp/
 avx512direct
-detect_gpus

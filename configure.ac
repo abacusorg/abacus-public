@@ -312,26 +312,6 @@ if test x$enable_parallel == xyes; then
 	AC_DEFINE_UNQUOTED(PARALLEL, [], "Generate MPI-parallel code.")
 fi
 
-# Query the GPUs to find the number and compute capability
-if test x$enable_gpu_directs == xyes; then
-    AC_MSG_CHECKING([compute capability of GPUs])
-
-    make --quiet -C singlestep/Direct detect_gpus MAKE_CONTEXT=AUTOCONF NVCC=$NVCC CXX=$CXX
-    DETECT_GPUS_OUTPUT=$(./singlestep/Direct/detect_gpus)
-
-    NGPU=$(echo $DETECT_GPUS_OUTPUT | \grep -oP '(?<=Device count: )\d+')
-    CUDA_ARCH=$(echo $DETECT_GPUS_OUTPUT | \grep -oP '(?<=Compute capability: )\d+')
-
-    if test x$NGPU == x""; then
-        NGPU=0
-    fi
-    if test x$CUDA_ARCH == x""; then
-        CUDA_ARCH=0
-    fi
-    AC_MSG_RESULT([compute capability $CUDA_ARCH])
-    AC_SUBST(CUDA_ARCH)
-fi
-
 AC_ARG_WITH(softening,
 [AS_HELP_STRING([--with-softening={plummer | single_spline | cubic_spline | cubic_plummer}], [Near-force softening technique [single_spline]])],
 	[], with_softening="single_spline")

@@ -1,13 +1,9 @@
 ROOT_DIR := ../..
-
-# We invoke the "detect_gpus" recipe from the ./configure script, but common.mk won't yet exist!
-ifneq ($(MAKE_CONTEXT),AUTOCONF)
 include $(ROOT_DIR)/common.mk
-endif
 
 ifeq ($(CUDA_ENABLED),CUDA_ENABLED)
 
-ARCHFLAGS := --generate-code arch=compute_$(CUDA_ARCH),code=sm_$(CUDA_ARCH)
+ARCHFLAGS := -arch=native
 
 # _FORCE_INLINES fixes a weird compilation bug
 CPPFLAGS += -D_FORCE_INLINES
@@ -38,12 +34,7 @@ else
 all:
 endif
 
-BINARIES=avx512direct detect_gpus
-
-# NVCC may not exist outside the CUDA_ENABLED region!
-# But ./configure won't invoke this unless we do have CUDA
-detect_gpus: detect_gpus.cu
-	$(NVCC) $(NVCC_FLAGS) -Wno-deprecated-gpu-targets -o $@ $< -ccbin $(CXX) -std=c++17
+BINARIES=avx512direct
 
 avx512direct: avx512direct.cc
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -DTEST -o $@ $<
