@@ -7,7 +7,17 @@
 #include "stringutil.hh"
 #include "phParser.tab.hh"
 
+#include <fmt/base.h>
+#include <fmt/format.h>
+#include <fmt/std.h>
+
 namespace fs = std::filesystem;
+
+template <> struct fmt::formatter<yy::location> : ostream_formatter {};
+
+// Helper template to trigger static_assert for unsupported types
+template<typename T>
+struct always_false : std::false_type {};
 
 // variable types for "type", below
 enum class PHType { BAD, INTEGER, FLOAT, DOUBLE, STRING, LOGICAL, LONG, PATH };
@@ -59,7 +69,6 @@ typedef struct {
     int stride;  // TODO: should stride always be 1 if we're using container types?
     int dim;
     int nvals;
-    int *nvals_user;
     int *init;
     char* mapped;
 } SYMENT;
@@ -81,7 +90,9 @@ public:
      
     // external interface
     void ResetParser(void);
-    void InstallSym(const std::string &name, void *ptr, int *len, PHType type, int dim, int stride, bool init);
+
+    template<typename T>
+    void InstallSym(const std::string &name, T *ptr, int dim, int stride, bool init);
     int parse (const fs::path fname, bool Warn, int NoUndefined, bool stop);
     int parse (const char* buffer, int len, const fs::path fromfilename, 
                      bool Warn, int NoUndefined, bool stop);
@@ -159,5 +170,66 @@ public:
     int nwarn;
 
 };
+
+// install a variable in the symbol table and initialize its entry
+template<typename T>
+void phDriver::InstallSym(const std::string &name, T *ptr, int dim, int stride, bool init) {
+    SYMENT *sym;
+    int i;
+
+    if(init_symtab==1) InitSymtab();
+
+    sym = lookup(name.c_str(),1);
+    if(sym) {
+        fmt::print(std::cerr, "symbol \"{}\" is already defined.\n", sym->name);
+        exit(1);
+    }
+  
+    sym = lookup(name.c_str(),0);
+    if constexpr (std::is_same_v<T, int>) {
+        if(Debug) fmt::print(std::cerr, "installing an int: \"{}\"\n", name);
+        sym->pval.i = ptr;
+        sym->pvalorig.i = ptr;
+        sym->type = PHType::INTEGER;
+    } else if constexpr (std::is_same_v<T, LLint>) {
+        if(Debug) fmt::print(std::cerr, "installing a long long: \"{}\"\n", name);
+        sym->pval.l = ptr;
+        sym->pvalorig.l = ptr;
+        sym->type = PHType::LONG;
+    } else if constexpr (std::is_same_v<T, float>) {
+        if(Debug) fmt::print(std::cerr, "installing a float: \"{}\"\n", name);
+        sym->pval.f = (float *)ptr;
+        sym->pvalorig.f = ptr;
+        sym->type = PHType::FLOAT;
+    } else if constexpr (std::is_same_v<T, double>) {
+        if(Debug) fmt::print(std::cerr, "installing a double: \"{}\"\n", name);
+        sym->pval.d = ptr;
+        sym->pvalorig.d = ptr;
+        sym->type = PHType::DOUBLE;
+    } else if constexpr (std::is_same_v<T, std::string>) {
+        if(Debug) fmt::print(std::cerr, "installing a string: \"{}\"\n", name);
+        sym->pval.s = ptr;
+        sym->pvalorig.s = ptr;
+        sym->type = PHType::STRING;
+    } else if constexpr (std::is_same_v<T, fs::path>) {
+        if(Debug) fmt::print(std::cerr, "installing a path: \"{}\"\n", name);
+        sym->pval.p = ptr;
+        sym->pvalorig.p = ptr;
+        sym->type = PHType::PATH;
+    } else {
+        static_assert(always_false<T>::value, "bad type\n");
+    }
+
+    sym->stride = stride;
+    sym->dim = dim;
+    if(init)                          // a false argument means don't care 
+        *sym->init = -1;              // must be defined 
+    else
+        *sym->init = 1;               // don't care 
+  
+    sym->mapped = (char *)NULL;       // not mapped yet 
+  
+}
+
 
 #endif //  __PHDRIVER_HH__

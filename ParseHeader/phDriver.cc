@@ -11,8 +11,6 @@
 #include <fmt/format.h>
 #include <fmt/std.h>
 
-template <> struct fmt::formatter<yy::location> : ostream_formatter {};
-
 using std::string;
 using std::endl;
 
@@ -345,8 +343,6 @@ void phDriver::stuffit(SYMENT **spec, VAL_STACK *list, int len, int varzone,
             }
         }
     }
-
-    if(pf->nvals_user) *pf->nvals_user = pf->nvals;
 }
 #undef STUFF
 
@@ -378,7 +374,6 @@ void phDriver::InitSymtab(void) {
         symtab[i].init = (int *) NULL;
         symtab[i].dim = 0;
         symtab[i].nvals = 0;
-        symtab[i].nvals_user = (int *) NULL;
         symtab[i].mapped = (char *) NULL;
     }
 }
@@ -402,7 +397,6 @@ void phDriver::ResetParser(void) {
         symtab[i].type = PHType::BAD;                   // don't care
         symtab[i].dim = 0;
         symtab[i].nvals = 0;
-        symtab[i].nvals_user = (int *) NULL;
     }
 
     check_flag=0;
@@ -413,89 +407,6 @@ void phDriver::ResetParser(void) {
     nzprs_old = 0;
     nwarn = 0;
 }
-
-// install a variable in the symbol table and initialize its entry
-void phDriver::InstallSym(const std::string &name, void *ptr, int *len, PHType type, int dim, int stride, bool init) {
-    SYMENT *sym;
-    int i;
-
-    if(init_symtab==1) InitSymtab();
-
-    sym = lookup(name.c_str(),1);
-    if(sym) {
-        fmt::print(std::cerr, "symbol \"{}\" is already defined.\n", sym->name);
-        exit(1);
-    }
-  
-    sym = lookup(name.c_str(),0);
-    switch (type) {
-    case PHType::INTEGER:
-        if(Debug) fmt::print(std::cerr, "installing an int: \"{}\"\n", name);
-        sym->pval.i = (int *)ptr;
-        sym->pvalorig.i = (int *)ptr;
-        sym->stride = stride;
-        break;
-    
-    case PHType::LONG:
-        if(Debug) fmt::print(std::cerr, "installing a long long: \"{}\"\n", name);
-        sym->pval.l = (LLint *)ptr;
-        sym->pvalorig.l = (LLint *)ptr;
-        sym->stride = stride;
-        break;
-    
-    case PHType::FLOAT: 
-        if(Debug) fmt::print(std::cerr, "installing a float: \"{}\"\n", name);
-        sym->pval.f = (float *)ptr;
-        sym->pvalorig.f = (float *)ptr;
-        sym->stride = stride;
-        break;
-        
-    case PHType::DOUBLE:
-        if(Debug) fmt::print(std::cerr, "installing a double: \"{}\"\n", name);
-        sym->pval.d = (double *)ptr;
-        sym->pvalorig.d = (double *)ptr;
-        sym->stride = stride;
-        break;
-    
-    case PHType::STRING:
-        if(Debug) fmt::print(std::cerr, "installing a string: \"{}\"\n", name);
-        sym->pval.s = (std::string *)ptr;
-        sym->pvalorig.s = (std::string *)ptr;
-        sym->stride = stride;
-        break;
-
-    case PHType::PATH:
-        if(Debug) fmt::print(std::cerr, "installing a path: \"{}\"\n", name);
-        sym->pval.p = (fs::path *)ptr;
-        sym->pvalorig.p = (fs::path *)ptr;
-        sym->stride = stride;
-        break;
-    
-    case PHType::LOGICAL:
-        if(Debug) fmt::print(std::cerr, "installing a boolean: \"{}\"\n", name);
-        sym->pval.u = (unsigned *)ptr;
-        sym->pvalorig.u = (unsigned *)ptr;
-        sym->stride = stride;
-        break;
-    
-    default:
-        fmt::print(std::cerr, "bad type for \"{}\"\n", name);
-        exit(1);
-        break;
-    }
-
-    sym->nvals_user = len;
-    sym->type = type;
-    sym->dim = dim;
-    if(init)                          // a false argument means don't care 
-        *sym->init = -1;              // must be defined 
-    else
-        *sym->init = 1;               // don't care 
-  
-    sym->mapped = (char *)NULL;       // not mapped yet 
-  
-}
-
 
 /**********************************************************************/
 /* grammer actions                                                    */

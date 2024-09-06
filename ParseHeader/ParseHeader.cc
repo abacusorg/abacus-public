@@ -32,5 +32,20 @@ void ParseHeader::ReadHeader(HeaderStream &in) {
         fmt::print(std::cerr, "HS::parseit: there were errors parsing \"{}\" ...exiting.\n", in.name);
         exit(1);
     }
+    resize_vectors();
     phdriver->ResetParser();
+}
+
+void ParseHeader::resize_vectors(void) {
+    // We over-allocated the user's vectors so that ParseHeader could read into the
+    // underlying buffers, C-style. Now we need to resize the vectors to the used length.
+    for(auto &v : vectors) {
+        SYMENT *sym = phdriver->lookup(v.first.c_str(), 1);
+        if(sym) {
+            std::visit([n=sym->nvals](auto&& arg){ arg->resize(n); }, v.second);
+        } else {
+            fmt::print(std::cerr, "ParseHeader::resize_vectors: symbol \"{}\" not found.\n", v.first);
+            exit(1);
+        }
+    }
 }
