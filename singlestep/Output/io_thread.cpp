@@ -25,11 +25,10 @@
 
 class alignas(CACHE_LINE_SIZE) iothread {
 public:
-    iothread(const fs::path &_logfn, int _threadnum, int _io_core)
-        : threadnum(_threadnum)
-        {
-
-        fs::path logfn(_logfn);
+    iothread(fs::path logfn, int _threadnum, int _io_core)
+        : threadnum(_threadnum),
+          io_core(_io_core)
+    {
 
         // Make the FIFO files
         // Note: we could move from ring buffers and FIFOs to a simple tbb:concurrent_bounded_queue,
@@ -49,8 +48,6 @@ public:
         size_t diskbuffer = ((size_t) 128) << 10;  // 4 << 20 = 4 MB
         RD = new ReadDirect(no_dio, diskbuffer);
         WD = new WriteDirect(no_dio,diskbuffer);
-
-        io_core = _io_core;
 
         // Launch io_thread() as a separate thread
         int res = 0;
@@ -425,7 +422,8 @@ void IO_Initialize(const fs::path &logfn, int NumTypes) {
     iothreads = new iothread*[niothreads];
     for(int i = 0; i < niothreads; i++){
         STDLOG(0,"Initializing IO thread {:d}\n", i + 1);
-        iothreads[i] = new iothread(logfn, i + 1, P.IOCores[i]);
+        int io_core = i < P.IOCores.size() ? P.IOCores[i] : -1;
+        iothreads[i] = new iothread(logfn, i + 1, io_core);
     }
 }
 

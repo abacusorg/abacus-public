@@ -22,15 +22,7 @@ private:
 
     // This is the main thread loop
     void ThreadWorkLoop(){
-        {
-        int io_core = CP.io_cores.at(thread_num);
-        if(io_core >= 0){
-            set_core_affinity(io_core);
-            STDLOG(0, "IO thread {:d} started on core {:d}\n", thread_num, io_core);
-        } else {
-            STDLOG(0, "IO thread {:d} started; not bound to core\n", thread_num);
-        }
-        }
+        this->set_core_affinity();
         
         int n_blocks_read = 0;
         int n_blocks_written = 0;
@@ -119,6 +111,17 @@ private:
 		free(sendbuf);
 		free(recvbuf);
 #endif
+    }
+
+    void set_core_affinity(){
+        int io_core = (thread_num < CP.io_cores.size()) ? CP.io_cores[thread_num] : -1;
+
+        if(io_core >= 0){
+            ::set_core_affinity(io_core);
+            STDLOG(0, "IO thread {:d} started on core {:d}\n", thread_num, io_core);
+        } else {
+            STDLOG(0, "IO thread {:d} started; not bound to core\n", thread_num);
+        }
     }
 
     static void *start_thread(void *iothread_obj){

@@ -366,9 +366,7 @@ void GPUSetup(int cpd, uint64 MaxBufferSize,
     int NBuf = BPD*NGPU;
 
     // Determine the number of queues by the max assigned queue
-    for (int i = 0; i < NGPU; i++){
-        NGPUQueues = max(NGPUQueues, GPUQueueAssignments[i]+1);
-    }
+    NGPUQueues = GPUQueueAssignments.empty() ? 1 : *std::max_element(std::begin(GPUQueueAssignments), std::end(GPUQueueAssignments)) + 1;
     STDLOG(1, "Using {:d} GPU work queues\n", NGPUQueues);
 
     // The following estimates are documented above, and assume sizeof(int)=4
@@ -445,7 +443,7 @@ void GPUSetup(int cpd, uint64 MaxBufferSize,
         Buffers[g].sizeDef = Buffers[g].size*RatioDeftoAll;
         Buffers[g].ready = 0;
 
-        int core_start = ThreadCoreStart[g % NGPU];
+        int core_start = g % NGPU < ThreadCoreStart.size() ? ThreadCoreStart[g % NGPU] : -1;
         int core = -1;
         // If either the core start or the core count are invalid, do not bind this thread to a core
         if(core_start >= 0 && NThreadCores > 0)
@@ -463,7 +461,7 @@ void GPUSetup(int cpd, uint64 MaxBufferSize,
         info->core = core;
         info->UsePinnedGPUMemory = UsePinnedGPUMemory;
         info->barrier = thread_startup_barriers[g%NGPU];
-        info->queue = GPUQueueAssignments[g%NGPU];
+        info->queue = g%NGPU < GPUQueueAssignments.size() ? GPUQueueAssignments[g%NGPU] : 0;
 
         if(core >= 0)
             STDLOG(0, "GPU buffer thread {:d} (GPU {:d}) assigned to core {:d}, watching queue {:d}\n", g, g % NGPU, core, info->queue);
