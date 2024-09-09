@@ -62,7 +62,7 @@ SlabMultipoles::SlabMultipoles(int order, int cpd) : Multipoles(order),
     rml_cpdp1half_pad = ((cpdp1half*rml + PAGE_SIZE-1)/PAGE_SIZE)*PAGE_SIZE;
     
     in_1d           = (Complex **) malloc(sizeof(Complex*) * nprocs);
-    out_1d          = (Complex **) malloc(sizeof(fftw_complex*) * nprocs);
+    out_1d          = (Complex **) malloc(sizeof(FFTComplex*) * nprocs);
     in_r2c          = (double **)  malloc(sizeof(double*) * nprocs);
     out_r2c         = (Complex **) malloc(sizeof(Complex*) * nprocs);
     
@@ -77,11 +77,11 @@ SlabMultipoles::SlabMultipoles(int order, int cpd) : Multipoles(order),
         // Normally, one would allocate these with fftw_malloc
         // But we wish to impose a stricter alignment so that each array can land on a separate NUMA node
         // To enforce this, we go ahead and touch the memory with memset from a parallel region
-        assert(posix_memalign((void **) &in_1d[g], PAGE_SIZE, sizeof(fftw_complex) * cpd) == 0);
-        memset(in_1d[g], 0, sizeof(fftw_complex) * cpd);
+        assert(posix_memalign((void **) &in_1d[g], PAGE_SIZE, sizeof(FFTComplex) * cpd) == 0);
+        memset(in_1d[g], 0, sizeof(FFTComplex) * cpd);
 
-        assert(posix_memalign((void **) &out_1d[g], PAGE_SIZE, sizeof(fftw_complex) * cpd) == 0);
-        memset(out_1d[g], 0, sizeof(fftw_complex) * cpd);
+        assert(posix_memalign((void **) &out_1d[g], PAGE_SIZE, sizeof(FFTComplex) * cpd) == 0);
+        memset(out_1d[g], 0, sizeof(FFTComplex) * cpd);
         
         assert(posix_memalign((void **) &in_r2c[g], PAGE_SIZE, sizeof(double) * cpd) == 0);
         memset(in_r2c[g], 0, sizeof(double) * cpd);
@@ -96,13 +96,13 @@ SlabMultipoles::SlabMultipoles(int order, int cpd) : Multipoles(order),
     // FFTW planning is not thread safe; this loop must remain serial!
     for(int g=0;g<nprocs;g++) {
         plan_forward_c2c_1d[g] = 
-            fftw_plan_dft_1d(cpd, (fftw_complex *) in_1d[g], 
-                                  (fftw_complex *) out_1d[g], 
+            fftw_plan_dft_1d(cpd, reinterpret_cast<fftw_complex *>(in_1d[g]),
+                                  reinterpret_cast<fftw_complex *>(out_1d[g]),
                                   FFTW_FORWARD, FFTW_PATIENT);
         
         plan_forward_r2c_1d[g] = 
-            fftw_plan_dft_r2c_1d(cpd, (double *) in_r2c[g], 
-                                      (fftw_complex *) out_r2c[g], 
+            fftw_plan_dft_r2c_1d(cpd, in_r2c[g],
+                                      reinterpret_cast<fftw_complex *>(out_r2c[g]),
                                       FFTW_PATIENT);
     }
 }
@@ -122,7 +122,7 @@ void SlabMultipolesLocal::FFTY(MTCOMPLEX *out, const Complex *in) {
 
             // Here we demote complex<double> to complex<float>
             for(int y=0;y<cpd;y++) 
-                out[ z*cpd*rml + m*cpd + y] = (MTCOMPLEX) out_1d[g][y];
+                out[ z*cpd*rml + m*cpd + y] = static_cast<MTCOMPLEX>(out_1d[g][y]);
         }
     }
     FFTMultipole.Stop();

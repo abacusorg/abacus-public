@@ -43,7 +43,7 @@ void OutofCoreConvolution::SwizzleMultipoles(int z){
         for(int x=0;x<cpd;x++)
 			for(int y=0;y<cpd;y++)
                 PlaneBuffer[m*cpd*cpd + x*cpd + y] = 
-                    DiskBuffer[x][z*cpd*rml + m*cpd + y ];
+                    static_cast<Complex>(DiskBuffer[x][z*cpd*rml + m*cpd + y ]);
 	ArraySwizzle.Stop();
 }
 
@@ -58,10 +58,10 @@ void OutofCoreConvolution::SwizzleTaylors(int z){
 		for(int y=0;y<cpd;y++) {
 #ifndef DO_NOTHING
                 DiskBuffer[x][z*cpd*rml + m*cpd + y ] = 
-                    PlaneBuffer[ m*cpd*cpd + x*cpd + y]*invcpd3;
+                    static_cast<MTCOMPLEX>(PlaneBuffer[ m*cpd*cpd + x*cpd + y]*invcpd3);
 #else
                 DiskBuffer[x][z*cpd*rml + m*cpd + y ] = 
-                    PlaneBuffer[ m*cpd*cpd + x*cpd + y];
+                    static_cast<MTCOMPLEX>(PlaneBuffer[ m*cpd*cpd + x*cpd + y]);
 #endif
 		}
     }
@@ -133,13 +133,13 @@ void OutofCoreConvolution::BlockConvolve(void) {
     #else
     for(int g=0;g<nprocs;g++) {
         plan_forward_1d[g] = fftw_plan_dft_1d(cpd, 
-                                (fftw_complex *) in_1d[g], 
-                                (fftw_complex *) out_1d[g], 
+                                reinterpret_cast<fftw_complex *>(in_1d[g]), 
+                                reinterpret_cast<fftw_complex *>(out_1d[g]), 
                                 FFTW_FORWARD, FFTW_PATIENT);
         
         plan_backward_1d[g] = fftw_plan_dft_1d(cpd, 
-                                (fftw_complex *) in_1d[g], 
-                                (fftw_complex *) out_1d[g], 
+                                reinterpret_cast<fftw_complex *>(in_1d[g]), 
+                                reinterpret_cast<fftw_complex *>(out_1d[g]), 
                                 FFTW_BACKWARD, FFTW_PATIENT);
     }
     #endif

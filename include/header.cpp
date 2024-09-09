@@ -53,7 +53,9 @@ using int64 = int64_t;
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
 
-using Complex = std::complex<double>;
+#include "AbacusComplex.hh"
+using Complex = AbacusComplex<double>;
+using FFTComplex = AbacusComplex<double>;
 
 // So that we can easily adjust to double precision for kinematics
 #ifdef DOUBLEPRECISION

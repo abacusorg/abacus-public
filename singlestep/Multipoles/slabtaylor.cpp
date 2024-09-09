@@ -32,7 +32,7 @@ SlabTaylor::SlabTaylor(int order, int _cpd) : Taylor(order) {
     FORALL_COMPLETE_MULTIPOLES_BOUND(i,j,k,order)  
         tfactor[cmap(i,j,k)] = pow(-1.0,i+j+k)/(fact(i)*fact(j)*fact(k));
 
-    in_1d           = (Complex **)  malloc(sizeof(fftw_complex*) * nprocs);
+    in_1d           = (Complex **)  malloc(sizeof(FFTComplex*) * nprocs);
     out_1d          = (Complex **)  malloc(sizeof(Complex*) * nprocs);
     in_c2r          = (Complex **)  malloc(sizeof(Complex*) * nprocs);
     out_c2r         = (double **)   malloc(sizeof(double*) * nprocs);
@@ -50,8 +50,8 @@ SlabTaylor::SlabTaylor(int order, int _cpd) : Taylor(order) {
         // Normally, one would allocate these with fftw_malloc
         // But we wish to impose a stricter alignment so that each array can land on a separate NUMA node
         // To enforce this, we go ahead and touch the memory with memset from a parallel region
-        assert(posix_memalign((void **) &in_1d[g], PAGE_SIZE, sizeof(fftw_complex) * cpd) == 0);
-        memset(in_1d[g], 0, sizeof(fftw_complex) * cpd);
+        assert(posix_memalign((void **) &in_1d[g], PAGE_SIZE, sizeof(FFTComplex) * cpd) == 0);
+        memset(in_1d[g], 0, sizeof(FFTComplex) * cpd);
 
         assert(posix_memalign((void **) &out_1d[g], PAGE_SIZE, sizeof(Complex) * cpd) == 0);
         memset(out_1d[g], 0, sizeof(Complex) * cpd);
@@ -73,13 +73,13 @@ SlabTaylor::SlabTaylor(int order, int _cpd) : Taylor(order) {
     // FFTW planning is not thread safe; this loop must remain serial!
     for(int g=0;g<nprocs;g++) {
          plan_backward_c2r_1d[g] = fftw_plan_dft_c2r_1d(cpd, 
-                                      (fftw_complex *) in_c2r[g], 
-                                      (double *) out_c2r[g], 
+                                      reinterpret_cast<fftw_complex *>(in_c2r[g]), 
+                                      out_c2r[g], 
                                       FFTW_PATIENT);
         
          plan_backward_c2c_1d[g] = fftw_plan_dft_1d(cpd, 
-                                      (fftw_complex *) in_1d[g], 
-                                      (fftw_complex *) out_1d[g], 
+                                      reinterpret_cast<fftw_complex *>(in_1d[g]),
+                                      reinterpret_cast<fftw_complex *>(out_1d[g]),
                                       FFTW_BACKWARD, FFTW_PATIENT);
     }
 }
@@ -114,7 +114,7 @@ void SlabTaylorLocal::InverseFFTY(Complex *out, const MTCOMPLEX *in) {
     for(int z=0;z<cpdp1half;z++) {
         int g = omp_get_thread_num();
         for(int m=0;m<rml;m++) {
-            for(int y=0;y<cpd;y++) in_1d[g][y] = (Complex) in[z*cpd*rml + m*cpd + y];
+            for(int y=0;y<cpd;y++) in_1d[g][y] = static_cast<Complex>(in[z*cpd*rml + m*cpd + y]);
             fftw_execute( plan_backward_c2c_1d[g] );
             for(int y=0;y<cpd;y++) out[z*rml_cpd_pad + m*cpd + y] = out_1d[g][y];
         }

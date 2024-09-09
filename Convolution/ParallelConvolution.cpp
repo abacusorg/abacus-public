@@ -132,7 +132,7 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, const fs::path &M
 	total_slabs_on_node = total_slabs_all[MPI_rank_x];
 	
 	
-	assertf(sizeof(fftw_complex)==sizeof(Complex), "Mismatch of complex type sizing between FFTW and Complex\n");
+	assertf(sizeof(FFTComplex)==sizeof(Complex), "Mismatch of complex type sizing between FFTW and Complex\n");
 	
 	// Here we compute the start and number of z's in each node
 	node_start = new int[MPI_size_x];
@@ -719,8 +719,8 @@ fftw_plan ParallelConvolution::PlanFFT(int sign){
     if(wisdom_exists){
         // can we enforce better alignment between rows...?
     	plan = fftw_plan_many_dft(1, n, node_ky_size, //we will do znode*rml of sets of node_ky_size FFTs.
-    		(fftw_complex *) MTzmxy, NULL, node_ky_size, 1, //each new [x][y] chunk is located at strides of node_ky_size.
-    		(fftw_complex *) MTzmxy, NULL, node_ky_size, 1,
+    		reinterpret_cast<fftw_complex *>(MTzmxy), NULL, node_ky_size, 1, //each new [x][y] chunk is located at strides of node_ky_size.
+    		reinterpret_cast<fftw_complex *>(MTzmxy), NULL, node_ky_size, 1,
     		sign, FFTW_PATIENT | FFTW_WISDOM_ONLY);
         if(plan == NULL){
             if(ReadState.FullStepNumber > 1)  // Haven't done any convolutions yet, don't expect wisdom!
@@ -735,8 +735,8 @@ fftw_plan ParallelConvolution::PlanFFT(int sign){
 
     if(plan == NULL){
         plan = fftw_plan_many_dft(1, n, node_ky_size, //we will do znode*rml of sets of node_ky_size FFTs.
-            (fftw_complex *) MTzmxy, NULL, node_ky_size, 1, //each new [x][y] chunk is located at strides of node_ky_size.
-            (fftw_complex *) MTzmxy, NULL, node_ky_size, 1,
+            reinterpret_cast<fftw_complex *>(MTzmxy), NULL, node_ky_size, 1, //each new [x][y] chunk is located at strides of node_ky_size.
+            reinterpret_cast<fftw_complex *>(MTzmxy), NULL, node_ky_size, 1,
             sign, FFTW_PATIENT);
     }
     assertf(plan != NULL, "Failed to generate ParallelConvolve FFTW plan for sign {:d}\n", sign);
@@ -750,8 +750,8 @@ void ParallelConvolution::FFT(fftw_plan plan) {
 	// Now we loop over the combination of [znode][m]
 	#pragma omp parallel for schedule(static) //pragma appears okay
 	for (int zm = 0; zm < znode*rml; zm++) {
-		fftw_execute_dft(plan, (fftw_complex *)(MTzmxy+zm*cpdky_pad),
-				       (fftw_complex *)(MTzmxy+zm*cpdky_pad));
+		fftw_execute_dft(plan, reinterpret_cast<fftw_complex *>(MTzmxy+zm*cpdky_pad),
+				       reinterpret_cast<fftw_complex *>(MTzmxy+zm*cpdky_pad));
 	}
 	
 	fftw_destroy_plan(plan);

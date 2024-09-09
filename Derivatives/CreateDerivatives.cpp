@@ -245,8 +245,8 @@ void CreateFourierFiles(int order, int inner_radius, int far_radius) {
 //     double   in_r2c[CPD];
 //     Complex out_r2c[CPD];
 //
-//     //plan_forward_1d  =  fftw_plan_dft_1d( CPD, (fftw_complex *) &(in_1d[0]), (fftw_complex *) &(out_1d[0]), FFTW_FORWARD, FFTW_PATIENT);
-//     //plan_forward_1d_r2c = fftw_plan_dft_r2c_1d(CPD,  &(in_r2c[0]), (fftw_complex *) &(out_r2c[0]), FFTW_PATIENT);
+//     //plan_forward_1d  =  fftw_plan_dft_1d( CPD, reinterpret_cast<fftw_complex *>(in_1d), reinterpret_cast<fftw_complex *>(out_1d), FFTW_FORWARD, FFTW_PATIENT);
+//     //plan_forward_1d_r2c = fftw_plan_dft_r2c_1d(CPD, in_r2c, reinterpret_cast<fftw_complex *>(out_r2c), FFTW_PATIENT);
 //
 //
 //
@@ -256,8 +256,8 @@ void CreateFourierFiles(int order, int inner_radius, int far_radius) {
 //         //     fmt::print("No wisdom file exists!\n");
 //
 //
-//     plan_forward_1d  =  fftw_plan_dft_1d( CPD, (fftw_complex *) &(in_1d[0]), (fftw_complex *) &(out_1d[0]), FFTW_FORWARD, FFTW_PATIENT);
-//     plan_forward_1d_r2c = fftw_plan_dft_r2c_1d(CPD,  &(in_r2c[0]), (fftw_complex *) &(out_r2c[0]), FFTW_PATIENT);
+//     plan_forward_1d  =  fftw_plan_dft_1d( CPD, reinterpret_cast<fftw_complex *>(in_1d), reinterpret_cast<fftw_complex *>(out_1d), FFTW_FORWARD, FFTW_PATIENT);
+//     plan_forward_1d_r2c = fftw_plan_dft_r2c_1d(CPD, reinterpret_cast<fftw_complex *>(in_r2c), reinterpret_cast<fftw_complex *>(out_r2c), FFTW_PATIENT);
 //
 //         //if(!wisdomExists)
 //         //        fmt::print("Exporting wisdom to file == {:d}\n", fftw_export_wisdom_to_filename("Part2.wisdom"));
@@ -507,8 +507,8 @@ void Part2(int order, int inner_radius, int far_radius, int MultipoleStart) {
 
 
     // Old 1-d code
-    //plan_forward_1d  =  fftw_plan_dft_1d( CPD, (fftw_complex *) &(in_1d[0]), (fftw_complex *) &(out_1d[0]), FFTW_FORWARD, FFTW_PATIENT);
-    //plan_forward_1d_r2c = fftw_plan_dft_r2c_1d(CPD,  &(in_r2c[0]), (fftw_complex *) &(out_r2c[0]), FFTW_PATIENT);
+    //plan_forward_1d  =  fftw_plan_dft_1d( CPD, reinterpret_cast<fftw_complex *>(in_1d), reinterpret_cast<fftw_complex *>(out_1d), FFTW_FORWARD, FFTW_PATIENT);
+    //plan_forward_1d_r2c = fftw_plan_dft_r2c_1d(CPD,  &(in_r2c[0]), reinterpret_cast<fftw_complex *>(out_r2c), FFTW_PATIENT);
 
         fmt::print("Planning fftw with omp\n");
         fftw_plan_with_nthreads(omp_get_max_threads());
@@ -517,8 +517,8 @@ void Part2(int order, int inner_radius, int far_radius, int MultipoleStart) {
 
     // This is the plan to do the 2d CPD*CPD complex-to-complex XY FFTs
     plan_forward_2d  =  fftw_plan_dft_2d( CPD, CPD,
-        (fftw_complex *) &(in_2d[0]),
-        (fftw_complex *) &(out_2d[0]),
+        reinterpret_cast<fftw_complex *>(in_2d),
+        reinterpret_cast<fftw_complex *>(out_2d),
         FFTW_FORWARD, FFTW_PATIENT);
 
     // This is the plan to do CPD real-to-complex Z FFTs, each of size CPD, with a stride of CPDpad
@@ -528,8 +528,8 @@ void Part2(int order, int inner_radius, int far_radius, int MultipoleStart) {
     int istride, ostride; istride = ostride = 1;
     // iembed and oembed are just NULL
     plan_forward_1d_r2c  =  fftw_plan_many_dft_r2c( 1, fftw_n, howmany,
-        &(in_r2c[0]), NULL, istride, idist,
-        (fftw_complex *) &(out_r2c[0]), NULL, ostride, odist,
+        in_r2c, NULL, istride, idist,
+        reinterpret_cast<fftw_complex *>(out_r2c), NULL, ostride, odist,
         FFTW_PATIENT);
 
         fmt::print("Plans created.\n");
@@ -761,13 +761,13 @@ END OLD CODE */
                                 #pragma omp parallel for schedule(static)
                 for(int x=0;x<(CPD+1)/2;x++)
                     for(int y=0;y<=x;y++) 
-                        buf[ RINDEXY(x,y) ] = real(conj(out_2d[x*CPD+y]));
+                        buf[ RINDEXY(x,y) ] = std::real(std::conj(out_2d[x*CPD+y]));
                         // tmpreal[ RINDEXY(x,y) ] = real(conj(tmpD[x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z]));
             else
                                 #pragma omp parallel for schedule(static)
                 for(int x=0;x<(CPD+1)/2;x++)
                     for(int y=0;y<=x;y++)
-                        buf[ RINDEXY(x,y) ] = imag(conj(out_2d[x*CPD+y]));
+                        buf[ RINDEXY(x,y) ] = std::imag(std::conj(out_2d[x*CPD+y]));
                         // tmpreal[ RINDEXY(x,y) ] = imag(conj(tmpD[x*CPD*(CPD+1)/2 + y*(CPD+1)/2 + z]));
         }
 

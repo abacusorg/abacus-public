@@ -312,7 +312,7 @@ void SlabMultipolesMPI::FFTZ(MTCOMPLEX *out, const mpi_complex_t *in) {
             fftw_execute( plan_forward_c2c_1d[g] );
 
             for(int64_t kz = 0; kz < cpd; kz++)
-                out[y*rml*cpd + m*cpd + kz] = (MTCOMPLEX) out_1d[g][kz];
+                out[y*rml*cpd + m*cpd + kz] = static_cast<MTCOMPLEX>(out_1d[g][kz]);
         }
     }
 
