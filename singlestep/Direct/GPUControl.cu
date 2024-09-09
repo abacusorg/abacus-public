@@ -443,7 +443,7 @@ void GPUSetup(int cpd, uint64 MaxBufferSize,
         Buffers[g].sizeDef = Buffers[g].size*RatioDeftoAll;
         Buffers[g].ready = 0;
 
-        int core_start = g % NGPU < ThreadCoreStart.size() ? ThreadCoreStart[g % NGPU] : -1;
+        int core_start = g % NGPU < (int) ThreadCoreStart.size() ? ThreadCoreStart[g % NGPU] : -1;
         int core = -1;
         // If either the core start or the core count are invalid, do not bind this thread to a core
         if(core_start >= 0 && NThreadCores > 0)
@@ -461,7 +461,7 @@ void GPUSetup(int cpd, uint64 MaxBufferSize,
         info->core = core;
         info->UsePinnedGPUMemory = UsePinnedGPUMemory;
         info->barrier = thread_startup_barriers[g%NGPU];
-        info->queue = g%NGPU < GPUQueueAssignments.size() ? GPUQueueAssignments[g%NGPU] : 0;
+        info->queue = g%NGPU < (int) GPUQueueAssignments.size() ? GPUQueueAssignments[g%NGPU] : 0;
 
         if(core >= 0)
             STDLOG(0, "GPU buffer thread {:d} (GPU {:d}) assigned to core {:d}, watching queue {:d}\n", g, g % NGPU, core, info->queue);

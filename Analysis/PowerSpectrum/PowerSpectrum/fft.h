@@ -62,18 +62,18 @@ void FFT_FUNC_NAME(FLOAT *density, uint64_t gridN1D, double boxsize){
 #ifdef INPLACE
     // If doing in-place transform, the real density will already be padded to (n1d/2 + 1)*2 on the last axis
     FFTW_COMPLEX *output = (FFTW_COMPLEX *) density;
-    FFTW_COMPLEX *wisdom_scratch_out = (FFTW_COMPLEX *) wisdom_scratch_in;
+    // FFTW_COMPLEX *wisdom_scratch_out = (FFTW_COMPLEX *) wisdom_scratch_in;
 #else
     // If doing out-of-place, need to allocate a complex output of size (n1d/2 + 1) on the last axis
     FFTW_COMPLEX *output = (FFTW_COMPLEX *) FFTW_MALLOC(sizeof(FFTW_COMPLEX)*COMPLEX_OUT_SHAPE);
-    FFTW_COMPLEX *wisdom_scratch_out = output;
+    // FFTW_COMPLEX *wisdom_scratch_out = output;
     assert(output != NULL);
 #endif
     
 #ifdef TWO_D
     // Create wisdom if it doesn't exist
-    FFTW_PLAN_DFT_R2C_2D(gridN1D,gridN1D,wisdom_scratch_in,wisdom_scratch_out,FFTW_MEASURE);
-    FFTW_PLAN plan = FFTW_PLAN_DFT_R2C_2D(gridN1D,gridN1D,density,output,FFTW_WISDOM_ONLY);
+    // FFTW_PLAN_DFT_R2C_2D(gridN1D,gridN1D,wisdom_scratch_in,wisdom_scratch_out,FFTW_MEASURE);
+    FFTW_PLAN plan = FFTW_PLAN_DFT_R2C_2D(gridN1D,gridN1D,density,output,FFTW_ESTIMATE);
 #else
     // Create wisdom if it doesn't exist
     //FFTW_PLAN_DFT_R2C_3D(gridN1D,gridN1D,gridN1D,wisdom_scratch_in,wisdom_scratch_out,FFTW_MEASURE);

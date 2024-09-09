@@ -22,14 +22,14 @@ public:
     void OpenForRead(void);
     void Close(void);
     void SkipHeader(void);
-    static int SkipHeaderFromFP(FILE *);
+    static size_t SkipHeaderFromFP(FILE *);
     void ReadHeader(void);
 
     void FinalizeHeader(void);
 
     fs::path name;
     char *buffer;
-    int bufferlength;
+    size_t bufferlength;
     FILE *fp;
 
 private:
@@ -61,7 +61,7 @@ public:
 
     // Install a vector
     template <typename T>
-    void installvector(const std::string &name, std::vector<T> &var, bool must_define, size_t maxlen = 60);
+    void installvector(const std::string &name, std::vector<T> &var, bool must_define, size_t maxlen = 1024);
 
     void ReadHeader(HeaderStream &in);
 

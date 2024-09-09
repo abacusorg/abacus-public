@@ -212,13 +212,13 @@ void accumulate_partition_boundaries(unsigned int *index,
                 unsigned int partsize[], unsigned int pstart[]) {
     // Just sum over the sub-list to find the partition lengths and 
     // cumulation of them.
-    for (int k=0; k<Nparts; k++) partsize[k] = 0;
+    for (unsigned int k=0; k<Nparts; k++) partsize[k] = 0;
     #pragma omp parallel for schedule(MM_OMP_PLAN)
-    for (int k=0; k<Nparts; k++) 
-        for (int j=0; j<Nsublist; j++) 
+    for (unsigned int k=0; k<Nparts; k++) 
+        for (unsigned int j=0; j<Nsublist; j++) 
             partsize[k] += index[j*Nparts+k+1]-index[j*Nparts+k];
     pstart[0]=0; 
-    for (int k=0; k<Nparts; k++) pstart[k+1] = pstart[k]+partsize[k];
+    for (unsigned int k=0; k<Nparts; k++) pstart[k+1] = pstart[k]+partsize[k];
     return;
 }
 
@@ -226,7 +226,7 @@ unsigned int interpolate(unsigned int minvalue[], unsigned int pstart[], unsigne
     // Goal is the number of particles we're trying to find.
     // Look in the (minvalue,pstart) list to estimate where the goal would be.
     if (goal==0) return 0;
-    for (int i=0; i<Nparts; i++) {
+    for (unsigned int i=0; i<Nparts; i++) {
         if (pstart[i+1]>=goal) {
             // The goal is between pstart[i] and pstart[i+1].
             // Also guaranteed that pstart[i+1]>pstart[i], else we would have already stopped
@@ -283,7 +283,7 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
     
     MM_Indexing.Start();
 
-    int Nmerge = sublistsize/(sizeof(MergeType)*FIFO_SIZE+sizeof(MergeFIFO<MergeType>));  
+    unsigned int Nmerge = sublistsize/(sizeof(MergeType)*FIFO_SIZE+sizeof(MergeFIFO<MergeType>));  
             // Could fit this many merging FIFO into cache.
     sublistsize /= sizeof(MergeType);   // Convert this to list units
     Nsublist = ceil((float)N/sublistsize);
@@ -303,7 +303,7 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
     // We have to find and store the starting point as index[SubList][Nparts]
 
     unsigned int minvalue[Nparts+1];  // The minimum key value for each partition.
-    for (int k=0; k<Nparts; k++) minvalue[k] = ((float)maxkey/Nparts)*k;
+    for (unsigned int k=0; k<Nparts; k++) minvalue[k] = ((float)maxkey/Nparts)*k;
             // Here we assume that the keys are approximately homogenouesly distributed 
         // between 0 and maxkey.
     minvalue[Nparts] = maxkey;    // Just for interpolation
@@ -311,13 +311,13 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
     unsigned int *index;
     assert(posix_memalign((void **)&index, CACHE_LINE_SIZE, sizeof(unsigned int)*(Nsublist*Nparts+1))==0);
     index[Nsublist*Nparts] = N;
-    for (int j=0; j<Nsublist; j++) index[j*Nparts] = j*sublistsize;
+    for (unsigned int j=0; j<Nsublist; j++) index[j*Nparts] = j*sublistsize;
     // We will have to fill in the other values as we go.
     MM_Indexing.Stop();
 
     MM_Sorting.Start();
     #pragma omp parallel for schedule(MM_OMP_PLAN)
-    for (int j=0; j<Nsublist; j++) {
+    for (unsigned int j=0; j<Nsublist; j++) {
         // Now we loop over each sublist.
         unsigned int start = index[j*Nparts];
         unsigned int size = index[(j+1)*Nparts]-start;
@@ -333,7 +333,7 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
 
         // While this sublist may still be in cache, search for the breakpoints
         MM_Bisect.Start();
-        for (int k=1; k<Nparts; k++) 
+        for (unsigned int k=1; k<Nparts; k++) 
             index[j*Nparts+k] = start + bisection_search(a+start, size, minvalue[k]);
         MM_Bisect.Stop();
     }
@@ -367,15 +367,15 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
     unsigned int newminvalue[Nparts];  
     newminvalue[0] = 0;
     #pragma omp parallel for schedule(MM_OMP_PLAN)
-    for (int k=1; k<Nparts; k++) 
+    for (unsigned int k=1; k<Nparts; k++) 
         newminvalue[k] = interpolate(minvalue, pstart, ((float)N/Nparts)*k);
 
     // Now we have our new partition points.  Repeat the bisection.
     #pragma omp parallel for schedule(MM_OMP_PLAN)
-    for (int j=0; j<Nsublist; j++) {
+    for (unsigned int j=0; j<Nsublist; j++) {
         unsigned int start = index[j*Nparts];
         unsigned int size = index[(j+1)*Nparts]-start;
-        for (int k=1; k<Nparts; k++) 
+        for (unsigned int k=1; k<Nparts; k++) 
             index[j*Nparts+k] = start + bisection_search(a+start, size, newminvalue[k]);
     }
     accumulate_partition_boundaries(index, partsize, pstart);
@@ -394,14 +394,14 @@ void mmsort(MergeType *a, MergeType *out, unsigned int N, unsigned int maxkey, u
     
     MM_Merging.Start();
     #pragma omp parallel for schedule(MM_OMP_PLAN)
-    for (int k=0; k<Nparts; k++) {
+    for (unsigned int k=0; k<Nparts; k++) {
         MergeType *outpart = out+pstart[k]; 
 
         MergeFIFO<MergeType> *m = new MergeFIFO<MergeType>[2*Nsublist];
                 // There are N input and N-1 merging lists to be used
 
-        int j;
-        for (j=0; j<Nsublist; j++) {
+        int j;  // TODO: can j be safely unsigned?
+        for (j=0; j<static_cast<int>(Nsublist); j++) {
             m[j].Setup(a+index[j*Nparts+k], index[j*Nparts+k+1]-index[j*Nparts+k]);
             // fmt::print("FIFO input {:d}:  {:d} {:d}   {:d}\n", j, index[j*Nparts+k], index[j*Nparts+k+1], index[j*Nparts+k+1]-index[j*Nparts+k]);
             }

@@ -149,7 +149,7 @@ void GatherTimings() {
 #define ACCUMULATE_THREAD_TOTALS(NAME, RW)\
     do{\
         for (auto &iter : NAME##Time){\
-            if(GetIOThread(iter.first)-1 == i){\
+            if(GetIOThread(iter.first)-1 == static_cast<int>(i)){\
                 total_##RW##_time += iter.second.Elapsed();\
                 total_##RW##_bytes += NAME##Bytes[iter.first];\
             }\
@@ -159,7 +159,7 @@ void GatherTimings() {
 #define REPORT_DIR_IOSTATS(NAME, RW, BLOCKING)\
     do{\
         for (auto &iter : NAME##Time){\
-            if(GetIOThread(iter.first)-1 == i){\
+            if(GetIOThread(iter.first)-1 == static_cast<int>(i)){\
                 double this_io_time = iter.second.Elapsed();\
                 double this_io_bytes = NAME##Bytes[iter.first];\
                 REPORT(1, iter.first, this_io_time);\
@@ -168,7 +168,7 @@ void GatherTimings() {
         }\
     } while(0)
 
-    for(int i = 1; i <= niothreads; i++){
+    for(size_t i = 1; i <= niothreads; i++){
         // TODO: could probably move some of this inside the IO thread destructor
         double total_read_time = 0., total_read_bytes = 0.;
         double total_write_time = 0., total_write_bytes = 0.;
@@ -182,7 +182,7 @@ void GatherTimings() {
         total_write_time += ChecksumTime[i];
 
         double total_time = total_read_time + total_write_time;
-        double total_bytes = total_read_bytes + total_write_bytes;
+        // double total_bytes = total_read_bytes + total_write_bytes;
 
         denom = WallClockDirect.Elapsed();
 #ifdef IOTHREADED
@@ -204,13 +204,11 @@ void GatherTimings() {
     }
 #undef niothreads
 
+#ifdef PARALLEL
     // Total time checking for MPI completion and freeing buffers
     double manifest_check_time = 0.;
     double RManifestTime = 0.;
     double SManifestTime = 0.;
-    double total_mpi_check = 0.;  // things not timed in other actions
-
-#ifdef PARALLEL
     for(int i = 0; i < nManifest; i++){
         manifest_check_time += _SendManifest[i].CheckCompletion.Elapsed() + 
                                 _ReceiveManifest[i].CheckCompletion.Elapsed();
@@ -233,7 +231,7 @@ void GatherTimings() {
         REPORT(1, "NearForce [blocking]", NearForce->Elapsed()); total += thistime;
         REPORT(1, "NearForce [non-blocking]", NFD->GPUThroughputTime);
         fmt::print(reportfp,"---> {:6.2f} effective GDIPS, {:.2f} Mpart/sec", thistime ? NFD->gdi_gpu/thistime : 0, thistime ? NearForce->num_particles/thistime/1e6 : 0.);
-        double total_di = (NFD->DirectInteractions_CPU +NFD->TotalDirectInteractions_GPU)/1e9;
+        // double total_di = (NFD->DirectInteractions_CPU +NFD->TotalDirectInteractions_GPU)/1e9;
     #else
         REPORT(1, "NearForce", NearForce->Elapsed()); total += thistime;
         REPORT_RATE(NearForce);

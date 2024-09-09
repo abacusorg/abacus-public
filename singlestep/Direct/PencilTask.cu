@@ -26,7 +26,7 @@ struct DeviceData{
     List3<FLOAT>    SinkSetPositions;
     List3<FLOAT>    SourceSetPositions;
     
-    int *           SinkSetIdMax;
+    unsigned int *           SinkSetIdMax;
     accstruct *     SinkSetAccelerations;
     int *           SinkBlockParentPencil;
 
@@ -66,7 +66,7 @@ void ConfigureBufferAsDeviceData(GPUBuffer &buf,
     uint64 used_hostWC = 0;
 
     // Allocate GPU-side memory
-    CudaConfig(gpu.SinkSetIdMax,              sizeof(int) * MaxNSink);
+    CudaConfig(gpu.SinkSetIdMax,              sizeof(unsigned int) * MaxNSink);
     CudaConfig(gpu.SourceSetStart,            sizeof(int) * MaxNSource);
     CudaConfig(gpu.SourceSetCount,            sizeof(int) * MaxNSource);
     CudaConfig(gpu.SinkSourceInteractionList, sizeof(int) * MaxNSink * WIDTH);
@@ -82,7 +82,7 @@ void ConfigureBufferAsDeviceData(GPUBuffer &buf,
     assertf(used_gpu<buf.size, "Configuration of Buffer requesting {:d} bytes on device, but only {:d} available\n", used_gpu, buf.size);   // Check that we didn't overflow
 
     // Allocate host-side buffers
-    WCConfig(pinned.SinkSetIdMax,              sizeof(int) * MaxNSink);
+    WCConfig(pinned.SinkSetIdMax,              sizeof(unsigned int) * MaxNSink);
     WCConfig(pinned.SourceSetStart,            sizeof(int) * MaxNSource);
     WCConfig(pinned.SourceSetCount,            sizeof(int) * MaxNSource);
     WCConfig(pinned.SinkSourceInteractionList, sizeof(int) * MaxNSink * WIDTH);
@@ -170,7 +170,7 @@ void GPUPencilTask(void *item, int g){
     StreamData.nfwidth = task->nfwidth;
 
     // Copy indexing information from the SIC to the GPU
-    CopyToGPU(SinkSetIdMax,                 sizeof(int)*task->NSinkSets);
+    CopyToGPU(SinkSetIdMax,                 sizeof(unsigned int)*task->NSinkSets);
     CopyToGPU(SinkBlockParentPencil,        sizeof(int)*task->NSinkBlocks);
     CopyToGPU(SourceSetStart,               sizeof(int)*task->NSourceSets);
     CopyToGPU(SourceSetCount,               sizeof(int)*task->NSourceSets);

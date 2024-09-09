@@ -87,7 +87,7 @@ class iorequest {
         memory = _memory;
         sizebytes = _sizebytes;
         const fs::path absfname = fs::absolute(_filename);
-        strncpy(filename, absfname.c_str(), 512);
+        strncpy(filename, absfname.c_str(), 511);
 
         if(_fp != NULL){
             io_method = IO_LIGHTCONE;
@@ -100,9 +100,9 @@ class iorequest {
 
         // Get the directory of the file for logging purposes
         // Believe it or not, dirname modifies its argument
-        strncpy(dir, absfname.parent_path().filename().c_str(), 512);
-        strncpy(fulldir, absfname.parent_path().c_str(), 512);
-        strncpy(justname, absfname.filename().c_str(), 512);
+        strncpy(dir, absfname.parent_path().filename().c_str(), 511);
+        strncpy(fulldir, absfname.parent_path().c_str(), 511);
+        strncpy(justname, absfname.filename().c_str(), 511);
 
         command = _command;
         arenatype = _arenatype;

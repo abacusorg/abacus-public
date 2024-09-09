@@ -56,14 +56,14 @@ void HeaderStream::SkipHeader(void) {
 
 // returns length of header, including the ^B^B at end, and leave the
 //     file open, at the end of the header.
-int HeaderStream::SkipHeaderFromFP(FILE *fp) {
-    int bufferlength;
+size_t HeaderStream::SkipHeaderFromFP(FILE *fp) {
+    size_t bufferlength;
     char buf[2];
     if(fread(&(buf[1]), 1, 1, fp)<=0){
         bufferlength = 2;  // pseudo ^B^B
         return bufferlength;
     }
-    int len = 1;
+    size_t len = 1;
     do {
         buf[0] = buf[1];
         if(fread(&(buf[1]), 1, 1, fp)<=0){

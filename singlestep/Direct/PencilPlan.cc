@@ -94,14 +94,13 @@ int SinkPencilPlan::load(int x, int y, int z, int nfradius, int truncate) {
     // Return the total number of particles in the cell (un-padded)
     wrapcell = 0;
 
-    cellinfo *startci = CP->CellInfo(x,y,node_z_start);
 #ifdef PARALLEL
+    cellinfo *startci = CP->CellInfo(x,y,node_z_start);
     ghostoffset = startci->startindex_with_ghost - startci->startindex;
     assert(ghostoffset >= 0);
 #endif
 
     int total = 0;
-    FLOAT cellsize = CP->invcpd;
     const int width = nfradius*2+1;
     for (int c=0; c<width; c++) {
         int zc = z + c - nfradius;
@@ -159,7 +158,7 @@ void SinkPencilPlan::copy_from_pinned_memory(void *_pinacc,
         nwritten += total;
     }
     else {
-        int last_N;
+        int last_N = 0;
 
         // count how many particles before the wrap or the last cell
         int coadd_contig;
@@ -199,7 +198,7 @@ void SinkPencilPlan::copy_from_pinned_memory(void *_pinacc,
     /*for(int c = 0; c < 2*NearFieldRadius+1; c++){
         accstruct *p = (accstruct *) SinkAccSlab + cell[c].start;
         for(int i = 0; i < cell[c].N; i++){
-            assertf(TOFLOAT3(p[i]).is_finite(), "p[{:d} of {:d}] in cell {:d} (wrapcell {:d}): {:f} {:f} {:f}\n", i, cell[c].N, c, wrapcell, p[i].x, p[i].y, p[i].z);
+            assertf(static_cast<FLOAT3>(p[i]).is_finite(), "p[{:d} of {:d}] in cell {:d} (wrapcell {:d}): {:f} {:f} {:f}\n", i, cell[c].N, c, wrapcell, p[i].x, p[i].y, p[i].z);
             //assertf(p[i].norm2() != 0., "p[{:d} of {:d}] in cell {:d} (wrapcell {:d}): {:f} {:f} {:f}\n", i, cell[c].N, c, wrapcell, p[i].x, p[i].y, p[i].z);
         }
     }*/
@@ -260,7 +259,6 @@ int SourcePencilPlan::load(int x, int y, int z, int NearFieldRadius) {
     // Given the center cell index, load the cell information
     // Return the total number of particles in the cell (un-padded)
     int total = 0;
-    FLOAT cellsize = CP->invcpd;
     const int width = NearFieldRadius*2+1;
     for (int c=0; c<width; c++) {
         int xc = x+c-width/2;

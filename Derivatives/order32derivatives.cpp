@@ -99,8 +99,8 @@ void Order32Derivatives::InfiniteDerivativeSummation(double3 r, double *rd, int 
 		rz[i] = rz[i-1] * rz[1] /i; // 									 \mathbf{c}_{jkl,z}^c/c!
     }
 
-    int a,b,c; //Eqn. 4.8's a, b, c.
-    int d,e,f; //Eqn. 4.8's d, e, f. 
+    // int a,b,c; //Eqn. 4.8's a, b, c.
+    // int d,e,f; //Eqn. 4.8's d, e, f. 
 
     int m = 0;
 	

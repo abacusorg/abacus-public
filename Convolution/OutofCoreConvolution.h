@@ -16,10 +16,10 @@ public:
     ~OutofCoreConvolution(void) { }     
     void Convolve();
 
-    uint64_t blocksize, zwidth;
+    int64_t blocksize, zwidth;
 	
 #ifdef PARALLEL
-	uint64_t z_slabs_per_node; 
+	int64_t z_slabs_per_node; 
 #endif
 
 
@@ -38,7 +38,7 @@ private:
     STimer WaitForIO;
 #endif
 
-    uint64_t cpd,order,rml,CompressedMultipoleLengthXY;
+    int64_t cpd,order,rml,CompressedMultipoleLengthXY;
 
     void BlockConvolve(void);
     void WriteDiskTaylor(int z);

@@ -26,8 +26,8 @@
 class alignas(CACHE_LINE_SIZE) iothread {
 public:
     iothread(fs::path logfn, int _threadnum, int _io_core)
-        : threadnum(_threadnum),
-          io_core(_io_core)
+        : io_core(_io_core),
+          threadnum(_threadnum)
     {
 
         // Make the FIFO files
@@ -70,9 +70,9 @@ public:
         iorequest quitcmd;
         quitcmd.command = IO_QUIT;
         quitcmd.blocking = 1;
-        ssize_t ret = write(io_cmd, &quitcmd, sizeof(iorequest) );
+        write(io_cmd, &quitcmd, sizeof(iorequest) );
         ioacknowledge quitcmdack;
-        ret = read(io_ack, &quitcmdack, sizeof(ioacknowledge) );
+        read(io_ack, &quitcmdack, sizeof(ioacknowledge) );
         assertf(quitcmdack.command==IO_QUIT,
             "Error in IO acknowledgment\n");
         STDLOG(0,"Termination of IO thread confirmed\n");
@@ -93,7 +93,7 @@ public:
     }
 
     void request(iorequest ior){
-        ssize_t ret = write(io_cmd, &ior, sizeof(iorequest));
+        write(io_cmd, &ior, sizeof(iorequest));
         if (ior.blocking) {
             wait_for_ioack(io_ack, ior.arenatype, ior.arenaslab);
             STDLOG(1,"Blocking IO returned\n");
@@ -126,13 +126,13 @@ private:
     void CrashIO() {
         IOLOG(0,"Crashing the IO thread; sending IO_ERROR to client!\n");
         ioacknowledge ioack(IO_ERROR,-1,-1);
-        ssize_t ret = write(fifo_ack,&ioack, sizeof(ioacknowledge) );
+        write(fifo_ack,&ioack, sizeof(ioacknowledge) );
         pthread_exit(NULL);
     }
 
     void wait_for_ioack(int io_ack, int arenatype, int arenaslab){
         ioacknowledge ioack;
-        ssize_t ret = read(io_ack, &ioack, sizeof(ioacknowledge));
+        read(io_ack, &ioack, sizeof(ioacknowledge));
         assertf(ioack.arenatype == arenatype && ioack.arenaslab == arenaslab, "Error in IO acknowledgement for arena {:d} = {:d}, {:d} ={:d}\n", arenatype, ioack.arenatype, arenaslab, ioack.arenaslab);
     }
 
@@ -331,7 +331,7 @@ private:
 
                 // Send an acknowledgement
                 ioacknowledge ioack(IO_WRITE,ior.arenatype, ior.arenaslab);
-                ssize_t ret = write(fifo_ack,&ioack, sizeof(ioacknowledge) );
+                write(fifo_ack,&ioack, sizeof(ioacknowledge) );
                 IOLOG(3,"IO_WRITE acknowledgement sent\n");
             } else if (read_blocking.isnotempty()) {
 
@@ -342,7 +342,7 @@ private:
 
                 // Send an acknowledgement
                 ioacknowledge ioack(IO_READ,ior.arenatype, ior.arenaslab);
-                ssize_t ret = write(fifo_ack,&ioack, sizeof(ioacknowledge) );
+                write(fifo_ack,&ioack, sizeof(ioacknowledge) );
                 IOLOG(3,"IO_READ acknowledgement sent\n");
             } else if (write_nonblocking.isnotempty()) {
 
@@ -364,7 +364,7 @@ private:
         // Signal an acknowledgement.
         IOLOG(0,"Terminating the IO thread as planned.\n");
         ioacknowledge ioack(IO_QUIT,0,0);
-        ssize_t ret = write(fifo_ack,&ioack, sizeof(ioacknowledge) );
+        write(fifo_ack,&ioack, sizeof(ioacknowledge) );
         IOLOG(0,"IO_QUIT acknowledgement sent\n");
         close(fifo_cmd);
         close(fifo_ack);
@@ -399,28 +399,28 @@ private:
 #include <map>
 
 iothread **iothreads;
-int niothreads;
+size_t niothreads;
 
 // Slab types, like light cones, may opt to append to a single file
 // We keep an array of open file pointers for those types.
 FILE **filepointers;
-int nfilepointers;
+size_t nfilepointers;
 
 void IO_Initialize(const fs::path &logfn, int NumTypes) {
     nfilepointers = NumTypes;
     filepointers = new FILE*[nfilepointers];
-    for(int i = 0; i < nfilepointers; i++){
+    for(size_t i = 0; i < nfilepointers; i++){
         filepointers[i] = NULL;
     }
     
     // Count how many IO threads we need
     // IO thread numbers should be contiguous!
     niothreads = 1;
-    for(int i = 0; i < P.IODirThreads.size(); i++)
-        niothreads = max(niothreads, P.IODirThreads[i]);
+    for(size_t i = 0; i < P.IODirThreads.size(); i++)
+        niothreads = std::max(niothreads, (size_t) P.IODirThreads[i]);
 
     iothreads = new iothread*[niothreads];
-    for(int i = 0; i < niothreads; i++){
+    for(size_t i = 0; i < niothreads; i++){
         STDLOG(0,"Initializing IO thread {:d}\n", i + 1);
         int io_core = i < P.IOCores.size() ? P.IOCores[i] : -1;
         iothreads[i] = new iothread(logfn, i + 1, io_core);
@@ -428,14 +428,14 @@ void IO_Initialize(const fs::path &logfn, int NumTypes) {
 }
 
 void IO_Terminate() {
-    for(int i = 0; i < niothreads; i++){
+    for(size_t i = 0; i < niothreads; i++){
         STDLOG(0,"Terminating IO thread {:d}\n", i);
         delete iothreads[i];
     }
 
     delete[] iothreads;
 
-    for(int i = 0; i < nfilepointers; i++){
+    for(size_t i = 0; i < nfilepointers; i++){
         if(filepointers[i] != NULL){
             int ret = fclose(filepointers[i]);
             assertf(ret == 0, "Error closing file pointer for type {:d}\n", i);
@@ -471,7 +471,7 @@ void IO_Terminate() {
 // Return the ID of the IO thread that will handle this directory
 // Threads are one-indexed
 int GetIOThread(const fs::path &dir){
-    for(int i = 0; i < P.IODirThreads.size(); i++){
+    for(size_t i = 0; i < P.IODirThreads.size(); i++){
         if(dir == P.IODirs[i]){
             return P.IODirThreads[i];
         }

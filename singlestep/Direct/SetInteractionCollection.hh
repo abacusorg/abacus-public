@@ -194,7 +194,7 @@ class SetInteractionCollection{
 
         int *           SinkSetStart; ///< The index in the Sink Pos/Acc lists where this set begins
         int *           SinkSetCount; ///< The number of particles in the SinkSet
-        int *           SinkSetIdMax; ///< The sum of the above, i.e., the end of the Sink Pencil.  
+        unsigned int *           SinkSetIdMax; ///< The sum of the above, i.e., the end of the Sink Pencil.  
         SinkPencilPlan *           SinkPlan; ///<  The plan for this pencil
         accstruct *        SinkSetAccelerations; ///< Where the computed accelerations for the collection will be stored
 

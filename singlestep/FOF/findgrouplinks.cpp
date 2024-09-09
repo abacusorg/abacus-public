@@ -99,7 +99,6 @@ class FaceSet {
     CellFaceSlab *face;
     FaceSet(CellFaceSlab *_face) { 
             face = _face; 
-        int ret;
         pP = NULL;
         pR = NULL;
         fP = NULL;
@@ -154,7 +153,7 @@ class FaceSet {
                 // But now we want to find the particles in the face
                 int fPstart = fP->get_pencil_size()-fPcellstart;
                 int fGsize = 0;
-                FOFparticle BBmin, BBmax;
+                FOFparticle BBmin = FOFparticle(), BBmax = FOFparticle();
 
                 // Look at the particles in this group
                 posstruct *ppos = c.pos+cg[g].start;

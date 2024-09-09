@@ -116,7 +116,6 @@ void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
     // Now we have to adjust the positions and velocities
     assertf(P.is_np_perfect_cube(), "LPT reconstruction requires np ({:d}) to be a perfect cube.\n",P.np);
     int e = c.count();
-    posstruct displ1, displ2;
     // This is the factor to convert from redshift-space displacements
     // to canonical velocities.
     // HubbleNow is H(z)/H_0.
@@ -146,8 +145,8 @@ void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
             // displ2 = c.vel[b]/7/H/H/P.Omega_M;
         
         // Internally, everything is in a unit box, so we actually don't need to normalize by BoxSize before rounding
-        displ1 = displ1_g - displ1_g.round();
-        displ2 = displ2_g - displ2_g.round();
+        posstruct displ1 = displ1_g - displ1_g.round();
+        posstruct displ2 = displ2_g - displ2_g.round();
 
         double3 pos_g = ZelPos(c.aux[b].xyz())-cellcenter + displ1+displ2;
         c.pos[b] = pos_g - pos_g.round();
@@ -189,10 +188,8 @@ void DriftCell_2LPT_3(Cell &c, FLOAT driftfactor) {
     // Usually, Drift doesn't need accelerations, but 3LPT does
     // TODO: Haven't considered Smooth components at 3rd order
     assertf(P.Omega_Smooth==0, "3rd order not implemented with Omega_Smooth!=0\n");
-    int slab = c.ijk.x;
     
     int e = c.count();
-    posstruct displ12, displ3;
     // This is the factor to convert from redshift-space displacements
     // to canonical velocities.
     // HubbleNow is H(z)/H_0.
@@ -209,11 +206,11 @@ void DriftCell_2LPT_3(Cell &c, FLOAT driftfactor) {
     double H = 1;
     for (int b = 0; b<e; b++) {
         // The first+second order displacement
-        displ12 = c.pos[b] - (ZelPos(c.aux[b].xyz())-cellcenter);
+        posstruct displ12 = c.pos[b] - (ZelPos(c.aux[b].xyz())-cellcenter);
         displ12 -= displ12.round();
             
         // Third order displacement
-        displ3 = (2./(3*H*H*P.Omega_M)*TOFLOAT3(c.acc[b]) - (7./(3*H*WriteState.f_growth*convert_velocity)*c.vel[b] - 4./3*displ12))/6;
+        posstruct displ3 = (2./(3*H*H*P.Omega_M)*static_cast<FLOAT3>(c.acc[b]) - (7./(3*H*WriteState.f_growth*convert_velocity)*c.vel[b] - 4./3*displ12))/6;
         displ3 -= displ3.round();
         assertf(displ3.norm() < displ12.norm(), "Error: 3rd-order LPT displacement ({:f}, {:f}, {:f}) is larger than 1st+2nd order ({:f}, {:f}, {:f})!\n",
                displ3.x, displ3.y, displ3.z, displ12.x, displ12.y, displ12.z);
@@ -226,12 +223,10 @@ void DriftCell_2LPT_3(Cell &c, FLOAT driftfactor) {
         // If we were supplied with Zel'dovich velocities and displacements,
         // we want to re-read the 1st order velocity
         if(1){
-            velstruct vel1, vel1_ic, vel2;
-            //vel1_ic = get_ic_vel(c.aux[b].xyz(), NULL, NULL);
+            //velstruct vel1_ic = get_ic_vel(c.aux[b].xyz(), NULL, NULL);
             QUIT("3LPT needs update for new vel unpacking\n");
-            vel2 = c.vel[b] - displ12*WriteState.f_growth*convert_velocity;  // Isolate the 2nd order vel from the linear 1st order
-            c.vel[b] = vel1_ic + vel2;
-            
+            // velstruct vel2 = c.vel[b] - displ12*WriteState.f_growth*convert_velocity;  // Isolate the 2nd order vel from the linear 1st order
+            // c.vel[b] = vel1_ic + vel2;
         }
         // If we were only supplied with Zel'dovich displacements,
         // then nothing special to be done here

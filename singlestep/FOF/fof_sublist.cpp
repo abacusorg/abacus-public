@@ -725,6 +725,7 @@ class FOFcell {
 	start = primary;
 	unassigned_core = primary+1;
 	unassigned_skin = primary;   // Set this to force an initial partitioning
+	unassigned_far = NULL;  // not used during the first sweep
 
 	FOFparticle BBmin, BBmax;
 	// AVXAVX

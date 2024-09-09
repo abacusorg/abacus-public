@@ -131,7 +131,7 @@ public:
 
     // Push to the end of the list and grow
     inline void Push(posstruct  *pos, velstruct *vel, auxstruct *aux, integer3 xyz) {
-        ilstruct il;
+        ilstruct il = ilstruct();
         il.pos = *pos;
         il.vel = *vel;
         il.aux = *aux;
@@ -204,13 +204,12 @@ public:
 
     inline void WrapAndPush(posstruct *pos, velstruct *vel, auxstruct *aux,
         int x, int y, int z) {
-        integer3 newcell;
         
 #ifdef GLOBALPOS
-        newcell = WrapToNewCell(pos,x,y,z,clearLC);
+        integer3 newcell = WrapToNewCell(pos,x,y,z,clearLC);
 #else
         // Use LocalWrapToNewCell for cell-referenced positions
-        newcell = LocalWrapToNewCell(pos,aux,x,y,z,clearLC);
+        integer3 newcell = LocalWrapToNewCell(pos,aux,x,y,z,clearLC);
 #endif
 
         /* REMOVING THIS CHECK, as it would be detected in another way,

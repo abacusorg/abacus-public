@@ -14,7 +14,7 @@ void Redlack::ClearVariables(void) {
     MassTotal = 0.0;
 }
 
-Redlack::Redlack(int _cpd) {
+Redlack::Redlack(int _cpd) : globaldipole(0.) {
     cpd = _cpd;
     invcpd = 1.0/((double) cpd);
     invcpd3 = invcpd*invcpd*invcpd;

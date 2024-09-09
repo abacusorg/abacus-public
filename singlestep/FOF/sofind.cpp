@@ -155,7 +155,7 @@ class SOcell {
     int *center_particle;  ///< The index of the particle used in each group.
 
     SOcellgroup *socg;  ///< a list of the cell groups
-    int *cellindex;     ///< a list for each particle in pos of which cell it belongs to
+    unsigned int *cellindex;     ///< a list for each particle in pos of which cell it belongs to
     FOFloat *d2_active; ///< A buffer of distances to the particles in active cells
     integer3 refcell;   ///< the cell index triple for the first particle, -128
   
@@ -212,7 +212,7 @@ class SOcell {
         ret = posix_memalign((void **)&center_particle, CACHE_LINE_SIZE, sizeof(int)*maxsize);  assert(ret == 0);
 
         if (cellindex!=NULL) free(cellindex);
-        ret = posix_memalign((void **)&cellindex, CACHE_LINE_SIZE, sizeof(int)*maxsize);  assert(ret == 0);
+        ret = posix_memalign((void **)&cellindex, CACHE_LINE_SIZE, sizeof(unsigned int)*maxsize);  assert(ret == 0);
     
         if (halo_index!=NULL) free(halo_index);
         ret = posix_memalign((void **)&halo_index, CACHE_LINE_SIZE, sizeof(int)*maxsize);  assert(ret == 0);
@@ -439,7 +439,7 @@ void partition_cellgroup(SOcellgroup *cg, FOFparticle *center) {
 FOFloat partial_search(int len, int mass, FOFloat shell_max_rad2, int &size_thresh, FOFloat &inv_enc_den) {
     // number of particles within threshold in that partition
     size_thresh = 0;
-    FOFloat x;
+    FOFloat x = 0;
 
     if (len==0) {
         // It is rare, but this could get called on an empty shell.
@@ -491,7 +491,6 @@ FOFloat search_socg_thresh(FOFparticle halocenter, FOFloat halocentraldensity, i
     int size_bin;
     int size_thresh;
     FOFloat d2_thresh = 0.;
-    FOFloat d2_max = 0.;
     int size_partition;
       
     // Compute the distance to all of the cellgroup centers,
@@ -858,10 +857,10 @@ inline void set_reference_cell(posstruct &p) {
 /// This provides a simple parsing of the positions back into uniquely
 /// numbered cell indices.  
 // NOTE: This assumes that particles occupy [-halfinvcpd,+halfinvcpd) in cells
-inline int compute_cellindex(posstruct &p) {
-    int i = floor((p.x+CP->halfinvcpd)*CP->cpd)-refcell.x;
-    int j = floor((p.y+CP->halfinvcpd)*CP->cpd)-refcell.y;
-    int k = floor((p.z+CP->halfinvcpd)*CP->cpd)-refcell.z;
+inline unsigned int compute_cellindex(posstruct &p) {
+    unsigned int i = floor((p.x+CP->halfinvcpd)*CP->cpd)-refcell.x;
+    unsigned int j = floor((p.y+CP->halfinvcpd)*CP->cpd)-refcell.y;
+    unsigned int k = floor((p.z+CP->halfinvcpd)*CP->cpd)-refcell.z;
     // assertf(i>=0&&i<256, "Bad cell index i={:d}", i);
     // assertf(j>=0&&j<256, "Bad cell index j={:d}", j);
     // assertf(k>=0&&k<256, "Bad cell index k={:d}", k);
@@ -869,10 +868,10 @@ inline int compute_cellindex(posstruct &p) {
 }
 
 /// Given the cellindex number, return the cell center
-inline FOFparticle compute_cellcenter(int cellidx) {
-    int k = (cellidx&0xff);
-    int j = (cellidx&0xff00)>>8;
-    int i = (cellidx&0xff0000)>>16;
+inline FOFparticle compute_cellcenter(unsigned int cellidx) {
+    unsigned int k = (cellidx&0xff);
+    unsigned int j = (cellidx&0xff00)>>8;
+    unsigned int i = (cellidx&0xff0000)>>16;
     // assertf(i>=0&&i<256, "Bad cell index i={:d}", i);
     // assertf(j>=0&&j<256, "Bad cell index j={:d}", j);
     // assertf(k>=0&&k<256, "Bad cell index k={:d}", k);

@@ -19,9 +19,9 @@ public:
     //       firstly align file offset by freading until offset is aligned 
     //       if bytesleft>=4096 use direct read 
     //       finally fread if anything else remains 
-    void BlockingRead(const fs::path &fn, char *x, size_t length, off_t fileoffsetbytes);
+    void BlockingRead(const fs::path &fn, char *x, size_t length, size_t fileoffsetbytes);
 
-    void BlockingRead(const fs::path &fn, char *x, size_t length, off_t fileoffsetbytes, int no_dio);
+    void BlockingRead(const fs::path &fn, char *x, size_t length, size_t fileoffsetbytes, int no_dio);
 
 private:
 
@@ -31,11 +31,11 @@ private:
     int rdopenflags(void);
     int rdopenfd(const fs::path &fn, int readflags);
 
-    void BlockingDirectReadAligned(const fs::path &fn, char *x, size_t length, off_t fileoffsetbytes);
+    void BlockingDirectReadAligned(const fs::path &fn, char *x, size_t length, size_t fileoffsetbytes);
     size_t min(size_t a, size_t b) { if(a<b) return a; return b; }
 
-    void BlockingReadDirect(const fs::path &fn, char *x, size_t length, off_t fileoffsetbytes);
-    void Blockingfread(const fs::path &fn, char *x, size_t length, off_t fileoffsetbytes);
+    void BlockingReadDirect(const fs::path &fn, char *x, size_t length, size_t fileoffsetbytes);
+    void Blockingfread(const fs::path &fn, char *x, size_t length, size_t fileoffsetbytes);
 
     int allow_directio;
 };

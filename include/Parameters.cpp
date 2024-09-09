@@ -27,7 +27,7 @@ class Parameters: public ParseHeader {
 public:
     
     std::string SimName; //What to call this run
-    long long int np;
+    uint64 np;
     int cpd;
     int order;
 
@@ -488,7 +488,7 @@ public:
     }
     int is_np_perfect_cube() {
         // Return 1 if np is a perfect cube.
-        long long int n = floor(ppd());
+        uint64 n = floor(ppd());
         if (n*n*n==np) return 1; else return 0;
     }
 

@@ -81,7 +81,6 @@ void OutofCoreConvolution::WriteDiskTaylor(int z) {
 
 void OutofCoreConvolution::BlockConvolve(void) {
     int nprocs = omp_get_max_threads();
-    size_t cacherambytes = CP.runtime_ConvolutionCacheSizeMB*(1024LL*1024LL);
 
     #ifdef GPUFFT
     int ngpu;
@@ -162,8 +161,7 @@ void OutofCoreConvolution::BlockConvolve(void) {
 		else if (zend > zwidth) zend = zwidth; //make sure we don't go off the end of valid zs. 
 #else
 		int zstart = zblock;
-		int zend = zblock + zwidth; 
-		int MPI_rank = -1; //for debugging. 
+		int zend = zblock + zwidth;
 #endif
 		
 		STDLOG(1, "zblock {:d}, zwidth {:d}, zstart {:d}, zend {:d}\n", zblock, zwidth, zstart, zend);	
@@ -296,14 +294,12 @@ void OutofCoreConvolution::BlockConvolve(void) {
 }
 
 OutofCoreConvolution::OutofCoreConvolution(ConvolutionParameters &_CP) : CP(_CP) {
-    memset(&CS, 0, sizeof(ConvolutionStatistics));
-
     assert(CP.runtime_cpd%2==1); assert(CP.runtime_cpd>0);
     assert(CP.runtime_order<=16); assert(CP.runtime_order>=1);
     assert(CP.runtime_NearFieldRadius>=1);
     assert(CP.runtime_NearFieldRadius<=(CP.runtime_cpd-1)/2);
 
-    assert( (CP.runtime_DerivativeExpansionRadius>=1) && (CP.runtime_DerivativeExpansionRadius <= 8)
+    assert( ((CP.runtime_DerivativeExpansionRadius>=1) && (CP.runtime_DerivativeExpansionRadius <= 8))
             || (CP.runtime_DerivativeExpansionRadius==16) );
     assert( (CP.runtime_AllowDIO == 1) || (CP.runtime_AllowDIO==0) );
     assert(CP.runtime_DIOBufferSizeKB>=1);

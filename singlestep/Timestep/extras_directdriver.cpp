@@ -9,7 +9,7 @@ void NearFieldDriver::CheckGPUCPU(int slabID){
     accstruct * a_cpu = (accstruct *)malloc(len);
     accstruct * a_tmp = (accstruct *)malloc(len);
     accstruct * a_gpu = (accstruct *) SB->GetSlabPtr(AccSlab,slabID);
-    auxstruct * aux = (auxstruct *)SB->GetSlabPtr(AuxSlab,slabID);
+    // auxstruct * aux = (auxstruct *)SB->GetSlabPtr(AuxSlab,slabID);
     memcpy(a_tmp,a_gpu,len);  // Save the GPU result in tmp
     memset(a_gpu,0,len);
     ExecuteSlabCPU(slabID);  // Compute the CPU result
@@ -60,7 +60,7 @@ void NearFieldDriver::ExecuteSlabCPU(int slabID, int * predicate){
     ZeroAcceleration(slabID,AccSlab);
     
     #ifdef DIRECTSINGLESPLINE
-    FLOAT inv_eps3 = 1./(SofteningLengthInternal*SofteningLengthInternal*SofteningLengthInternal);
+    // FLOAT inv_eps3 = 1./(SofteningLengthInternal*SofteningLengthInternal*SofteningLengthInternal);
     #endif
 
     uint64 DI_slab = 0;

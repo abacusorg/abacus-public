@@ -20,10 +20,10 @@ template<typename T>
 struct always_false : std::false_type {};
 
 // variable types for "type", below
-enum class PHType { BAD, INTEGER, FLOAT, DOUBLE, STRING, LOGICAL, LONG, PATH };
+enum class PHType { BAD, INTEGER, SIZE_T, FLOAT, DOUBLE, STRING, LOGICAL, LONG, PATH };
 
 // types for values
-enum class ValType { INTEGER, FLOAT, DOUBLE, STRING, LOGICAL };
+enum class ValType { INTEGER, DOUBLE, STRING, LOGICAL };
 
 // Tell Flex the lexer's prototype ...
 # define YY_DECL                                   \
@@ -54,6 +54,7 @@ typedef union {
     unsigned *u;
     int *i;
     LLint *l;
+    size_t *z;
     float *f;
     double *d;
     std::string *s;
@@ -175,7 +176,6 @@ public:
 template<typename T>
 void phDriver::InstallSym(const std::string &name, T *ptr, int dim, int stride, bool init) {
     SYMENT *sym;
-    int i;
 
     if(init_symtab==1) InitSymtab();
 
@@ -191,6 +191,11 @@ void phDriver::InstallSym(const std::string &name, T *ptr, int dim, int stride, 
         sym->pval.i = ptr;
         sym->pvalorig.i = ptr;
         sym->type = PHType::INTEGER;
+    } else if constexpr (std::is_same_v<T, size_t>) {
+        if(Debug) fmt::print(std::cerr, "installing a size_t: \"{}\"\n", name);
+        sym->pval.z = ptr;
+        sym->pvalorig.z = ptr;
+        sym->type = PHType::SIZE_T;
     } else if constexpr (std::is_same_v<T, LLint>) {
         if(Debug) fmt::print(std::cerr, "installing a long long: \"{}\"\n", name);
         sym->pval.l = ptr;

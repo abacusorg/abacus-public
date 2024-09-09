@@ -221,7 +221,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSetStart, PAGE_SIZE, sizeof(int) * NSinkSets) == 0);
     assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSetCount, PAGE_SIZE, sizeof(int) * NSinkSets) == 0);
     assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkPlan, PAGE_SIZE, sizeof(SinkPencilPlan) * NSinkSets) == 0);
-    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSetIdMax, PAGE_SIZE, sizeof(int) * NSinkSets) == 0);
+    assert(posix_memalign_wrap(buffer, bsize, (void **) &SinkSetIdMax, PAGE_SIZE, sizeof(unsigned int) * NSinkSets) == 0);
 
     assertf( (uint64)Nk * (j_width + nfwidth) < INT32_MAX,
         "The number of source sets will overflow a 32-bit signed int");
@@ -302,7 +302,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
         }
     }
 
-    int NPaddedSinks = NFBlockSize*NSinkBlocks;
+    size_t NPaddedSinks = NFBlockSize*NSinkBlocks;
     PaddedSinkTotal = NPaddedSinks;  // for performance metrics, we always move around the padded amount
             // The total padded number of particles
     assertf(NPaddedSinks <= MaxSinkSize, "NPaddedSinks ({:d}) larger than allocated space (MaxSinkSize = {:d})\n", NPaddedSinks, MaxSinkSize);
@@ -357,7 +357,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
         }
     }
     
-    int NPaddedSources = NFBlockSize*NSourceBlocks;
+    size_t NPaddedSources = NFBlockSize*NSourceBlocks;
             // The total number of padded sources
     PaddedSourceTotal = NPaddedSources;  // for performance metrics, we always move around the padded amount 
     assertf(NPaddedSources <= MaxSourceSize, "NPaddedSources ({:d}) larger than allocated space (MaxSourceSize = {:d})\n", NPaddedSources, MaxSourceSize);
@@ -379,7 +379,7 @@ SetInteractionCollection::SetInteractionCollection(int slab, int _jlow, int _jhi
     #pragma omp parallel for schedule(static) reduction(+:DirectTotal,PaddedDirectTotal) collapse(2)
     for(int j = 0; j < j_width; j++){
         for(int k=0; k < Nk; k++) {
-	    int zmid = index_to_zcen(k, twoD);
+	    // int zmid = index_to_zcen(k, twoD);
 
             int sinkindex = j*Nk + k;
             int l = nfwidth * sinkindex;

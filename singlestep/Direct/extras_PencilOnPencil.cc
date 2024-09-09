@@ -34,10 +34,10 @@ void SetInteractionCollection::CPUExecute(){
 
     for(int blockIdx = 0; blockIdx < NSinkBlocks; blockIdx++){
         #pragma omp parallel for schedule(dynamic,1)
-        for(int threadIdx = 0; threadIdx < NFBlockSize; threadIdx++){
+        for(size_t threadIdx = 0; threadIdx < NFBlockSize; threadIdx++){
 
-            int id = NFBlockSize*blockIdx + threadIdx;
-            int sinkIdx = SinkBlockParentPencil[blockIdx];
+            size_t id = NFBlockSize*blockIdx + threadIdx;
+            size_t sinkIdx = SinkBlockParentPencil[blockIdx];
 
             FLOAT sinkX, sinkY, sinkZ;
             if(id <  SinkSetIdMax[sinkIdx]){
@@ -53,10 +53,10 @@ void SetInteractionCollection::CPUExecute(){
 
             FLOAT3 a(0,0,0);
 
-            int InteractionStart = sinkIdx*WIDTH;
-            int InteractionMax = InteractionStart + WIDTH;
+            size_t InteractionStart = sinkIdx*WIDTH;
+            size_t InteractionMax = InteractionStart + WIDTH;
 
-            for(int c = InteractionStart; c < InteractionMax; c++){
+            for(size_t c = InteractionStart; c < InteractionMax; c++){
                 int sourceIdx = SinkSourceInteractionList[c];
                 int sourceStart = SourceSetStart[sourceIdx];
                 int sourceCount = SourceSetCount[sourceIdx];
@@ -127,7 +127,7 @@ void SetInteractionCollection::CPUExecute(){
     }
 
     //for(int i = 0; i < PaddedSinkTotal; i++)
-    //    assert(TOFLOAT3(SinkSetAccelerations[i]).is_finite());
+    //    assert(static_cast<FLOAT3>(SinkSetAccelerations[i]).is_finite());
 
     // Need to copy back the SinkSetAccel
     CopyAccelFromPinned.Start();

@@ -15,8 +15,11 @@ using std::string;
 using std::endl;
 
 phDriver::phDriver (int _Warnings, int _No_Undefined) 
-    : trace_scanning (false), trace_parsing (false), Debug(false),
-      Warnings(_Warnings), no_undefined(_No_Undefined) {
+    : Warnings(_Warnings),
+      no_undefined(_No_Undefined),
+      trace_parsing (false),
+      trace_scanning (false),
+      Debug(false) {
     InitSymtab();
     ResetParser();
 }
@@ -165,6 +168,7 @@ void phDriver::TypeValError(PHType type, ValType val, const yy::location& yylloc
         case PHType::DOUBLE: typeStr = "DOUBLE"; break;
         case PHType::FLOAT: typeStr = "FLOAT"; break;
         case PHType::INTEGER: typeStr = "INTEGER"; break;
+        case PHType::SIZE_T: typeStr = "SIZE_T"; break;
         case PHType::LOGICAL: typeStr = "LOGICAL"; break;
         case PHType::STRING: typeStr = "STRING"; break;
         case PHType::PATH: typeStr = "PATH"; break;
@@ -174,7 +178,6 @@ void phDriver::TypeValError(PHType type, ValType val, const yy::location& yylloc
     switch (val) {
         case ValType::INTEGER: valStr = "INTEGER"; break;
         case ValType::DOUBLE: valStr = "DOUBLE"; break;
-        case ValType::FLOAT: valStr = "FLOAT"; break;
         case ValType::LOGICAL: valStr = "LOGICAL"; break;
         case ValType::STRING: valStr = "STRING"; break;
     }
@@ -205,7 +208,6 @@ void phDriver::stuffit(SYMENT **spec, VAL_STACK *list, int len, int varzone,
                        const yy::location& yylloc) {
     int i;
     SYMENT *pf;
-    char tmpstr[6];
 
     for(i=0; i<len; i++) {
         if(varzone) 
@@ -233,6 +235,13 @@ void phDriver::stuffit(SYMENT **spec, VAL_STACK *list, int len, int varzone,
                     if(llabs(list[i].value.l)>std::numeric_limits<int>::max())
                         ERROR(string("attempt to store too large a value: ") + 
                               stringutil::ToString(list[i].value.l) + string(" in an int variable: ") +
+                              string(pf->name), yylloc);
+                    break;
+                case PHType::SIZE_T:
+                    STUFF(size_t, z, l, stride);
+                    if(list[i].value.l<0)
+                        ERROR(string("attempt to store a negative value: ") + 
+                              stringutil::ToString(list[i].value.l) + string(" in a size_t variable: ") +
                               string(pf->name), yylloc);
                     break;
                 case PHType::LOGICAL:
@@ -270,6 +279,13 @@ void phDriver::stuffit(SYMENT **spec, VAL_STACK *list, int len, int varzone,
                     PHWARNING(string("truncating a float: ") + stringutil::ToString(list[i].value.d) + 
                             string(" to an int for \"") + string(pf->name) + string("\"."), yylloc);
                     break;
+                case PHType::SIZE_T:
+                    STUFF(size_t, z, d, stride);
+                    if(list[i].value.d<0)
+                        ERROR(string("attempt to store a negative value: ") + 
+                              stringutil::ToString(list[i].value.d) + string(" in a size_t variable: ") +
+                              string(pf->name), yylloc);
+                    break;
                 case PHType::LOGICAL:
                 case PHType::STRING:
                 case PHType::PATH:
@@ -292,6 +308,7 @@ void phDriver::stuffit(SYMENT **spec, VAL_STACK *list, int len, int varzone,
                 case PHType::DOUBLE:
                 case PHType::FLOAT:
                 case PHType::INTEGER:
+                case PHType::SIZE_T:
                     TypeValError(pf->type,list[i].type, yylloc);
                     break;
                 case PHType::BAD:
@@ -332,6 +349,7 @@ void phDriver::stuffit(SYMENT **spec, VAL_STACK *list, int len, int varzone,
                 case PHType::DOUBLE:
                 case PHType::FLOAT:
                 case PHType::INTEGER:
+                case PHType::SIZE_T:
                 case PHType::LOGICAL:
                     TypeValError(pf->type,list[i].type, yylloc);
                     break;
@@ -613,6 +631,10 @@ void phDriver::DumpAllValues(void) {
             for(int j=0; j<symtab[i].nvals; j++)
                 fmt::print(stderr,"       {:d}\n", symtab[i].pvalorig.i[j]);
             break;
+        case PHType::SIZE_T:
+            for(int j=0; j<symtab[i].nvals; j++)
+                fmt::print(stderr,"       {:d}\n", symtab[i].pvalorig.z[j]);
+            break;
         case PHType::FLOAT:
             for(int j=0; j<symtab[i].nvals; j++)
                 fmt::print(stderr,"       {:e}\n", symtab[i].pvalorig.f[j]);
@@ -632,6 +654,9 @@ void phDriver::DumpAllValues(void) {
         case PHType::PATH:
             for(int j=0; j<symtab[i].nvals; j++)
                 fmt::print(stderr,"       {:s}\n", (symtab[i].pvalorig.p + j*symtab[i].stride)->string());
+            break;
+        case PHType::BAD:
+            fmt::print(stderr,"       BAD\n");
             break;
         }
     }

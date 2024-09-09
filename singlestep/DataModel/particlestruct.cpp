@@ -414,11 +414,11 @@ public:
             "Particle a = {:d} is out of range {:d}\n", a, ci->count);
         assertf(b>=0&&b<ci->count,
             "Particle b = {:d} is out of range {:d}\n", b, ci->count);*/
-        posstruct ptmp; ptmp = pos[b]; pos[b] = pos[a]; pos[a] = ptmp; 
-        velstruct vtmp; vtmp = vel[b]; vel[b] = vel[a]; vel[a] = vtmp; 
-        auxstruct atmp; atmp = aux[b]; aux[b] = aux[a]; aux[a] = atmp;
+        posstruct ptmp = pos[b]; pos[b] = pos[a]; pos[a] = ptmp; 
+        velstruct vtmp = vel[b]; vel[b] = vel[a]; vel[a] = vtmp; 
+        auxstruct atmp = aux[b]; aux[b] = aux[a]; aux[a] = atmp;
         if(acc != NULL){
-            accstruct actmp; actmp = acc[b]; acc[b] = acc[a]; acc[a] = actmp;
+            accstruct actmp = acc[b]; acc[b] = acc[a]; acc[a] = actmp;
         }
     }
 

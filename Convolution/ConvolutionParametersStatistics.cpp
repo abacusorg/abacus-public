@@ -54,16 +54,16 @@ typedef struct {
 
 class ConvolutionParameters{
 public:
-    int runtime_cpd;
-    int runtime_order;
-    int runtime_NearFieldRadius;
-    int runtime_DerivativeExpansionRadius;
+    int runtime_cpd = 0;
+    int runtime_order = 0;
+    int runtime_NearFieldRadius = 0;
+    int runtime_DerivativeExpansionRadius = 0;
 
-    int runtime_AllowDIO;
-    int runtime_DIOBufferSizeKB;
-    float runtime_ConvolutionCacheSizeMB;
-    float runtime_ConvolutionL1CacheSizeMB;
-    float runtime_MaxConvolutionRAMMB;
+    int runtime_AllowDIO = 0;
+    int runtime_DIOBufferSizeKB = 0;
+    float runtime_ConvolutionCacheSizeMB = 0;
+    float runtime_ConvolutionL1CacheSizeMB = 0;
+    float runtime_MaxConvolutionRAMMB = 0;
 
     // These directories should be accessed through the functions below
     fs::path runtime_MultipoleDirectory;
@@ -74,20 +74,20 @@ public:
     fs::path runtime_MultipolePrefix;
     fs::path runtime_TaylorPrefix;
     
-    uint64_t blocksize, zwidth, rml, CompressedMultipoleLengthXY;
+    uint64_t blocksize = 0, zwidth = 0, rml = 0, CompressedMultipoleLengthXY = 0;
 
-	uint64_t z_slabs_per_node;
+	uint64_t z_slabs_per_node = 0;
 
-    int *first_slabs_all;
-    int *total_slabs_all;
+    int *first_slabs_all = NULL;
+    int *total_slabs_all = NULL;
 	
 	std::vector<int> io_cores;
-    int niothreads;
+    int niothreads = 0;
 
-    int ProfilingMode;
+    int ProfilingMode = 0;
 
-    int StripeConvState;  // in analogy with WriteState.StripeConvState
-    int OverwriteConvState;  // in analogy with WriteState.OverwriteConvState
+    int StripeConvState = 0;  // in analogy with WriteState.StripeConvState
+    int OverwriteConvState = 0;  // in analogy with WriteState.OverwriteConvState
 
     ConvolutionParameters(int mpi_nranks){
         first_slabs_all = new int[mpi_nranks];

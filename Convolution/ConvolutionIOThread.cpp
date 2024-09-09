@@ -114,7 +114,7 @@ private:
     }
 
     void set_core_affinity(){
-        int io_core = (thread_num < CP.io_cores.size()) ? CP.io_cores[thread_num] : -1;
+        int io_core = (thread_num < static_cast<int>(CP.io_cores.size())) ? CP.io_cores[thread_num] : -1;
 
         if(io_core >= 0){
             ::set_core_affinity(io_core);
@@ -167,7 +167,7 @@ public:
         STDLOG(0, "Stopping IO thread\n");
         assert(pthread_join(conv_io_thread, NULL) == 0);
         
-        Block *block;
+        Block *block = NULL;
         while(free_queue.try_pop(block)){
             taylor_bytes_written += block->WriteTaylorBytes;
             multipole_bytes_read += block->ReadMultipoleBytes;

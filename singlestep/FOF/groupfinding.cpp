@@ -2,10 +2,6 @@
 We include this file in the program, and it includes the rest.
 */
 
-// Use GLOG instead of STDLOG to write to the lastrun.groupstats file
-// #define GLOG(verbosity,...) { if (verbosity<=stdlog_threshold_global) { \
-//         LOG(*grouplog,__VA_ARGS__); grouplog->flush(); } }
-
 #define GLOG(verbosity,...) { if (verbosity<=stdlog_threshold_global) fmt::print(reportfp,__VA_ARGS__); }
 
 

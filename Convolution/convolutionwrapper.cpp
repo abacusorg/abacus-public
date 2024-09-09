@@ -169,7 +169,7 @@ void setup_openmp(){
     int ncores = omp_get_num_procs();
     int nthreads = P.Conv_OMP_NUM_THREADS > 0 ? P.Conv_OMP_NUM_THREADS : max_threads + P.Conv_OMP_NUM_THREADS;
 #ifdef CONVIOTHREADED
-    for (int i = 0; i < P.Conv_IOCores.size(); i++){
+    for (size_t i = 0; i < P.Conv_IOCores.size(); i++){
         STDLOG(3, "IO thread {:d} assigned to core {:d}\n", i, P.Conv_IOCores[i]);
     }
 #endif

@@ -442,9 +442,6 @@ void NearFieldDriver::Finalize(int slab){
     SetInteractionCollection **Slices = SlabInteractionCollections[slab];
     int NSplit = SlabNSplit[slab];
 
-    int cpd = P.cpd;
-    int nfr = RADIUS;
-
     // Collect the statistics and timings
     for(int sliceIdx = 0; sliceIdx < NSplit; sliceIdx++){
         SetInteractionCollection *Slice = Slices[sliceIdx];

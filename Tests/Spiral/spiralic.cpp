@@ -55,7 +55,7 @@ void Spiral::Create(double3 *pp, double3 *vv, int *id, long long int _n, double 
     kvec *= 2*M_PI; // we specify k-vector w/o the 2 pi for ease of writing...
 
     double       DofA = Ainitial;           // linearized perturnbation growth factor for Omega_M=1, K=0
-    double    DdotofA = pow(Ainitial,1.5);  // time derivative of growth factor for Omega_M=1, K=0
+    // double    DdotofA = pow(Ainitial,1.5);  // time derivative of growth factor for Omega_M=1, K=0
     double  DofAcross = Across;             // growth factor at desired time of 1st crossing
 
     double       knrm = kvec.norm();
@@ -93,9 +93,12 @@ void Spiral::Create(double3 *pp, double3 *vv, int *id, long long int _n, double 
 }
 
 void Spiral::WrapPosition(double3 &p) {
-    if(p.x>=0.5) p.x -= 1.0; if(p.x<-0.5) p.x += 1.0;
-    if(p.y>=0.5) p.y -= 1.0; if(p.y<-0.5) p.y += 1.0;
-    if(p.z>=0.5) p.z -= 1.0; if(p.z<-0.5) p.z += 1.0;
+    if(p.x>=0.5) p.x -= 1.0;
+    if(p.x<-0.5) p.x += 1.0;
+    if(p.y>=0.5) p.y -= 1.0;
+    if(p.y<-0.5) p.y += 1.0;
+    if(p.z>=0.5) p.z -= 1.0;
+    if(p.z<-0.5) p.z += 1.0;
 }
 
 double3 Spiral::cross(double3 v1, double3 v2) {
@@ -141,9 +144,12 @@ void Spiral::Project(double3 *pp, double3 *vv, int *id, long long int np) {
         if(fabs(angle)>0.0) pos = RotatePointAboutLine(pos, rotaxis, angle);
 
         // merge the multiple spirals due to wrapping
-        if(pos.x >= X/2)  pos.x -= X; if(pos.x < -X/2) pos.x += X;
-        if(pos.y >= X/2)  pos.y -= X; if(pos.y < -X/2) pos.y += X;
-        if(pos.z >= X/2)  pos.z -= X; if(pos.z < -X/2) pos.z += X;
+        if(pos.x >= X/2) pos.x -= X;
+        if(pos.x < -X/2) pos.x += X;
+        if(pos.y >= X/2) pos.y -= X;
+        if(pos.y < -X/2) pos.y += X;
+        if(pos.z >= X/2) pos.z -= X;
+        if(pos.z < -X/2) pos.z += X;
 
         double3 vel = vv[p];
         if(fabs(angle)>0.0) vel = RotatePointAboutLine(vel, rotaxis, angle);

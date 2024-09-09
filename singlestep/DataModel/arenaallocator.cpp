@@ -58,8 +58,8 @@ public:
     void report_peak(int force=0);
     void report_current();
     
-    int64 total_allocation;
-    std::atomic<int64> total_shm_allocation;  // atomic because the disposal thread may modify
+    uint64 total_allocation;
+    std::atomic<uint64> total_shm_allocation;  // atomic because the disposal thread may modify
     STimer ArenaMalloc;
     int numalloc, numreuse;
     int num_shm_alloc;

@@ -17,7 +17,7 @@ private:
     // "mtblock" will be offset from this by up to PAGE_SIZE to ensure DIO
     MTCOMPLEX **raw_mtblock = NULL;
     ConvolutionParameters CP;
-    uint64_t cpd = 0, rml = 0, alloc_zwidth = 0;
+    int64_t cpd = 0, rml = 0, alloc_zwidth = 0;
 	
 #ifdef PARALLEL
 	int first_slab_on_disk; 

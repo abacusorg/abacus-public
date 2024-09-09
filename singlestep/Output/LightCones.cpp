@@ -18,7 +18,7 @@ class LightCone {
     double rmax_tol2;       // Square of rmax+tol
 
   public:
-    int lcn;        // Light cone number
+    size_t lcn;        // Light cone number
     double3 origin;  // The observer location, in unit-cell units
     double rmin;     // The minimum distance to the light cone region (i.e., lower redshift)
     double rmax;     // The maximum distance to the light cone region (i.e., higher redshift)
@@ -28,10 +28,10 @@ class LightCone {
     int do_boundary;  // Whether to check a boundary layer of cells from the periodic images
     int nrep;  // The number of box repeats in each direction (0 = normal light cone)
 
-    LightCone(int lcn, int do_boundary, int nrep) :
+    LightCone(size_t lcn, int do_boundary, int nrep) :
         lcn{lcn},
-        do_boundary{do_boundary},
         origin{LCOrigin[lcn]},
+        do_boundary{do_boundary},
         nrep{nrep} {
 
         // Bounds for light cone, in unit-box units
@@ -78,7 +78,7 @@ void InitializeLightCones(){
     assertf(P.LightConeOrigins.size() % 3 == 0, "LightConeOrigins must be specified as a list of 3-tuples\n");
 
     LCOrigin.reserve(P.LightConeOrigins.size() / 3);
-    for(int i = 0; i < P.LightConeOrigins.size() / 3; i++){
+    for(size_t i = 0; i < P.LightConeOrigins.size() / 3; i++){
         LCOrigin.push_back(double3(P.LightConeOrigins[3*i], P.LightConeOrigins[3*i+1], P.LightConeOrigins[3*i+2])/P.BoxSize);
     }
 
@@ -170,7 +170,7 @@ more equal work in x slabs and y pencils, but only for a narrow range of z.
 
 */
 
-size_t makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
+size_t makeLightCone(int slab, size_t lcn){ //lcn = Light Cone Number
     // Use the same format for the lightcones as for the particle subsamples
     if (fabs(cosm->next.etaK-cosm->current.etaK)<1e-12) return 0;
           // Nothing to be done, so don't risk divide by zero.
@@ -433,10 +433,10 @@ size_t makeLightCone(int slab, int lcn){ //lcn = Light Cone Number
             LightConeHealPix.copy_to_ptr((unsigned int *)SB->GetSlabPtr(lchealtype, slab));
         }
 
-        unsigned int *arenaptr = (unsigned int *) SB->GetSlabPtr(lchealtype, slab);
-        OutputLightConeSortHealpix.Start();
-        // ips4o::parallel::sort(L2.d2_active, L2.d2_active+size, omp_get_max_threads());
-        OutputLightConeSortHealpix.Stop();
+        // unsigned int *arenaptr = (unsigned int *) SB->GetSlabPtr(lchealtype, slab);
+        // OutputLightConeSortHealpix.Start();
+        // ips4o::parallel::sort(arenaptr, arenaptr+slabtotal, omp_get_max_threads());
+        // OutputLightConeSortHealpix.Stop();
 
         SB->StoreArenaNonBlocking(lcrvtype, slab);
         SB->StoreArenaNonBlocking(lcpidtype, slab);

@@ -28,10 +28,10 @@
 class State:public ParseHeader{
 public:
 
-    long long int np_state;
-    long long int np_with_ghost_state;
-    long long int np_subA_state;
-    long long int np_subB_state;
+    uint64 np_state;
+    uint64 np_with_ghost_state;
+    uint64 np_subA_state;
+    uint64 np_subB_state;
     int cpd_state;
     int order_state;
     

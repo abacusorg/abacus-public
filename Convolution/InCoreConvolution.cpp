@@ -237,7 +237,7 @@ void InCoreConvolution::InCoreConvolve(Complex *FFTM, DFLOAT *CompressedD) {
     for(int block=0;block<nblocks;block++) {
             
         Complex *FM, *FMabc, *FMap2bcm2, *FMabp2cm2;
-        double  *FD, *FDabc, *FDap2bcm2, *FDabp2cm2, *FDd;
+        double  *FD, *FDabc, *FDap2bcm2, *FDabp2cm2;
         Complex *mcache, *tcache;
         double  *dcache;
         int xyz,a,b,c,i,j,k,xyzbegin;

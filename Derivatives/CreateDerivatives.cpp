@@ -30,23 +30,24 @@ typedef ThreeVector<qd_real> qd_real3;
 #include "../include/STimer.cc"
 
 
-#define ULLI unsigned long long int 
+using ULLI = unsigned long long int;
+using LLI = long long int;
 
-ULLI CPD;
-ULLI CPD3;
-ULLI CPDHALF;
+LLI CPD;
+LLI CPD3;
+LLI CPDHALF;
 
 ULLI CompressedMultipoleLengthXY;
 ULLI CompressedMultipoleLengthXYZ;
 
 ULLI linearindex(int x, int y, int z) { return x*CPD*CPD + y*CPD + z; }
 
-ULLI linearFFTW(int i, int j, int k) {
+LLI linearFFTW(int i, int j, int k) {
     int indx_i = i<0?CPD+i:i;
     int indx_j = j<0?CPD+j:j;
     int indx_k = k<0?CPD+k:k;
 
-    ULLI l = indx_i*CPD*CPD + indx_j*CPD + indx_k;
+    LLI l = indx_i*CPD*CPD + indx_j*CPD + indx_k;
     assert(l>=0);
     assert(l<CPD*CPD*CPD);
     return l;
@@ -193,7 +194,6 @@ void CreateFourierFiles(int order, int inner_radius, int far_radius) {
     for(int z=0;z<(CPD+1)/2;z++) {
         FILE *fp;
         fs::path fn = fmt::format("fourierspace_{:d}_{:d}_{:d}_{:d}_{:d}",CPD,order,inner_radius,far_radius,z);
-        int cpd = CPD;
         fp = fopen(fn.c_str(),"w");
         assert(fp!=NULL);
         fclose(fp);

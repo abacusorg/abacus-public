@@ -650,7 +650,6 @@ void GlobalGroupSlab::GatherGlobalGroups() {
 
     largest_group = 0;
     NUMA_FOR(j,0,cpd, reduction(max:largest_group), FALLBACK_DYNAMIC){
-        int g = omp_get_thread_num();
         uint64 local_this_pencil = 0;
         uint64 _local_ncellgroups = 0;
         for (int k=0; k<zwidth; k++){  // local k
@@ -1420,7 +1419,7 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
                     // Start the cell group
                     AA->addcell(j, _cell.ijk, vscale);
 
-                    for(int pi = start; pi < start + cg->size(); pi++){
+                    for(size_t pi = start; pi < start + cg->size(); pi++){
                         posstruct _p = pos[pi] - offset;
                         velstruct _v = vel[pi] - TOFLOAT3(acc[pi])*unkick_factor;
                         AA->addparticle(j, _p, _v, aux[pi]);

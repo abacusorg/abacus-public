@@ -351,9 +351,8 @@ void FillMergeSlab(int slab, uint64 *nmerge, uint64 *nmerge_with_ghost) {
     SB->AllocateSpecificSize(MergeAuxSlab, slab, inslab*sizeof(auxstruct));
     STDLOG(2,"Allocating Merge Slabs to contain {:d} particles\n", inslab);
 
-    int64_t nwritten = 0;
+    size_t nwritten = 0;
     NUMA_FOR(y,0,cpd, reduction(+:nwritten), FALLBACK_DYNAMIC){
-        int g = omp_get_thread_num();
         for(int z = node_z_start - MERGE_GHOST_RADIUS; z < node_z_start + node_z_size + MERGE_GHOST_RADIUS; z++) {
             Cell mc = CP->GetMergeCell(slab, y, z);
             cellinfo *ici = CP->InsertCellInfo(slab,y,z);
@@ -400,7 +399,10 @@ void FillMergeSlab(int slab, uint64 *nmerge, uint64 *nmerge_with_ghost) {
             // PID corruption
             if(P.MaxPID >= 0){
     			for (int j = 0; j < mc.count(); j++) {
-    				assertf(mc.aux[j].unpackpid() < P.MaxPID, "PID {:d} bigger than MaxPID {:d}\n", mc.aux[j].unpackpid(), P.MaxPID);
+    				assertf(mc.aux[j].unpackpid() < static_cast<size_t>(P.MaxPID),
+                        "PID {:d} bigger than MaxPID {:d}\n",
+                        mc.aux[j].unpackpid(),
+                        P.MaxPID);
     			}
             }
         }

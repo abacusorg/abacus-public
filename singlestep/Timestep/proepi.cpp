@@ -740,7 +740,7 @@ void InitGroupFinding(int MakeIC){
     // Decide if the next step will do group finding
     WriteState.DoGroupFindingOutput = 0;
 
-    for(int i = 0; i < P.L1OutputRedshifts.size(); i++){
+    for(int i = 0; i < static_cast<int>(P.L1OutputRedshifts.size()); i++){
         double L1z = P.L1OutputRedshifts[i];
         double L1a = 1.0/(1+L1z);
 

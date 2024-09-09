@@ -245,7 +245,6 @@ class Manifest {
         return;
     }
     ~Manifest() { 
-        void *p;
         delete[] requests;
         // free_requests();
     }
@@ -272,9 +271,10 @@ class Manifest {
     /// This will only return 1 once; it's ok to call again, but will return 0
     inline int check_if_done(int j) {
         if (requests[j]!=MPI_REQUEST_NULL) {
-            int err = 0, sent=0;
+            int sent=0;
             #ifdef PARALLEL
-            err = MPI_Test(requests+j,&sent,MPI_STATUS_IGNORE);
+            int err = MPI_Test(requests+j,&sent,MPI_STATUS_IGNORE);
+            assertf(err==MPI_SUCCESS, "MPI_Test failed with error {:d}\n", err);
             #endif
             if (sent) { mark_as_done(j); return 1; }
         }

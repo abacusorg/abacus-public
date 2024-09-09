@@ -91,7 +91,7 @@ class SlabSize {
     // For echoing the ghost sizes to the WriteState. Should be called after parallel_gather().
     uint64 total_new_size_with_ghost(){
         uint64 sum =0;
-        for(uint64 i = 0; i < cpd*num_zsplit; i++) sum += newsizes_with_ghost[i];
+        for(int i = 0; i < cpd*num_zsplit; i++) sum += newsizes_with_ghost[i];
         return sum;
     }
 
@@ -120,9 +120,9 @@ class SlabSize {
         nread = fscanf(fp, "%ld,%ld", &cpdval, &zval);
         assertf(nread==2,
                 "Couldn't read first entry from SlabSize file {}\n", fname);
-        assertf(cpdval==cpd, 
+        assertf(static_cast<int>(cpdval)==cpd,
                 "SlabSize file opens with incorrect CPD: {:d}\n", cpdval);
-        assertf(zval==num_zsplit, 
+        assertf(static_cast<int>(zval)==num_zsplit, 
                 "SlabSize file opens with incorrect num_zsplit: {:d}\n", zval);
         for (int j = 0; j<cpd*num_zsplit; j++) {
             nread = fscanf(fp, "%ld,%ld", sizes+j, sizes_with_ghost+j);
