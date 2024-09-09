@@ -23,8 +23,6 @@ typedef ThreeVector<int> int3;
 typedef long long int LLI;
 typedef unsigned long long int ULLI;
 
-using namespace std;
-
 #include "particles.h"
 #include "Grid.cc"
 #include "Spiral.cc"

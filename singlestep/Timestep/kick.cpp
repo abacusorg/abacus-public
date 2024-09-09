@@ -33,17 +33,17 @@ inline void KickCell(Cell &c, FLOAT kick1, FLOAT kick2, int set_aux_dens) {
     #pragma omp simd reduction(max:maxvel,maxacc) reduction(+:sumvel2)
     for (uint32_t i=0;i<N;i++) {
         // First half kick, to get synchronous
-        c.vel[i] += TOFLOAT3(c.acc[i]) * kick1;
+        c.vel[i] += static_cast<FLOAT3>(c.acc[i]) * kick1;
         // Some simple stats
 	sumvel2 += c.vel[i].norm2();
-	maxvel = std::max(maxvel, fabs(c.vel[i].x));
-	maxacc = std::max(maxacc, fabs(c.acc[i].x));
-	maxvel = std::max(maxvel, fabs(c.vel[i].y));
-	maxacc = std::max(maxacc, fabs(c.acc[i].y));
-	maxvel = std::max(maxvel, fabs(c.vel[i].z));
-	maxacc = std::max(maxacc, fabs(c.acc[i].z));
+	maxvel = std::max(maxvel, std::abs(c.vel[i].x));
+	maxacc = std::max(maxacc, std::abs(c.acc[i].x));
+	maxvel = std::max(maxvel, std::abs(c.vel[i].y));
+	maxacc = std::max(maxacc, std::abs(c.acc[i].y));
+	maxvel = std::max(maxvel, std::abs(c.vel[i].z));
+	maxacc = std::max(maxacc, std::abs(c.acc[i].z));
         // Second half kick, to advance to time i+1/2
-	c.vel[i] += TOFLOAT3(c.acc[i]) * kick2;
+	c.vel[i] += static_cast<FLOAT3>(c.acc[i]) * kick2;
 
         if(set_aux_dens) c.aux[i].set_density(c.acc[i].w);
     }

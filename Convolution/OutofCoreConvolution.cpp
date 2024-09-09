@@ -378,8 +378,8 @@ void OutofCoreConvolution::Convolve() {
     { // scope to avoid leakage
     // Allocate blocks and pass them to threads.
     // Blocks are shared among threads.
-    int nblocks = (int) ceil((CP.runtime_cpd+1)/2./CP.zwidth);
-    int read_ahead = min(2, nblocks);
+    int nblocks = (int) std::ceil((CP.runtime_cpd+1)/2./CP.zwidth);
+    int read_ahead = std::min(2, nblocks);
     Block *blocks[read_ahead];
     for(int i = 0; i < read_ahead; i++){
         blocks[i] = new Block(CP);

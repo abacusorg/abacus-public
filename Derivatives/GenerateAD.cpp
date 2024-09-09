@@ -3,9 +3,6 @@
 #include "../include/threevector.hh"
 #include <omp.h>
 
-
-using namespace std;
-
 typedef ThreeVector<qd_real> qd_real3;
 
 #define ODIM (32+1)

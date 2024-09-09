@@ -16,7 +16,7 @@ the initial state.
 int FORCE_RADIUS = -1;
 int GROUP_RADIUS = -1;
 
-#define FETCHAHEAD (max(2*GROUP_RADIUS + FORCE_RADIUS, FINISH_WAIT_RADIUS) + 2)
+#define FETCHAHEAD (std::max(2*GROUP_RADIUS + FORCE_RADIUS, FINISH_WAIT_RADIUS) + 2)
 
 // Recall that all of these Dependencies have a built-in STimer
 // to measure the amount of time spent on Actions.
@@ -130,7 +130,7 @@ void timestep(int NoForces) {
         int first_outputslab = FORCE_RADIUS + 2*GROUP_RADIUS;
     #endif
     if(LPTStepNumber() == 2){
-        first_outputslab = max(FINISH_WAIT_RADIUS,first_outputslab);
+        first_outputslab = std::max(FINISH_WAIT_RADIUS,first_outputslab);
     }
 
     STDLOG(1, "first_outputslab = {:d}, first_outputslab + FINISH_WAIT_RADIUS = {:d}\n", first_outputslab, first_outputslab + FINISH_WAIT_RADIUS);

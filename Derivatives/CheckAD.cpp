@@ -1,7 +1,6 @@
 #include "../include/header.cpp"
 #include "quad_double.cpp"
 #include "../include/threevector.hh"
-using namespace std;
 
 typedef ThreeVector<qd_real> qd_real3;
 

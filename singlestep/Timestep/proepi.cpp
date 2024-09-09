@@ -508,7 +508,7 @@ void init_openmp(){
     // On summitdev (which has 160 thread slices), singlestep crashes.
     // I suspect this is because some of our stack-allocated arrays of size nthreads get too big
     // In practice, we will probably not use this many cores because there aren't nearly that many physical cores
-    nthreads = min(128, nthreads);
+    nthreads = std::min(128, nthreads);
 
     assertf(nthreads <= max_threads, "Trying to use more OMP threads ({:d}) than omp_get_max_threads() ({:d})!  This will cause global objects that have already used omp_get_max_threads() to allocate thread workspace (like PTimer) to fail.\n",
         nthreads, max_threads);

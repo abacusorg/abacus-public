@@ -6,7 +6,6 @@
 
 #include <fmt/format.h>
 
-using namespace std;
 namespace fs = std::filesystem;
 
 #define TWOPI (2*M_PI)

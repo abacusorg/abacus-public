@@ -112,9 +112,9 @@ void SetInteractionCollection::CPUExecute(){
             }
 
             if(id < SinkSetIdMax[sinkIdx]){
-                assert(isfinite(a.x));
-                assert(isfinite(a.y));
-                assert(isfinite(a.z));
+                assert(std::isfinite(a.x));
+                assert(std::isfinite(a.y));
+                assert(std::isfinite(a.z));
                 assert(id < PaddedSinkTotal);
                 SinkSetAccelerations[id].x = a.x;
                 SinkSetAccelerations[id].y = a.y;

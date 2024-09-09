@@ -25,7 +25,7 @@ void BuildWriteState(double da){
         // v2.0 uses RVint with the full 2**20 range; halo_info at 296 bytes.
         // v2.2 uses RVint with a 1,000,000 range; halo_info at 296 bytes.
 	time_t timet = time(0);
-	string now = string(asctime(localtime(&timet)));
+    std::string now = asctime(localtime(&timet));
 	WriteState.RunTime = now.substr(0,now.length()-1);
     char hostname[1024];
 	gethostname(hostname,1024);
@@ -98,7 +98,7 @@ void BuildWriteState(double da){
 
     // Is the softening fixed in proper coordinates?
     if(P.ProperSoftening){
-        WriteState.SofteningLengthNow = min(P.SofteningLength/WriteState.ScaleFactor, P.SofteningMax);
+        WriteState.SofteningLengthNow = std::min(P.SofteningLength/WriteState.ScaleFactor, P.SofteningMax);
         STDLOG(1, "Adopting a comoving softening of {:g}, fixed in proper coordinates\n", WriteState.SofteningLengthNow);
     }
     else{

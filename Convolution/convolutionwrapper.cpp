@@ -280,7 +280,7 @@ int choose_zwidth(int Conv_zwidth, int cpd, ConvolutionParameters &CP){
 
         // If we're allocating more than one block, make sure we have at least one z-split
         if(n_alloc_block > 1)
-            zwidth = min((cpd+1)/4, zwidth);
+            zwidth = std::min((cpd+1)/4, zwidth);
         return zwidth;
     }
 

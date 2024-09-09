@@ -25,7 +25,7 @@ Order32Derivatives::Order32Derivatives(int inner) : inner(inner)  {
     int tmporder, tmpinneradius;
     fs::path fname = fmt::format("AD32_{:03d}.dat",inner);
     fmt::print("reading derivatives from {}\n", fname);
-    ifstream fin(fname,ios::in);
+    std::ifstream fin(fname, std::ios::in);
     if(!fin.is_open()) {
         fmt::print(stderr,"couldn't open \"{}\"\n",fname);
         exit(1);

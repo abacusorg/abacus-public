@@ -529,14 +529,14 @@ private:
 };
 
 void strlower(std::string &str){
-    for (int i = 0; i < str.size(); i++)
+    for (size_t i = 0; i < str.size(); i++)
         str[i] = tolower(str[i]);
 }
 
 void Parameters::SortTimeSlices(){
-    std::sort(TimeSliceRedshifts.begin(), TimeSliceRedshifts.end(), greater<double>());
-    std::sort(TimeSliceRedshifts_Subsample.begin(), TimeSliceRedshifts_Subsample.end(), greater<double>());
-    std::sort(L1OutputRedshifts.begin(), L1OutputRedshifts.end(), greater<double>());
+    std::sort(TimeSliceRedshifts.begin(), TimeSliceRedshifts.end(), std::greater<double>());
+    std::sort(TimeSliceRedshifts_Subsample.begin(), TimeSliceRedshifts_Subsample.end(), std::greater<double>());
+    std::sort(L1OutputRedshifts.begin(), L1OutputRedshifts.end(), std::greater<double>());
 
     if(! (TimeSliceRedshifts.size() > 0 || TimeSliceRedshifts_Subsample.size() > 0 || L1OutputRedshifts.size() > 0 || OutputEveryStep || StoreForces || LightConeOrigins.size()) )
         fmt::print("Warning! No output requested. Are you sure you want this?\n");

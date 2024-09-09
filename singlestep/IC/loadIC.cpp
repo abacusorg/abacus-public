@@ -553,15 +553,15 @@ void get_IC_unit_conversions(double &convert_pos, double &convert_vel){
 
 // An alternative to this macro approach would be a C++ type registry
 #define REGISTER_ICFORMAT(fmt) if(format == #fmt){\
-    ic = unique_ptr<ICFile_##fmt>(new ICFile_##fmt(_slab, MPI_rank_z));\
+    ic = std::unique_ptr<ICFile_##fmt>(new ICFile_##fmt(_slab, MPI_rank_z));\
 } else
 
 // This is a factory function to instantiate ICFile objects of a given format and slab number
 // It returns a C++ unique_ptr; no need to call delete on it later.  The object will be deleted
 // when it leaves scope.
-unique_ptr<ICFile> ICFile::FromFormat(const std::string& format, int _slab){
+std::unique_ptr<ICFile> ICFile::FromFormat(const std::string& format, int _slab){
 
-    unique_ptr<ICFile> ic;
+    std::unique_ptr<ICFile> ic;
 
     // Do we ever need Poisson instead of Lattice?
     //REGISTER_ICFORMAT(Poisson)
@@ -590,7 +590,7 @@ uint64 UnpackICtoIL(int slab) {
     get_IC_unit_conversions(convert_pos, convert_vel);
 
     STDLOG(1,"Using IC format {:s}\n", P.ICFormat);
-    unique_ptr<ICFile> ic = ICFile::FromFormat(P.ICFormat, slab);
+    std::unique_ptr<ICFile> ic = ICFile::FromFormat(P.ICFormat, slab);
 
     // Unpacks the whole slab directly to the insert list
     uint64 count = ic->unpack_to_IL(convert_pos, convert_vel);

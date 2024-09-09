@@ -33,7 +33,7 @@ public:
     void action(int slab) {
         // Read an IC slab file into an arena
         // It will be unpacked into particles in a later dependency
-        unique_ptr<ICFile> ic = ICFile::FromFormat(P.ICFormat, slab);
+        std::unique_ptr<ICFile> ic = ICFile::FromFormat(P.ICFormat, slab);
         ic->read_nonblocking();
     }
 };
@@ -50,7 +50,7 @@ public:
         if(FetchSlabs->notdone(slab))
             return 0;
         
-        unique_ptr<ICFile> ic = ICFile::FromFormat(P.ICFormat, slab);
+        std::unique_ptr<ICFile> ic = ICFile::FromFormat(P.ICFormat, slab);
         if(!ic->check_read_done())
             return 0;
 

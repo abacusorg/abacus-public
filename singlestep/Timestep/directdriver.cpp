@@ -114,7 +114,7 @@ NearFieldDriver::NearFieldDriver(int NearFieldRadius) :
         eps{(FLOAT) (SofteningLengthInternal*SofteningLengthInternal)}
         #endif
 {
-    assertf(isfinite(eps), "Infinite eps!  Softening length too small for this precision?\n");
+    assertf(std::isfinite(eps), "Infinite eps!  Softening length too small for this precision?\n");
     
     int nthread = omp_get_max_threads();
     STDLOG(1,

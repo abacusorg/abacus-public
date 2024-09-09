@@ -65,7 +65,7 @@ private:
                 
             if(write_buffer != NULL) {
                 int zstart = n_blocks_written*CP.zwidth;
-                int this_zwidth = min(zwidth, (cpd+1)/2-zstart);
+                int this_zwidth = std::min(zwidth, (cpd+1)/2-zstart);
 				
 #ifdef PARALLEL
 				write_buffer->TransposeBufferingBytes += ( sendbufsize + recvbufsize ) * CP.z_slabs_per_node;
@@ -83,7 +83,7 @@ private:
             if(n_blocks_read < nblocks && free_queue.try_pop(read_buffer)){     
 				
                 int zstart = n_blocks_read*CP.zwidth; //each node loads all z's for current chunk of z's. Each node will eventually be responsible for a subset of these. 
-				int this_zwidth = min(zwidth, (cpd+1)/2-zstart);
+				int this_zwidth = std::min(zwidth, (cpd+1)/2-zstart);
 				
 				read_buffer->read_derivs(zstart, this_zwidth, thread_num);
                 read_buffer->read(zstart, this_zwidth, thread_num);

@@ -11,8 +11,6 @@
 #include <string>
 #include <stdexcept>
 
-using namespace std;
-
 // We will load this with the time at the beginning of the sim
 struct timespec log_global_zero = { 0, 0 };
 

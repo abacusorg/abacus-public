@@ -152,7 +152,7 @@ double ChooseTimeStep(int NoForces){
     STDLOG(1,"Global     Vrms/Amax = {:f}\n", goal2);
     // We have both a global value and a cell value.  Take the maximum of these,
     // to guard against abnormally cold cells.
-    goal = max(goal,goal2) * P.TimeStepAccel;
+    goal = std::max(goal,goal2) * P.TimeStepAccel;
 
     if (maxkick>goal) {
         da *= goal/maxkick;

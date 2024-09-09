@@ -22,17 +22,17 @@ void NearFieldDriver::CheckGPUCPU(int slabID){
     FLOAT target = 1e-1;
     #endif
 
-    for(int i = 0; i < SS->size(slabID);i++){
-        acc3struct ai_g = TOFLOAT3(a_gpu[i]);
-        acc3struct ai_c = TOFLOAT3(a_cpu[i]);
+    for(size_t i = 0; i < SS->size(slabID);i++){
+        acc3struct ai_g = static_cast<FLOAT3>(a_gpu[i]);
+        acc3struct ai_c = static_cast<FLOAT3>(a_cpu[i]);
         
-        assert(isfinite(ai_g.x));
-        assert(isfinite(ai_g.y));
-        assert(isfinite(ai_g.z));
+        assert(std::isfinite(ai_g.x));
+        assert(std::isfinite(ai_g.y));
+        assert(std::isfinite(ai_g.z));
 
-        assert(isfinite(ai_c.x));
-        assert(isfinite(ai_c.y));
-        assert(isfinite(ai_c.z));
+        assert(std::isfinite(ai_c.x));
+        assert(std::isfinite(ai_c.y));
+        assert(std::isfinite(ai_c.z));
 
         if(ai_g.norm() == 0. && ai_c.norm() == 0.)
             continue;
