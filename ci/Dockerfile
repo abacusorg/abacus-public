@@ -1,6 +1,7 @@
 # Build stage with Spack pre-installed and ready to be used
 # TODO: try 0.23 when available (with bison fix)
-FROM spack/rockylinux8@sha256:766ef72cace829bd313457692cbc43217460c6be430c22a8ba2f3ce6f7370efd as builder
+
+FROM spack/rockylinux9@sha256:c11fa50081b0bf74a40a0b410256976ebee91972075a930ee74863d9ad56dda2 as builder
 
 # What we want to install and how we want to install it
 # is specified in a manifest file (spack.yaml)
@@ -11,7 +12,7 @@ RUN mkdir -p /opt/spack-environment && \
     &&   echo '  - fftw@3 +openmp ~mpi' \
     &&   echo '  - cuda@12' \
     &&   echo '  - gsl' \
-    &&   echo '  - flex@:2.6.2,2.6.4:' \
+    &&   echo '  - "flex@:2.6.2,2.6.4:"' \
     &&   echo '  - bison' \
     &&   echo '  - python@3.11' \
     &&   echo '  - gperftools' \
@@ -77,6 +78,7 @@ ARG SPACK_INSTALL_JOBS
 # and remove unnecessary deps
 RUN --mount=type=tmpfs,target=/opt/spack-stage,size=32G \
     --mount=type=cache,target=/opt/spack-cache \
+    rm -rf /opt/spack-cache/* && \
     spack mirror add --autopush --unsigned jenkins-cache /opt/spack-cache && \
     # buildcache update is allowed to fail, the cache may be empty!
     spack buildcache update-index jenkins-cache; \
@@ -104,7 +106,7 @@ RUN . /opt/spack-environment/activate.sh && \
         abacusutils
 
 # Bare OS image to run the installed executables
-FROM docker.io/rockylinux:8
+FROM docker.io/rockylinux:9
 
 COPY --from=builder /opt/spack-environment /opt/spack-environment
 COPY --from=builder /opt/software /opt/software
