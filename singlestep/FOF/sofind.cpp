@@ -74,8 +74,8 @@ class alignas(16) SOcellgroup {
     // So start[4] is start[0]+np_in_cellgroup
     
     // Null constructors & destructors
-    SOcellgroup() { } 
-    ~SOcellgroup() { }
+    SOcellgroup() = default;
+    ~SOcellgroup() = default;
 
     void load(int start_first, int start_next, FOFparticle _center) {
         cellcenter = _center;
@@ -875,11 +875,10 @@ inline FOFparticle compute_cellcenter(unsigned int cellidx) {
     // assertf(i>=0&&i<256, "Bad cell index i={:d}", i);
     // assertf(j>=0&&j<256, "Bad cell index j={:d}", j);
     // assertf(k>=0&&k<256, "Bad cell index k={:d}", k);
-    posstruct p;
-    p.z = CP->invcpd*(k+refcell.z);
-    p.y = CP->invcpd*(j+refcell.y);
-    p.x = CP->invcpd*(i+refcell.x);
-    return FOFparticle(p,0);
+
+    return {{CP->invcpd*(i+refcell.x),
+             CP->invcpd*(j+refcell.y),
+             CP->invcpd*(k+refcell.z)}, 0};
 }
   
 /// Given the cellindex[] array, we want to scan through

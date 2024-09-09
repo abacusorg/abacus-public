@@ -151,7 +151,7 @@ inline int LightCone::isParticleInLightCone(double3 cellcenter, double3 &dpos, v
             )) return 0;
     }
 
-    vel += TOFLOAT3(acc)*DeltaEtaKick*frac_step;
+    vel += static_cast<FLOAT3>(acc)*DeltaEtaKick*frac_step;
     return 1;
 }
 
@@ -347,7 +347,7 @@ size_t makeLightCone(int slab, size_t lcn){ //lcn = Light Cone Number
                                     // but that hasn't happened yet.
 
                                     // Need to unkick by half
-                                    velstruct vel = c.vel[p] - TOFLOAT3(acc[p])*WriteState.FirstHalfEtaKick;
+                                    velstruct vel = c.vel[p] - static_cast<FLOAT3>(acc[p])*WriteState.FirstHalfEtaKick;
                                     double3 pos = c.pos[p];  // Need a copy, since it will be changed
                                     if (LC.isParticleInLightCone(cc, pos, vel, acc[p], box_repeat_offset)) { 
 

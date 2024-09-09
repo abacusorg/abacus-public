@@ -69,10 +69,10 @@ using FLOAT3 = float3;
 // dtype for Multipoles/Taylors and Derivatives on disk
 // might eventually be used for computations as well
 #ifdef DOUBLEPRECISION
-using MTCOMPLEX = std::complex<double>;
+using MTCOMPLEX = AbacusComplex<double>;
 using DFLOAT = double ;
 #else
-using MTCOMPLEX = std::complex<float>;
+using MTCOMPLEX = AbacusComplex<float>;
 using DFLOAT = float;
 #endif
 

@@ -42,20 +42,20 @@ second set of bits. That's 0x07ff 7fff 7fff 7fff.
 
 #include <bitset>
 
-#define posstruct FLOAT3
-#define velstruct FLOAT3
-#define acc3struct FLOAT3
+using posstruct = FLOAT3;
+using velstruct = FLOAT3;
+using acc3struct = FLOAT3;
         // The far-field code operates on float3's.
 
 #ifdef COMPUTE_FOF_DENSITY
-#define accstruct FLOAT3p1
+using accstruct = FLOAT3p1;
 // We will pass the accelerations around as a float3p1, in which
 // the 4th element carries density information and hence should
 // not be normalized in the same way.  Adding a float3p1 to a float3
 // produces a float3p1 without change to the w element.  
 // Typecasting to (FLOAT3) will strip the w element.
 #else
-#define accstruct FLOAT3
+using accstruct = FLOAT3;
 #endif
 
 #ifndef uint16
@@ -112,16 +112,16 @@ public:
     // This is required for the LPT implementation.
     uint64 pid() { return aux&AUXPIDMASK; }
 
-    integer3 xyz() { 
-        integer3 xyz; 
-        xyz.x = (pid() & AUXXPID); 
-        xyz.y = (pid() & AUXYPID) >> 16;
-        xyz.z = (pid() & AUXZPID) >> 32;
-        return xyz; 
+    integer3 xyz() {
+        return {(pid() & AUXXPID),
+                (pid() & AUXYPID) >> 16,
+                (pid() & AUXZPID) >> 32};
     }
 
     void setpid(integer3 _pid) { 
-        assert(_pid.x <= AUXXPID && _pid.y <= AUXXPID && _pid.z <= AUXXPID);
+        assert(static_cast<uint64>(_pid.x) <= AUXXPID &&
+               static_cast<uint64>(_pid.y) <= AUXXPID &&
+               static_cast<uint64>(_pid.z) <= AUXXPID);
         _setpid(_pid.x, _pid.y, _pid.z);
     }
 

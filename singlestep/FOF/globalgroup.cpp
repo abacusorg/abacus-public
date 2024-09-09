@@ -855,7 +855,7 @@ void GlobalGroupSlab::AppendParticleToPencil(PencilAccum<RVfloat> ** pHaloRVs, P
         velstruct v = groupvel[index];
         // Velocities were full kicked; half-unkick before halostats
         if (groupacc != NULL)
-            v -= TOFLOAT3(groupacc[index])*WriteState.FirstHalfEtaKick;
+            v -= static_cast<FLOAT3>(groupacc[index])*WriteState.FirstHalfEtaKick;
         v *= ReadState.VelZSpace_to_kms/ReadState.VelZSpace_to_Canonical; 
         
         if ((taggable == TAGGABLE_SUB_A) || P.OutputAllHaloParticles){ // if we request all halo particles, output them in subsample 'A' files.
@@ -1000,7 +1000,7 @@ void GlobalGroupSlab::FindSubGroups() {
                             if (groupacc != NULL){
                                 L1acc[g][b] = groupacc[start[b].index()];
                                 // Velocities were full kicked; half-unkick before halostats
-                                L1vel[g][b] -= TOFLOAT3(L1acc[g][b])*WriteState.FirstHalfEtaKick;
+                                L1vel[g][b] -= static_cast<FLOAT3>(L1acc[g][b])*WriteState.FirstHalfEtaKick;
                             }
                         }
 
@@ -1421,7 +1421,7 @@ uint64 GlobalGroupSlab::L0TimeSliceOutput(FLOAT unkick_factor){
 
                     for(size_t pi = start; pi < start + cg->size(); pi++){
                         posstruct _p = pos[pi] - offset;
-                        velstruct _v = vel[pi] - TOFLOAT3(acc[pi])*unkick_factor;
+                        velstruct _v = vel[pi] - static_cast<FLOAT3>(acc[pi])*unkick_factor;
                         AA->addparticle(j, _p, _v, aux[pi]);
                         if (P.OutputFormat == "Pack9") pTimeSlicePIDs->append(TaggedPID(aux[pi]));
                         n_added++;

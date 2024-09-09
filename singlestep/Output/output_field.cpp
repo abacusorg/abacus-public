@@ -43,7 +43,7 @@ void GatherTaggableFieldParticles(int slab, SlabAccum<RVfloat> * rv, SlabAccum<T
                     posstruct r = c.pos[p] + offset;
                     velstruct v = c.vel[p];
                     if(c.acc != NULL){
-                        v -= unkickfactor*TOFLOAT3(c.acc[p]);
+                        v -= unkickfactor*static_cast<FLOAT3>(c.acc[p]);
                         
                         // Going to output; pack the density in the aux
                         c.aux[p].set_compressed_density(c.acc[p].w);

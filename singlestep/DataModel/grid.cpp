@@ -93,18 +93,14 @@ public:
     // Cells are centered such that the first cell is -0.5 .. -0.5+invcpd
     // This does *not* wrap to the primary zone.
     inline double3 CellCenter(int i, int j, int k) {
-        double3 cc;
-        cc.x = (i-cpdhalf)*invcpd;
-        cc.y = (j-cpdhalf)*invcpd;
-        cc.z = (k-cpdhalf)*invcpd;
-        return cc;
+        return {(i-cpdhalf)*invcpd,
+                (j-cpdhalf)*invcpd,
+                (k-cpdhalf)*invcpd};
     }
     inline double3 CellCenter(integer3 ijk) {
-        double3 cc;
-        cc.x = (ijk.x-cpdhalf)*invcpd;
-        cc.y = (ijk.y-cpdhalf)*invcpd;
-        cc.z = (ijk.z-cpdhalf)*invcpd;
-        return cc;
+        return {(ijk.x-cpdhalf)*invcpd,
+                (ijk.y-cpdhalf)*invcpd,
+                (ijk.z-cpdhalf)*invcpd};
     }
 
     // Returns the center of the cell in global coords.  
@@ -133,18 +129,14 @@ public:
     // Probably only the double precision version should be used.
     // Replaces position2xyz()
     inline integer3 Position2Cell(float3 p) {
-    	integer3 c;
-    	c.x = floor((p.x+HALFBOXSIZE)*cpd);
-    	c.y = floor((p.y+HALFBOXSIZE)*cpd);
-    	c.z = floor((p.z+HALFBOXSIZE)*cpd);
-    	return c;
+    	return {floor((p.x+HALFBOXSIZE)*cpd),
+    	        floor((p.y+HALFBOXSIZE)*cpd),
+    	        floor((p.z+HALFBOXSIZE)*cpd)};
     }
     inline integer3 Position2Cell(double3 p) {
-    	integer3 c;
-    	c.x = floor((p.x+HALFBOXSIZE)*cpd);
-    	c.y = floor((p.y+HALFBOXSIZE)*cpd);
-    	c.z = floor((p.z+HALFBOXSIZE)*cpd);
-    	return c;
+    	return {floor((p.x+HALFBOXSIZE)*cpd),
+    	        floor((p.y+HALFBOXSIZE)*cpd),
+    	        floor((p.z+HALFBOXSIZE)*cpd)};
     }
 
     // This bins a position to a cell, then wraps both to the primary zone.

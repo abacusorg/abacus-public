@@ -18,7 +18,7 @@ class FLOAT3p1 {
 
     // Constructors and destructors
     // The null constructor doesn't initialize
-    FLOAT3p1() { }   
+    FLOAT3p1() = default; 
     FLOAT3p1(FLOAT _x) { x=y=z=w=_x; }   // Use with 0.0, normally
     FLOAT3p1(FLOAT _x, FLOAT _y, FLOAT _z, FLOAT _w) { 
         x=_x; y=_y; z=_z; ; w=_w; }
@@ -55,24 +55,12 @@ class FLOAT3p1 {
         double inv = 1/rhs; return FLOAT3p1(x*inv, y*inv, z*inv, w); }
 
     // Supply a type cast to float3
-    // inline operator FLOAT3() { return FLOAT3(x,y,z); }
+    explicit operator FLOAT3() const { return FLOAT3(x,y,z); }
 
     // Provide a norm2() to act on the float3 portion
-    FLOAT norm() { return sqrt(x*x+y*y+z*z); }
-    FLOAT norm2() { return x*x+y*y+z*z; }
+    FLOAT norm() const { return sqrt(x*x+y*y+z*z); }
+    FLOAT norm2() const { return x*x+y*y+z*z; }
 
     // We don't supply a type cast to float4, but that could be easily
     // done with pointers, since the space is identical.
 };
-
-// #define TOFLOAT3(_float3p1) static_cast<FLOAT3>(_float3p1)
-
-// TODO: better way to do this casting?
-// Explicitly implementing a casting operator in the class worked
-// but not with the C-style cast, which we prefer for clarity and brevity
-inline FLOAT3 TOFLOAT3(FLOAT3p1 val) {
-    return FLOAT3(val.x, val.y, val.z);
-}
-inline FLOAT3 TOFLOAT3(FLOAT3 val) {
-    return val;
-}

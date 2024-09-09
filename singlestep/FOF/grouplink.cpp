@@ -36,11 +36,9 @@ class LinkID {
         id = (((long long int)i*4096+(long long int)j)*4096+(long long int)k)*1048576+n;
     }
     inline integer3 localcell() const {
-        integer3 c;
-        c.x = (id&(uint64)0xfff00000000000)>>44;
-        c.y = (id&(uint64)0xfff00000000)>>32;
-        c.z = (id&(uint64)0xfff00000)>>20;
-        return c;
+        return {(id&(uint64)0xfff00000000000)>>44,
+                (id&(uint64)0xfff00000000)>>32,
+                (id&(uint64)0xfff00000)>>20};
     }
     inline int cellgroup() {
         return id&0xfffff;

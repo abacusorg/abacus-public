@@ -110,7 +110,7 @@ class alignas(16) FOFparticle {
     fi.n = _n;
 	// n = (FOFloat)(_n);
     }
-    FOFparticle() { }
+    FOFparticle() = default;
     // inline int index() { return (int)(n); }
     inline int index() { return fi.n; }
     inline FOFloat diff2v(FOFparticle *q) {
@@ -134,12 +134,10 @@ class alignas(16) FOFparticle {
 	return dx*dx+dy*dy+dz*dz;
     }
     inline posstruct FOF_to_pos(){
-        posstruct pos; 
         double inv_FOF_RESCALE = 1.0/ FOF_RESCALE;
-        pos.x = x * inv_FOF_RESCALE; 
-        pos.y = y * inv_FOF_RESCALE;
-        pos.z = z * inv_FOF_RESCALE;
-        return pos;
+        return {x * inv_FOF_RESCALE,
+        		y * inv_FOF_RESCALE,
+        		z * inv_FOF_RESCALE};
     }
     // Hopefully the compiler is smart enough to convert the following to SSE!
     // If not, we could include the SSE primatives...

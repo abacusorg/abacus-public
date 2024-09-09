@@ -133,7 +133,7 @@ uint64 Output_TimeSlice(int slab, FLOAT unkickfactor) {
             // Now pack the particles
             accstruct *acc = CP->AccCell(ijk);
             for (int p=0;p<c.count();p++) {
-                velstruct vel = (c.vel[p] - TOFLOAT3(acc[p])*unkickfactor);    // We supply in code units
+                velstruct vel = (c.vel[p] - static_cast<FLOAT3>(acc[p])*unkickfactor);    // We supply in code units
                 // Detail: we write particles with their L0 bits intact.  So if we want to run a non-group-finding step
                 // after a group-finding step (e.g. for debugging), we need to know that we can ignore the L0 bit
                 if(GFC == NULL || !c.aux[p].is_L0()){

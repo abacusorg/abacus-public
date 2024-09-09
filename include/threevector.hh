@@ -25,12 +25,10 @@ class ThreeVector {
 public:
     T x, y, z;
     
-    // constructors:
-    inline ThreeVector<T>() 
-    : x(static_cast<T>(0)),
-      y(static_cast<T>(0)),
-      z(static_cast<T>(0))
-    {}
+    // constructors
+
+    // Default is no initialization, just like built-in types
+    inline ThreeVector<T>() = default;
 
     template <class U>
     inline ThreeVector<T>( const ThreeVector<U>& other )
@@ -48,7 +46,8 @@ public:
     {}
     
     // broadcast a scalar
-    template <class U>
+    // use SFINAE to avoid ambiguity with custom cast operators
+    template <class U, typename = std::enable_if_t<std::is_convertible_v<U, T>>>
     inline explicit ThreeVector<T>( const U& s)
     : x(static_cast<T>(s)),
         y(static_cast<T>(s)),
@@ -346,9 +345,9 @@ using float3 = ThreeVector<float>;
 using integer3 = ThreeVector<int>;
 
 #ifdef _OPENMP
-#pragma omp declare reduction(+:float3:omp_out += omp_in) initializer(omp_priv = float3())
-#pragma omp declare reduction(+:double3:omp_out += omp_in) initializer(omp_priv = double3())
-#pragma omp declare reduction(+:integer3:omp_out += omp_in) initializer(omp_priv = integer3())
+#pragma omp declare reduction(+:float3:omp_out += omp_in) initializer(omp_priv = float3(0.0f))
+#pragma omp declare reduction(+:double3:omp_out += omp_in) initializer(omp_priv = double3(0.0))
+#pragma omp declare reduction(+:integer3:omp_out += omp_in) initializer(omp_priv = integer3(0))
 #endif
 
 #endif // __THREEVECTOR_CC__

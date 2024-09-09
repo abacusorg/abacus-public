@@ -38,11 +38,9 @@ int LPTStepNumber() {
 
 inline double3 ZelPos(int64 ix, int64 iy, int64 iz) {
     // This will be the position, in code units, of the initial grid.
-    double3 p;
-    p.x = (double)ix/WriteState.ppd -.5;
-    p.y = (double)iy/WriteState.ppd -.5;
-    p.z = (double)iz/WriteState.ppd -.5;
-    return p;
+    return {(double)ix/WriteState.ppd -.5,
+            (double)iy/WriteState.ppd -.5,
+            (double)iz/WriteState.ppd -.5};
 }
 
 inline double3 ZelPos(integer3 ijk) {
@@ -76,7 +74,7 @@ void KickCell_2LPT_1(Cell &c, FLOAT kick1, FLOAT kick2, int _set_aux_dens) {
         c.aux[i].set_velocity(v - linearvel, invvscale);
 
         // overwrite the vel with the acc
-        c.vel[i] = TOFLOAT3(c.acc[i]);
+        c.vel[i] = static_cast<FLOAT3>(c.acc[i]);
 
         // why move vel to aux instead of writing acc in aux?
         // mostly because we were able to compute a strict upper
@@ -108,7 +106,7 @@ void KickCell_2LPT_2(Cell &c, FLOAT kick1, FLOAT kick2, int _set_aux_dens) {
     // Now we can co-add the first two kicks to isolate the second-order
     // part.  This will be stored in the velocity.
     for (int i=0;i<c.count();i++) {
-        c.vel[i] += TOFLOAT3(c.acc[i]);
+        c.vel[i] += static_cast<FLOAT3>(c.acc[i]);
     }
 }
 
