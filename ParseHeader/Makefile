@@ -30,8 +30,9 @@ phScanner.o: phScanner.cc phParser.tab.hh phDriver.hh
 phScanner.cc phScanner.hh: phScanner.ll phParser.tab.hh phDriver.hh
 	$(LEX) $^
 
-phParser.tab.cc phParser.tab.hh: phParser.yy phDriver.hh 
-	$(YACC) $<
+# TODO: when we are ready to require bison >= 3.3, we can remove -Wno-deprecated
+phParser.tab.cc phParser.tab.hh: phParser.yy phDriver.hh
+	$(YACC) -Wno-deprecated $<
 
 phDriver.o: phDriver.cc phDriver.hh phScanner.hh phParser.tab.hh
 

@@ -10,13 +10,6 @@
 # include "stringutil.hh"
 # include "phDriver.hh"
 # include "phParser.tab.hh"
-     
-    /* Work around an incompatibility in flex (at least versions
-       2.5.31 through 2.5.33): it generates code that does
-       not conform to C89.  See Debian bug 333231
-       <http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=333231>.  */
-# undef yywrap
-# define yywrap() 1
     
     /* By default yylex returns int, we use token_type.
        Unfortunately yyterminate by default returns 0, which is

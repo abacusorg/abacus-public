@@ -11,7 +11,7 @@ RUN mkdir -p /opt/spack-environment && \
     &&   echo '  - fftw@3 +openmp ~mpi' \
     &&   echo '  - cuda@12' \
     &&   echo '  - gsl' \
-    &&   echo '  - flex' \
+    &&   echo '  - flex@:2.6.2,2.6.4:' \
     &&   echo '  - bison' \
     &&   echo '  - python@3.11' \
     &&   echo '  - gperftools' \
