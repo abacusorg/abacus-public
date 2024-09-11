@@ -35,7 +35,7 @@ pipeline {
 
                     cd $ABACUS
                     ./configure
-                    make
+                    make ABACUS_CPPFLAGS=-Werror
 
                     cd Production/site_files
                     ln -s jenkins.def site.def

@@ -20,7 +20,7 @@ ROOT_DIR ?= .
 OPT := -g
 # definitely not a preprocessor option, but it's the one flag we pass to gcc and g++:
 CPPFLAGS := @DEFS@ -m64 -I $(ROOT_DIR)/include -I $(ROOT_DIR)/external/ips4o/include -DFMT_HEADER_ONLY=1 -I $(ROOT_DIR)/external/fmt/include $(OPT) $(LDFLAGS)
-CPPFLAGS += -Wall -Werror
+CPPFLAGS += -Wall $(ABACUS_CPPFLAGS)
 #CPPFLAGS += -fno-omit-frame-pointer -momit-leaf-frame-pointer -g3 -gdwarf-4
 
 # We use bash syntax in some Makefiles
@@ -29,7 +29,7 @@ SHELL := /bin/bash
 CUDA_ENABLED = @CUDA_ENABLED@
 ifeq (@CUDA_ENABLED@,CUDA_ENABLED)
     NVCC_FLAGS := --use_fast_math @CUDA_CFLAGS@ @DEFS@ $(OPT) -I $(ROOT_DIR)/include -DFMT_HEADER_ONLY=1 -I $(ROOT_DIR)/external/fmt/include $(CXXFLAGS) -ccbin @CXX@
-    NVCC_XCOMPILERFLAGS := -Wall -Werror
+    NVCC_XCOMPILERFLAGS := -Wall $(ABACUS_CPPFLAGS)
     CUDA_LIBS := @CUDA_LDFLAGS@ -lcuda -lcudart
     NVCC := @NVCC@
 endif
