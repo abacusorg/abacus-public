@@ -43,7 +43,7 @@
     WallClockDirect.Stop();
 
     // The epilogue contains some tests of success.
-    Epilogue(P,MakeIC);
+    Epilogue(P);
     stdlog.close();
         
     exit(0);

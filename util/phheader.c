@@ -11,7 +11,7 @@ If many file names are given, perform on all of them.
 #include "util_main.c"
 
 
-void print_data(FILE *fp, const char *fn) {
+void print_data(FILE *fp, const char *fn [[maybe_unused]]) {
     int c, clast;
     if ((clast=getc(fp))==EOF) return;
     while ((c=getc(fp))!=EOF) {

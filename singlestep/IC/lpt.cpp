@@ -52,7 +52,7 @@ inline double3 ZelPos(integer3 ijk) {
 
 // If we're doing 2LPT, then we will overwrite those initial velocities.
 
-void KickCell_2LPT_1(Cell &c, FLOAT kick1, FLOAT kick2, int _set_aux_dens) {
+void KickCell_2LPT_1(Cell &c, FLOAT kick1 [[maybe_unused]], FLOAT kick2 [[maybe_unused]], int _set_aux_dens [[maybe_unused]]) {
     int N = c.count();
     FLOAT Canonical_to_VelZSpace = 1.0/WriteState.VelZSpace_to_Canonical;
     FLOAT invvscale = 1./ReadState.LPTVelScale;
@@ -83,7 +83,7 @@ void KickCell_2LPT_1(Cell &c, FLOAT kick1, FLOAT kick2, int _set_aux_dens) {
     }
 }
 
-void DriftCell_2LPT_1(Cell &c, FLOAT driftfactor) {
+void DriftCell_2LPT_1(Cell &c, FLOAT driftfactor [[maybe_unused]]) {
     assertf(P.is_np_perfect_cube(), "LPT reconstruction requires np ({:d}) to be a perfect cube.\n",P.np);
     int e = c.count();
 #ifdef GLOBALPOS
@@ -102,7 +102,7 @@ void DriftCell_2LPT_1(Cell &c, FLOAT driftfactor) {
     }
 }
 
-void KickCell_2LPT_2(Cell &c, FLOAT kick1, FLOAT kick2, int _set_aux_dens) {
+void KickCell_2LPT_2(Cell &c, FLOAT kick1 [[maybe_unused]], FLOAT kick2 [[maybe_unused]], int _set_aux_dens [[maybe_unused]]) {
     // Now we can co-add the first two kicks to isolate the second-order
     // part.  This will be stored in the velocity.
     for (int i=0;i<c.count();i++) {
@@ -110,7 +110,7 @@ void KickCell_2LPT_2(Cell &c, FLOAT kick1, FLOAT kick2, int _set_aux_dens) {
     }
 }
 
-void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
+void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor [[maybe_unused]]) {
     // Now we have to adjust the positions and velocities
     assertf(P.is_np_perfect_cube(), "LPT reconstruction requires np ({:d}) to be a perfect cube.\n",P.np);
     int e = c.count();
@@ -175,13 +175,13 @@ void DriftCell_2LPT_2(Cell &c, FLOAT driftfactor) {
 
 // 3LPT kick and drift
 
-void KickCell_2LPT_3(Cell &c, FLOAT kick1, FLOAT kick2, int _set_aux_dens) {
+void KickCell_2LPT_3(Cell &c [[maybe_unused]], FLOAT kick1 [[maybe_unused]], FLOAT kick2 [[maybe_unused]], int _set_aux_dens [[maybe_unused]]) {
     // We could update the 3LPT velocity from the acceleration here,
     // but then we'd be repeating the same calculations for the position update in the Drift
     return;
 }
 
-void DriftCell_2LPT_3(Cell &c, FLOAT driftfactor) {
+void DriftCell_2LPT_3(Cell &c, FLOAT driftfactor [[maybe_unused]]) {
     // Now we have to adjust the positions and velocities    
     // Usually, Drift doesn't need accelerations, but 3LPT does
     // TODO: Haven't considered Smooth components at 3rd order

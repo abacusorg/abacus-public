@@ -4,7 +4,6 @@
  * particles are updated across the z-split of a slab.
  */
 
-#ifdef PARALLEL
 // Partition function
 inline bool is_in_range(ilstruct *particle, int slab, int left, int len){
     // returns true if particle is in [left,left+len)
@@ -428,13 +427,3 @@ void TeardownNeighborExchange(){
     delete[] left_exchanger;
     delete[] right_exchanger;
 }
-
-#else // PARALLEL
-
-void SetupNeighborExchange(int first, int nslab) { }
-int AttemptNeighborReceive(int first, int receive_ahead){ return 0; }
-void DoNeighborSend(int slab){ }
-int IsNeighborReceiveDone(int slab){ return 1; }
-void TeardownNeighborExchange(){ }
-
-#endif

@@ -288,34 +288,29 @@ int choose_zwidth(int Conv_zwidth, int cpd, ConvolutionParameters &CP){
 }
 
 
+#ifdef PARALLEL
 void InitializeParallel(int &size, int &rank, int rml, int CPD) {
-    #ifdef PARALLEL
-         // Start up MPI
-         int ret;
+    // Start up MPI
+    int ret;
 
-         MPI_Init_thread(NULL, NULL, MPI_THREAD_SERIALIZED, &ret);  // TODO can we move this into the IO thread and change to funneled?
-         assertf(ret>=MPI_THREAD_FUNNELED, "MPI_Init_thread() claims not to support MPI_THREAD_FUNNELED.\n");
-         MPI_Comm_size(MPI_COMM_WORLD, &size);
-         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-         NodeString = fmt::format(".{:04d}", rank);
-		 
-  		 MPI_Type_contiguous(rml*CPD, MPI_MTCOMPLEX, &MPI_skewer);
-  		 MPI_Type_commit(&MPI_skewer);
-		 
-    #else
-    #endif
-    return;
+    MPI_Init_thread(NULL, NULL, MPI_THREAD_SERIALIZED, &ret);  // TODO can we move this into the IO thread and change to funneled?
+    assertf(ret>=MPI_THREAD_FUNNELED, "MPI_Init_thread() claims not to support MPI_THREAD_FUNNELED.\n");
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    NodeString = fmt::format(".{:04d}", rank);
+
+    MPI_Type_contiguous(rml*CPD, MPI_MTCOMPLEX, &MPI_skewer);
+    MPI_Type_commit(&MPI_skewer);
 }
 
 void FinalizeParallel() {
-    #ifdef PARALLEL
-         // Finalize MPI
-		 MPI_Type_free(&MPI_skewer);
-         MPI_Finalize();
-         STDLOG(0,"Calling MPI_Finalize()");
-    #else
-    #endif
+    // Finalize MPI
+    MPI_Type_free(&MPI_skewer);
+    MPI_Finalize();
+    STDLOG(0,"Calling MPI_Finalize()");
 }
+
+#endif
 
 int main(int argc, char ** argv){
 	TotalWallClock.Start();
@@ -331,7 +326,9 @@ int main(int argc, char ** argv){
 
 	    P.ReadParameters(argv[1],1);
 		
+#ifdef PARALLEL
 		InitializeParallel(MPI_size, MPI_rank, (P.order+1)*(P.order+1), P.cpd);
+#endif
 		
 
 	    // Setup the log
@@ -425,8 +422,7 @@ int main(int argc, char ** argv){
 
         // Find out which slabs reside on which nodes
         // This will initialize first_slab_on_node and total_slabs_on_node even in the non-parallel version
-        int read_all_nodes = 1;
-        ReadNodeSlabs(read_all_nodes, CP.first_slabs_all, CP.total_slabs_all);
+        ReadNodeSlabs(true, CP.first_slabs_all, CP.total_slabs_all);
         
         CP.zwidth = choose_zwidth(P.Conv_zwidth, P.cpd, CP);
         CP.io_cores = P.Conv_IOCores;
@@ -448,9 +444,9 @@ int main(int argc, char ** argv){
         
         fs::path timingfn = P.LogDirectory / fmt::format("last{:s}.convtime", NodeString);
 
-		
+#ifdef PARALLEL
 	    FinalizeParallel();  // This may be the last synchronization point?
-		
+#endif
 		
 	    dumpstats(&OCC,timingfn);
 	    stdlog.close();

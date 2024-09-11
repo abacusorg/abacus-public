@@ -69,7 +69,7 @@ class GroupLink {
     inline bool is_marked_for_deletion() { return (a.id==-1);}
 };
 
-inline bool is_marked_for_deletion(GroupLink *gl, int val) {
+inline bool is_marked_for_deletion(GroupLink *gl, int val [[maybe_unused]]) {
     // This is the binary decision for whether a link will be swept
     // to the end of the list for deletion.
     // val is not used in this routine, but required by partitioning code.

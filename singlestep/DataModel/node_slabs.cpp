@@ -9,7 +9,7 @@ slabs and construct a new file.
 
 /// Read the global file to set two global variables for this node:
 /// first_slab_on_node and total_slab_on_node
-void ReadNodeSlabs(int get_all_nodes = 0, int * first_slabs_all = NULL, int * total_slabs_all = NULL) {
+void ReadNodeSlabs(int get_all_nodes [[maybe_unused]] = 0, int * first_slabs_all [[maybe_unused]] = NULL, int * total_slabs_all [[maybe_unused]] = NULL) {
     #ifndef PARALLEL
         first_slab_on_node = 0; total_slabs_on_node = P.cpd;
         first_slab_finished = -1;   // Just a silly value

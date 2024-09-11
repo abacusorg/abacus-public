@@ -102,17 +102,17 @@ double PTimerBase<HardwareTimer>::Elapsed(void) {
 
 // Now provide template specializations for a dummy timer
 template <>
-inline PTimerBase<DummyHardwareTimer>::PTimerBase(int nthreads) { }
+inline PTimerBase<DummyHardwareTimer>::PTimerBase(int nthreads [[maybe_unused]]) { }
 template <>
 inline PTimerBase<DummyHardwareTimer>::~PTimerBase() { }
 template <>
 inline void PTimerBase<DummyHardwareTimer>::Start(void){ }
 template <>
-inline void PTimerBase<DummyHardwareTimer>::Start(int thread_num) { }
+inline void PTimerBase<DummyHardwareTimer>::Start(int thread_num [[maybe_unused]]) { }
 template <>
 inline void PTimerBase<DummyHardwareTimer>::Stop(void){ }
 template <>
-inline void PTimerBase<DummyHardwareTimer>::Stop(int thread_num) { }
+inline void PTimerBase<DummyHardwareTimer>::Stop(int thread_num [[maybe_unused]]) { }
 template <>
 inline double PTimerBase<DummyHardwareTimer>::Elapsed(void){ return 1e-12; }
     // We return a small number so that we don't divide by zero

@@ -89,7 +89,6 @@ class NearFieldDriver{
         void ExecuteSlabGPU(int slabID, int blocking);
         void ExecuteSlabCPU(int slabID,int * predicate);
         void ExecuteSlabCPU(int slabID);
-        void CheckInteractionList(int slabID);
 };
 
 
@@ -435,9 +434,6 @@ void NearFieldDriver::Finalize(int slab){
 
     assertf(SlabDone(slab) != 0,
             "Finalize called for slab {:d} but it is not complete\n",slab);
-
-    if(P.ForceOutputDebug)
-        CheckInteractionList(slab);
 
     SetInteractionCollection **Slices = SlabInteractionCollections[slab];
     int NSplit = SlabNSplit[slab];

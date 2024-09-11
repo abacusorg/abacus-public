@@ -119,7 +119,7 @@ double3 Spiral::RotatePointAboutLine(double3 p, double3 n, double angle) {
     return pp;
 }
 
-void Spiral::Project(double3 *pp, double3 *vv, int *id, long long int np) {
+void Spiral::Project(double3 *pp, double3 *vv, int *id [[maybe_unused]], long long int np [[maybe_unused]]) {
 
     // we want sol'm along kvec rotated parallel to xhat
     double3 xhat; xhat.x = 1; xhat.y = 0; xhat.z = 0;

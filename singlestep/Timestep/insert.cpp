@@ -145,7 +145,7 @@ public:
         MultiAppendList::Push(il);
     }
 
-    inline integer3 WrapToNewCell(posstruct *pos, auxstruct *aux, int oldx, int oldy, int oldz, int clearLC) {
+    inline integer3 WrapToNewCell(posstruct *pos, auxstruct *aux, int clearLC) {
         // We have been given a particle that has drifted out of its cell.
         // Find the new cell, changing the position as appropriate.
         integer3 newcell = Position2Cell(*pos);
@@ -206,7 +206,7 @@ public:
         int x, int y, int z) {
         
 #ifdef GLOBALPOS
-        integer3 newcell = WrapToNewCell(pos,x,y,z,clearLC);
+        integer3 newcell = WrapToNewCell(pos,clearLC);
 #else
         // Use LocalWrapToNewCell for cell-referenced positions
         integer3 newcell = LocalWrapToNewCell(pos,aux,x,y,z,clearLC);

@@ -257,7 +257,7 @@ class OutputRVdouble: public AppendArena {
     };
 
     float velocity_conversion;
-    void appendparticle(char *c, cell_header current_cell, posstruct pos, velstruct vel, auxstruct aux) {
+    void appendparticle(char *c, cell_header current_cell, posstruct pos, velstruct vel, auxstruct aux [[maybe_unused]]) {
         struct ICparticle *p = (struct ICparticle *)c;
 #ifdef GLOBALPOS
         // This is for global box-referenced positions
@@ -273,7 +273,7 @@ class OutputRVdouble: public AppendArena {
         p->vel[1] = vel.y*velocity_conversion;
         p->vel[2] = vel.z*velocity_conversion;
     }
-    void appendcell(char *c, cell_header &current_cell, integer3 ijk, float vscale) {
+    void appendcell(char *c [[maybe_unused]], cell_header &current_cell, integer3 ijk, float vscale [[maybe_unused]]) {
         current_cell = cell_header(ijk, cpd, 1);
     }
 
@@ -292,12 +292,12 @@ class OutputPID: public AppendArena {
   private:
     //uint64_t pid;
 
-    void appendparticle(char *c, cell_header current_cell, posstruct pos, velstruct vel, auxstruct a) {
+    void appendparticle(char *c, cell_header current_cell [[maybe_unused]], posstruct pos [[maybe_unused]], velstruct vel [[maybe_unused]], auxstruct a) {
         uint64_t *p = (uint64_t *)c;
         *p  = a.get_aux_pid_dens_tagged(); 
     }
 
-    void appendcell(char *c, cell_header &current_cell, integer3 ijk, float vscale) {
+    void appendcell(char *c [[maybe_unused]], cell_header &current_cell, integer3 ijk, float vscale [[maybe_unused]]) {
         current_cell = cell_header(ijk, cpd, 1);
     }
 
@@ -310,62 +310,6 @@ class OutputPID: public AppendArena {
     ~OutputPID(void) { }
 };
 
-
-//=====================================================================
-//The format we will use for lightcones
-class OutputLightcone: public AppendArena {
-  private:
-    struct ICparticle {
-        float pos[3];		// Global position, unit box
-        float vel[3];		// Zspace, unit box
-        auxstruct aux;
-    };
-
-    struct CellHeader{
-    	long long int ijk[3];
-    	long long int np; //number of particles in this cell
-    };
-    long long int * np;
-
-    float velocity_conversion;
-  public:
-    void appendparticle(char *c, cell_header current_cell, posstruct pos, velstruct vel, auxstruct aux) {
-        struct ICparticle *p = (struct ICparticle *)c;
-        p->pos[0] = (float) pos.x;
-        p->pos[1] = (float) pos.y;
-        p->pos[2] = (float) pos.z;
-        p->vel[0] = vel.x ;
-        p->vel[1] = vel.y;
-        p->vel[2] = vel.z;
-        p->aux = aux;
-        assert(np !=0);
-        (*np)++;
-    }
-
-
-    void appendcell(char *c, cell_header &current_cell, integer3 ijk, float vscale) {
-
-    	current_cell = cell_header(ijk, cpd, 1);
-    	CellHeader *cc = (CellHeader *) c;
-    	cc->ijk[ 0] = ijk.x;
-    	cc->ijk[ 1] = ijk.y;
-    	cc->ijk[ 2] = ijk.z;
-    	np = &(cc->np);
-    	*np = 0;
-    }
-
-
-
-
-    int sizeof_cell()     { return sizeof(CellHeader); }
-    int sizeof_particle() { return sizeof(struct ICparticle); }
-
-    OutputLightcone() {
-        velocity_conversion = 1.0;  // Leave it in Zspace, unit box units
-        np =0;
-    }
-    ~OutputLightcone(void) { }
-};
 
 // =================================================================
 // And here's an example to put things back into the Heitmann format.
@@ -399,7 +343,7 @@ class OutputHeitmann: public AppendArena {
         p->tag = (unsigned int) aux.pid();
         	// This could overflow, as we allow 40-bit ids
     }
-    void appendcell(char *c, cell_header &current_cell, integer3 ijk, float vscale) {
+    void appendcell(char *c [[maybe_unused]], cell_header &current_cell, integer3 ijk, float vscale [[maybe_unused]]) {
         current_cell = cell_header(ijk, cpd, 1);
     }
 
@@ -440,7 +384,7 @@ class OutputRVdoublePID: public AppendArena {
         p->tag = aux.pid();
 
     }
-    void appendcell(char *c, cell_header &current_cell, integer3 ijk, float vscale) {
+    void appendcell(char *c [[maybe_unused]], cell_header &current_cell, integer3 ijk, float vscale [[maybe_unused]]) {
         current_cell = cell_header(ijk, cpd, 1);
     }
 
@@ -488,7 +432,7 @@ class OutputRVZel: public AppendArena {
     p->k = ijk.z;
 
     }
-    void appendcell(char *c, cell_header &current_cell, integer3 ijk, float vscale) {
+    void appendcell(char *c [[maybe_unused]], cell_header &current_cell, integer3 ijk, float vscale [[maybe_unused]]) {
     current_cell = cell_header(ijk, cpd, 1);
     }
 

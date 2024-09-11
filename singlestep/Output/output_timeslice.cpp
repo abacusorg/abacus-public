@@ -46,7 +46,7 @@ AppendArena *get_AA_by_format(const std::string &format){
 
 AppendArena *get_PID_AA_by_format(const std::string &format){
     AppendArena *PID_AA;
-    if (P.OutputFormat == "Pack9") {
+    if (format == "Pack9") {
         PID_AA = new OutputPID(); 
         STDLOG(2, "Chose PID timeslice append arena to complement pack9 RVs.\n");
     }

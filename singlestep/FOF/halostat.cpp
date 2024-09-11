@@ -55,7 +55,7 @@ uint16_t pack_euler16_eig(double sigma[3], double sigma_vecs[3][3]) {
     */
 
 HaloStat ComputeStats(int size, 
-	posstruct *L1pos, velstruct *L1vel, auxstruct *L1aux, 
+	posstruct *L1pos, velstruct *L1vel, auxstruct *L1aux [[maybe_unused]], 
 	#ifdef SPHERICAL_OVERDENSITY
 	    SOcell &L2, 
 	#else
@@ -215,7 +215,7 @@ HaloStat ComputeStats(int size,
 #endif 	
     // We search for the max of vcirc, which is proportional to sqrt(G*M/R).
     // The 4th power of that is proportional to N^2/R^2.
-    vmax = 0.0;
+    vmax = 0.0; rvmax = 0.0;
     for (int p=(size<1000?size/10:100); p<size; p++) {
 		float v4 = (float)p*p/L2.d2_active[p];
 		if (v4>vmax) { vmax = v4; rvmax = L2.d2_active[p]; }

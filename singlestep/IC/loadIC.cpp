@@ -478,7 +478,7 @@ public:
         return 1;  // nothing to read!
     }
 
-    uint64 unpack(double convert_pos, double convert_vel) {
+    uint64 unpack(double convert_pos [[maybe_unused]], double convert_vel) {
         uint64 sumA = 0, sumB = 0;
         double ppd = WriteState.ppd;
         velstruct vel(convert_vel);  // inherit the vel from P.ICVelocity2Displacement

@@ -154,7 +154,7 @@ public:
     // We expose lightconemask() publicly because one might 
     // not want to construct for every particle.
 
-    inline static uint64 lightconemask(int number) {
+    inline static uint64 lightconemask(int number [[maybe_unused]]) {
         #ifdef USE_LC_AUX_BITS
         return (uint64)1 << (number+AUXLCZEROBIT);
         #else
@@ -162,7 +162,7 @@ public:
         #endif
     }
 
-    inline bool lightconedone(uint64 mask) {
+    inline bool lightconedone(uint64 mask [[maybe_unused]]) {
         #ifdef USE_LC_AUX_BITS
         assert (mask<=AUXLC && mask >= AUXPIDMASK);  // better way to do this...
         return (aux&mask);
@@ -174,7 +174,7 @@ public:
         return lightconedone(lightconemask(number));
     }
 
-    inline void setlightconedone(uint64 mask) {
+    inline void setlightconedone(uint64 mask [[maybe_unused]]) {
         #ifdef USE_LC_AUX_BITS
         aux |= mask;
         #endif

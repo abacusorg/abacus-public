@@ -57,7 +57,7 @@
     cosm = InitializeCosmology(ReadState.ScaleFactor);
     // Set some WriteState values before ChooseTimeStep()
     // This also sets the SofteningLength, needed by the NFD constructor
-    InitWriteState(MakeIC, "singlestep", argv[1]);
+    InitWriteState("singlestep", argv[1]);
     
     SingleStepSetup.Stop();
 
@@ -95,7 +95,7 @@
     SS = NULL;
 
     // The epilogue contains some tests of success.
-    Epilogue(P,MakeIC);
+    Epilogue(P);
      
      // Print out some final stats
     FinalizeWriteState();

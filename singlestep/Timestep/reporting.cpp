@@ -267,12 +267,14 @@ void GatherTimings() {
     REPORT(1, "Drift", Drift->Elapsed()); total += thistime;
         REPORT_RATE(Drift);
 
+#ifdef PARALLEL
     double neighbor_tot;
     if(NeighborSend && MPI_size_z > 1){
         neighbor_tot = NeighborSend->Elapsed() + DoNeighborRecv->Elapsed();
         REPORT(1, "Neighbor Exchange", neighbor_tot);
         total += neighbor_tot;
     }
+#endif
 
     double finish_total = FinishParticles->Elapsed() + FinishMultipoles->Elapsed();
     REPORT(1, "Finish", finish_total); total += thistime;

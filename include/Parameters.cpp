@@ -602,13 +602,6 @@ void Parameters::ValidateParameters(void) {
         MaxPID = np;
     }
 
-    if(np<0) {
-        fmt::print(stderr,
-            "[ERROR] np = {:d} must be greater than zero!\n", np);
-        assert(1==0);
-    }
-
-
     if(cpd<0) {
         fmt::print(stderr,
             "[ERROR] cpd = {:d} must be greater than zero!\n", cpd);

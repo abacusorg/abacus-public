@@ -63,7 +63,7 @@ void Redlack::ComputeRedlack(void) {
 void Redlack::ApplyRedlack( int slab, 
                             FLOAT3 *slabacceleration, FLOAT3 *slabpos, 
                             int *count, int *offset, int *ghost_offsets,
-                            FLOAT3 *cc, int np){
+                            FLOAT3 *cc, int np [[maybe_unused]]) {
 	TaylorRedlack.Start();
 
     #pragma omp parallel for schedule(static)

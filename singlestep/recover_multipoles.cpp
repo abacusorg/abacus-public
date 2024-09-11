@@ -51,7 +51,7 @@ void RecoverReadStateFiles(Parameters &P){
 
     // Informs some of our directory structure
     // Also sets up SlabSize
-    InitWriteState(MakeIC, "recover_multipoles", argv[1]);
+    InitWriteState("recover_multipoles", argv[1]);
 	Prologue(P, MakeIC);
     SS->load_from_params(P);  // normally done during Prologue, but we pretended this was an IC step
 	
@@ -73,7 +73,7 @@ void RecoverReadStateFiles(Parameters &P){
     SS = NULL;
 
     // The epilogue contains some tests of success.
-    Epilogue(P, MakeIC);
+    Epilogue(P);
 	
 	stdlog.close();
     FinalizeParallel(); 

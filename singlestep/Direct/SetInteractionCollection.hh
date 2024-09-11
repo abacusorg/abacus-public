@@ -277,13 +277,6 @@ class SetInteractionCollection{
 
         void SetCompleted();
         ///< Mark this collection as completed and clean up everything but results
-
-        void PrintInteractions();
-        ///< Prints debugging information for this interaction set to stdout
-
-        void  AddInteractionList( std::vector<uint64> ** il);
-        ///< Fill a cell on cell interaction list with the interactions in this SIC (debugging only)
-
 };
 
 #endif

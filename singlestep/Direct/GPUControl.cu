@@ -654,7 +654,7 @@ void *QueueWatcher(void *arg){
 /// active threads, and run a timer when that count is non-zero.
 /// That gives a global throughput number.
 
-void CUDART_CB StartThroughputTimer(cudaStream_t stream, cudaError_t status, void *data){
+void CUDART_CB StartThroughputTimer(cudaStream_t stream [[maybe_unused]], cudaError_t status [[maybe_unused]], void *data [[maybe_unused]]){
     assert(pthread_mutex_lock(&SetInteractionCollection::GPUTimerMutex) == 0);
     if (++SetInteractionCollection::ActiveThreads == 1){
         SetInteractionCollection::GPUThroughputTimer.Start();
@@ -662,7 +662,7 @@ void CUDART_CB StartThroughputTimer(cudaStream_t stream, cudaError_t status, voi
     assert(pthread_mutex_unlock(&SetInteractionCollection::GPUTimerMutex) == 0);
 }
 
-void CUDART_CB MarkCompleted( cudaStream_t stream, cudaError_t status, void *data){
+void CUDART_CB MarkCompleted( cudaStream_t stream [[maybe_unused]], cudaError_t status [[maybe_unused]], void *data [[maybe_unused]]){
     assert(pthread_mutex_lock(&SetInteractionCollection::GPUTimerMutex) == 0);
     if (--SetInteractionCollection::ActiveThreads == 0){
         SetInteractionCollection::GPUThroughputTimer.Stop();

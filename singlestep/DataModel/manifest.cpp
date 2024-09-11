@@ -28,10 +28,6 @@ the data when it is received.
 
 #include "mpi_limiter.h"
 
-// #define NO_MPI    // Just keep these routines blocked out for now
-#ifdef NO_MPI
-#include "manifest_io.cpp"
-#else
 // It was too confusing to keep the MPI and I/O based codes in the same
 // file.  The I/O code is just a touch-stone single-node version.
 
@@ -122,7 +118,7 @@ class DependencyRecord {
     }
 
     /// Set the cellgroups_status to 1 for the indicated slabs
-    void SetCG(int finished_slab) {
+    void SetCG(int finished_slab [[maybe_unused]]) {
         if (GFC==NULL) return;
         for (int s=begin; s<end; s++) {
             GFC->cellgroups_status[CP->WrapSlab(s)]=1;
@@ -230,11 +226,7 @@ class Manifest {
 
     Manifest() : mpi_limiter(P.MPICallRateLimit_ms) {
     	m.numarenas = m.numil = m.numlinks = m.numdep = 0;
-        #ifdef PARALLEL
-            completed = MANIFEST_NOTREADY;
-        #else
-            completed = MANIFEST_ALREADYIMPORTED;   // We're not doing anything
-        #endif
+        completed = MANIFEST_NOTREADY;
         bytes = 0;
         il = NULL;
         links = NULL;
@@ -272,10 +264,8 @@ class Manifest {
     inline int check_if_done(int j) {
         if (requests[j]!=MPI_REQUEST_NULL) {
             int sent=0;
-            #ifdef PARALLEL
             int err = MPI_Test(requests+j,&sent,MPI_STATUS_IGNORE);
             assertf(err==MPI_SUCCESS, "MPI_Test failed with error {:d}\n", err);
-            #endif
             if (sent) { mark_as_done(j); return 1; }
         }
         return 0;
@@ -290,7 +280,6 @@ class Manifest {
     /// This launches a send of N bytes, perhaps split into multiple Isend calls
     /// size must be in bytes; we only deal with bytes
     void do_MPI_Isend(void *ptr, uint64 size, int rank) {
-        #ifdef PARALLEL
         bytes += size;
         while (size>0) {
             assertf(maxpending<MAX_REQUESTS, "Too many MPI requests {:d}\n", maxpending);
@@ -298,13 +287,11 @@ class Manifest {
             MPI_Isend(ptr, thissize, MPI_BYTE, rank, tag_offset+maxpending, comm_manifest,requests+maxpending);
             numpending++; maxpending++; size -= thissize; ptr = (char *)ptr+thissize;
         }
-        #endif
     }
 
     /// This launches a receive of N bytes, perhaps split into multiple Irecv calls
     /// size must be in bytes; we only deal with bytes
     void do_MPI_Irecv(void *ptr, uint64 size, int rank) {
-        #ifdef PARALLEL
         bytes += size;
         while (size>0) {
             assertf(maxpending<MAX_REQUESTS, "Too many MPI requests {:d}\n", maxpending);
@@ -312,9 +299,7 @@ class Manifest {
             MPI_Irecv(ptr, thissize, MPI_BYTE, rank, tag_offset+maxpending, comm_manifest,requests+maxpending);
             numpending++; maxpending++; size -= thissize; ptr = (char *)ptr+thissize;
         }
-        #endif
     }
-
 
     inline int is_ready() { if (completed==MANIFEST_READY) return 1; return 0;}
 	// Call this to see if the Manifest is ready to retrieve
@@ -367,10 +352,8 @@ void SetupManifest(int _nManifest) {
         SendManifest[j].set_tag(j);
         ReceiveManifest[j].set_tag(j);
     }
-    #ifdef PARALLEL
         assertf(MPI_size_x>1, "Can't run MPI-based manifest code with only 1 process.\n"); 
         // TODO: I don't see a way around this.  One ends up with the destination and source arenas being the same.
-    #endif
     ReceiveManifest->SetupToReceive();
 }
 
@@ -392,7 +375,6 @@ Then call the non-blocking communication and return.
 */
 
 void Manifest::QueueToSend(int finished_slab) {
-    #ifdef PARALLEL
     Load.Start();
     int cpd = P.cpd;
 
@@ -507,14 +489,12 @@ void Manifest::QueueToSend(int finished_slab) {
 
     this->Send(); 
     
-    #endif
     return;
 }
 
 // =============== Routine to actually transmit the outgoing info ====
 
 void Manifest::Send() {
-    #ifdef PARALLEL
     Transmit.Start();
     /// set_pending(m.numarenas+3);
     int rank = MPI_rank_x;
@@ -542,7 +522,6 @@ void Manifest::Send() {
     completed = MANIFEST_TRANSFERRING;
     Transmit.Stop();
     Communication.Start();
-    #endif
     return;
 }
 
@@ -551,7 +530,6 @@ void Manifest::Send() {
 inline int Manifest::FreeAfterSend() {
     int ret = 0;  // did something?
     
-    #ifdef PARALLEL
     if (completed != MANIFEST_TRANSFERRING) return ret;   // No active Isend's yet
 
     // Has it been long enough since our last time querying MPI?
@@ -582,7 +560,6 @@ inline int Manifest::FreeAfterSend() {
             bytes, bytes/(Communication.Elapsed()+1e-15)/(1024.0*1024.0*1024.0));
     }
     CheckCompletion.Stop();
-    #endif
     return ret;
 }
 
@@ -591,7 +568,6 @@ inline int Manifest::FreeAfterSend() {
 
 /// We have to issue the request to receive the ManifestCore
 void Manifest::SetupToReceive() {
-    #ifdef PARALLEL
     Transmit.Start();
     /// set_pending(1);
     int rank = MPI_rank_x;
@@ -599,7 +575,6 @@ void Manifest::SetupToReceive() {
     STDLOG(2,"Ireceive the Manifest Core from node rank {:d}\n", rank);
     do_MPI_Irecv(&m, sizeof(ManifestCore), rank);
     Transmit.Stop();
-    #endif
     return;
 }
 
@@ -607,7 +582,6 @@ void Manifest::SetupToReceive() {
 /// whether Receive is ready to run.
 inline int Manifest::Check() {
     int ret = 0;  // did something?
-    #ifdef PARALLEL
     if (completed >= MANIFEST_READY) return ret;   // Nothing's active now
 
     // Has it been long enough since our last time querying MPI?
@@ -633,7 +607,6 @@ inline int Manifest::Check() {
             ret = 1;
         } 
     }
-    #endif
     return ret;
 }
 
@@ -668,7 +641,6 @@ END OLDCODE */
 /// It should store the results.
 /// It allocates the needed space.
 void Manifest::Receive() {
-    #ifdef PARALLEL
     Transmit.Start();
     /// set_pending(m.numarenas+2);
     int rank = MPI_rank_x;
@@ -703,7 +675,6 @@ void Manifest::Receive() {
     STDLOG(1,"Done issuing the ReceiveManifest, {:d} MPI parts, {:d} bytes\n", maxpending, bytes);
     Transmit.Stop();
     Communication.Start();
-    #endif
     return;
 }
 
@@ -724,7 +695,6 @@ opening this region for use.
 */
 
 void Manifest::ImportData() {
-    #ifdef PARALLEL
     assertf(completed==MANIFEST_READY, "ImportData has been called when completed=={:d}\n", completed);
 
     Communication.Stop();
@@ -805,8 +775,5 @@ void Manifest::ImportData() {
     // We're done with this Manifest!
     done();
     Load.Stop();
-    #endif
     return;
 }
-
-#endif    // NO_MPI

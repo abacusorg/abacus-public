@@ -5,7 +5,7 @@
 
 
 
-void OutofCoreConvolution::ReadDiskMultipolesAndDerivs(int zstart) {
+void OutofCoreConvolution::ReadDiskMultipolesAndDerivs(int zstart [[maybe_unused]]) {
 #ifdef CONVIOTHREADED
     // We have to wait for all IO threads, because they are all reading into the same block
     for(int i = 0; i < CP.niothreads; i++){
@@ -69,7 +69,7 @@ void OutofCoreConvolution::SwizzleTaylors(int z){
 }
 
 
-void OutofCoreConvolution::WriteDiskTaylor(int z) {
+void OutofCoreConvolution::WriteDiskTaylor(int z [[maybe_unused]]) {
 #ifdef CONVIOTHREADED
     // Push to all threads.  Each will take the part of the block it needs.
     for(int i = 0; i < CP.niothreads; i++)

@@ -19,7 +19,7 @@ int RVrange(RVdouble *rv) {
     	+range(rv->vel[0]) +range(rv->vel[1]) +range(rv->vel[2]);
 }
 
-void print_data(FILE *fp, const char *fn) {
+void print_data(FILE *fp, const char *fn [[maybe_unused]]) {
     cell_header current_cell;
     pack14 p;
     current_cell.vscale = 0;   // Make this illegal

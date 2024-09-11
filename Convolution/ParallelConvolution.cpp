@@ -126,7 +126,7 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, const fs::path &M
 	first_slabs_all = new int[MPI_size_x];
     total_slabs_all = new int[MPI_size_x]; 
 	
-	ReadNodeSlabs(1, first_slabs_all, total_slabs_all);
+	ReadNodeSlabs(true, first_slabs_all, total_slabs_all);
 	
 	first_slab_on_node  = first_slabs_all[MPI_rank_x];
 	total_slabs_on_node = total_slabs_all[MPI_rank_x];

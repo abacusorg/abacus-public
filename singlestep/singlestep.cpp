@@ -224,7 +224,7 @@ int main(int argc, char **argv) {
 
     // Set some WriteState values before ChooseTimeStep()
     // This also sets the SofteningLength, needed by the NFD constructor
-    InitWriteState(MakeIC, "singlestep", argv[1]);
+    InitWriteState("singlestep", argv[1]);
 
     // Set up the major classes (including NFD)
     Prologue(P,MakeIC,NoForces);
@@ -273,7 +273,7 @@ int main(int argc, char **argv) {
     GatherTimings();
 
     // The epilogue contains some tests of success.
-    Epilogue(P,MakeIC);
+    Epilogue(P);
 
     delete cosm;
     FinalizeLightCones();

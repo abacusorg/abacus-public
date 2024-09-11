@@ -212,7 +212,11 @@ void finish_fftw();
 
 #include "timestep.cpp"
 #include "parallel.cpp"
+
+#ifdef PARALLEL
 #include "neighbor_exchange.cpp"
+#endif
+
 #include "reporting.cpp"
 
 #include <fenv.h>
@@ -241,8 +245,10 @@ void Prologue(Parameters &P, int MakeIC, int NoForces) {
     // TODO: This fails for Spiral with first!=0 because the IC have
     // put all particles into input slab 0.
 
+#ifdef PARALLEL
     // Call this to setup the Manifests
     SetupManifest(2*P.GroupRadius+1);
+#endif
 
     Grid = new grid(cpd);
     SB = new SlabBuffer(cpd, order, LCOrigin.size());
@@ -264,7 +270,12 @@ void Prologue(Parameters &P, int MakeIC, int NoForces) {
     }
     if(P.NumSlabsInsertList == 0) {
         // IL can be filled from drift or neighbor recv. Multiply by 2x for manifest.
-        P.NumSlabsInsertList = 2*(DriftDep::drift_ahead + NeighborRecvEvent::receive_ahead);
+#ifdef PARALLEL
+        int receive_ahead = NeighborRecvEvent::receive_ahead;
+#else
+        int receive_ahead = 0;
+#endif
+        P.NumSlabsInsertList = 2*(DriftDep::drift_ahead + receive_ahead);
     }
 
     uint64 maxILsize = P.np+1;
@@ -334,7 +345,7 @@ void Prologue(Parameters &P, int MakeIC, int NoForces) {
 /*! \brief Tears down global objects
  *
  */
-void Epilogue(Parameters &P, bool MakeIC) {
+void Epilogue(Parameters &P) {
     STDLOG(1,"Entering Epilogue()\n");
     epilogue.Clear();
     epilogue.Start();
@@ -383,8 +394,10 @@ void Epilogue(Parameters &P, bool MakeIC) {
     delete Grid;
     Grid = NULL;
 	
+#ifdef PARALLEL
 	FreeManifest();
     TeardownNeighborExchange();
+#endif
 
     if(0 and P.ForceOutputDebug){
         #ifdef CUDADIRECT
@@ -622,7 +635,7 @@ void check_read_state(const int MakeIC){
 }
 
 // A few actions that we need to do before choosing the timestep
-void InitWriteState(int MakeIC, const std::string pipeline, const fs::path parfn){
+void InitWriteState(const std::string pipeline, const fs::path parfn){
     // Even though we do this in BuildWriteState, we want to have the step number
     // available when we choose the time step.
     assert(WriteState.FullStepNumber == ReadState.FullStepNumber+1);  // already did this in load_read_state()

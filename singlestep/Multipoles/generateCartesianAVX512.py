@@ -361,9 +361,10 @@ def emit_AVX512_Taylors(orders, fn='ETAVX512.cpp'):
 
         cmap = cmapper(order)
 
+        maybe_unused = ' [[maybe_unused]]' if order == 1 else ''
         w(f"""
             template <>
-            void Taylor512Kernel<{order}>(double *CT, FLOAT3 center, int n, FLOAT3 *xyz, FLOAT3 *acc) {{
+            void Taylor512Kernel<{order}>(double *CT, FLOAT3 center{maybe_unused}, int n, FLOAT3 *xyz{maybe_unused}, FLOAT3 *acc) {{
 
                 AVX512_DOUBLES Qx[{cml_orderm1}], Qy[{cml_orderm1}], Qz[{cml_orderm1}];
             """)

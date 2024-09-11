@@ -16,7 +16,7 @@ public:
     ReadICDep(int cpd, int initialslab)
         : SlabDependency("ReadIC", cpd, initialslab){ }
 
-    int precondition(int slab) {
+    int precondition(int slab [[maybe_unused]]) {
         // We always do this.
         #ifdef PARALLEL
         if (raw_number_executed>=total_slabs_on_node) return 0;
@@ -113,8 +113,10 @@ void timestepIC(void) {
     int nslabs = P.cpd;
     int first = first_slab_on_node;
 
+#ifdef PARALLEL
     // Lightweight setup of z-dimension exchanges
     SetupNeighborExchange(first + FINISH_WAIT_RADIUS, total_slabs_on_node);
+#endif
 
     FetchSlabs = new ReadICDep(nslabs, first);
     Drift = new UnpackICDep(nslabs, first);

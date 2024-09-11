@@ -56,14 +56,14 @@ int *all_node_ky_size;  // 2D: sizes of the multipole splits
     #define MPI_REDUCE_TO_ZERO(vec,len,type,op) MPI_Reduce(MPI_rank!=0?(vec):MPI_IN_PLACE, vec, len, type, op, 0, comm_global)
     // #define MPI_REDUCE_TO_ZERO(vec,len,type,op) while(0)
     //#define MPI_REDUCE_TO_ZERO(vec,len,type,op) MPI_Allreduce(MPI_IN_PLACE, vec, len, type, op, MPI_COMM_WORLD)
+
+    void SetupNeighborExchange(int first, int nslab);
+    void DoNeighborSend(int slab);
+    int AttemptNeighborReceive(int first, int receive_ahead);
+    int IsNeighborReceiveDone(int slab);
+    void TeardownNeighborExchange();
 #else
     // Just put in some stubs to help compilation
     typedef void * MPI_Request;
     #define MPI_REQUEST_NULL NULL
 #endif
-
-void SetupNeighborExchange(int first, int nslab);
-void DoNeighborSend(int slab);
-int AttemptNeighborReceive(int first, int receive_ahead);
-int IsNeighborReceiveDone(int slab);
-void TeardownNeighborExchange();

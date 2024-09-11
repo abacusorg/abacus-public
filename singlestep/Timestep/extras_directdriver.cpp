@@ -117,9 +117,3 @@ void NearFieldDriver::ExecuteSlabCPU(int slabID, int * predicate){
     NSink_CPU += NSink_CPU_slab;
     CPUFallbackTimer.Stop();
 }
-
-#include <vector>
-#include <algorithm>
-/// This test removed.  Old code in 1bde1c52074dcfdf6355f03ea3c11cdff3f68206
-void NearFieldDriver::CheckInteractionList(int slab){
-}

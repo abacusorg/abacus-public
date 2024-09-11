@@ -192,7 +192,7 @@ public:
             return SB->GetSlabPtr(type,xyz.x) + size*_CellInfo(xyz)->startindex_with_ghost;
         return SB->GetSlabPtr(type,xyz.x) + size*_CellInfo(xyz)->startindex;
     }
-    inline char *_MergeCellPtr(int type, size_t size, integer3 xyz, int ghost) {
+    inline char *_MergeCellPtr(int type, size_t size, integer3 xyz, int ghost [[maybe_unused]]) {
         //assert(ghost == 1);
         
         // Assumes a wrapped cell

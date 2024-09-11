@@ -119,8 +119,8 @@ public:
     double3 LocalCellCenter(int i, int j, int k) { return CellCenter(i,j,k); }
     // For box-centered, this is just the CellCenter.
 #else
-    inline double3 LocalCellCenter(integer3 ijk) { return double3(0.0,0.0,0.0); }
-    inline double3 LocalCellCenter(int i, int j, int k) { return double3(0.0,0.0,0.0); }
+    inline double3 LocalCellCenter(integer3 ijk [[maybe_unused]]) { return double3(0.0,0.0,0.0); }
+    inline double3 LocalCellCenter(int i [[maybe_unused]], int j [[maybe_unused]], int k [[maybe_unused]]) { return double3(0.0,0.0,0.0); }
     // For cell-centered coords, this is trivial.
 #endif
 

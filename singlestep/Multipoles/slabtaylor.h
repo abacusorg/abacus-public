@@ -14,11 +14,11 @@ public:
                            const FLOAT3 *cc, const MTCOMPLEX *TaylorCoefficients) = 0;
     
     // no-ops in 1D
-    virtual void ComputeIFFTZAndMPI(int x, MTCOMPLEX *outslab) { };
+    virtual void ComputeIFFTZAndMPI(int x [[maybe_unused]], MTCOMPLEX *outslab [[maybe_unused]]) { };
     virtual void LaunchAllToAll() { };
     
     virtual int CheckAnyMPIDone() { return 0; };
-    virtual int IsMPIDone(int slab) { return 1; };
+    virtual int IsMPIDone(int slab [[maybe_unused]]) { return 1; };
 
 
     STimer FFTTaylor;

@@ -165,6 +165,8 @@ public:
 
 // -----------------------------------------------------------------
 
+#ifdef PARALLEL
+
 class TaylorTransposeDep : public SlabDependency {
 public:
     TaylorTransposeDep(int cpd, int initialslab)
@@ -195,6 +197,8 @@ public:
         // for the 1D parallel code, this is a no-op
     }
 };
+
+#endif
 
 // -----------------------------------------------------------------
 
@@ -526,7 +530,7 @@ public:
 
         // The first 2*GroupRadius times we get here, we can attempt to free
         // info from slab.  The Manifest code sends everything <S, so we need S=slab+1
-        #ifdef ONE_SIDED_GROUP_FINDING
+        #if defined(ONE_SIDED_GROUP_FINDING) && defined(PARALLEL)
             if (DoGlobalGroups->raw_number_executed<2*GROUP_RADIUS) {
                 SendManifest->QueueToSend(slab+1);
                 SendManifest++;
@@ -797,6 +801,7 @@ int DriftDep::drift_ahead = 2*FINISH_WAIT_RADIUS + 1 + 3;  // +3 for slosh
 
 // -----------------------------------------------------------------
 
+#ifdef PARALLEL
 class NeighborSendDep : public SlabDependency {
 public:
     NeighborSendDep(int cpd, int initialslab)
@@ -819,9 +824,11 @@ public:
         DoNeighborSend(slab);  // in neighbor_exchange.cpp
     }
 };
+#endif
 
 // -----------------------------------------------------------------
 
+#ifdef PARALLEL
 class NeighborRecvEvent : public EventDependency {
 public:
     static int receive_ahead;
@@ -834,6 +841,7 @@ public:
 };
 
 int NeighborRecvEvent::receive_ahead = 3;  // slosh
+#endif
 
 // -----------------------------------------------------------------
 
@@ -852,6 +860,7 @@ public:
 
         if (FinishParticles->alldone(total_slabs_on_node)) return 0;
 
+#ifdef PARALLEL
         if( !IsNeighborReceiveDone(slab) ){
             // This is an effective dependency on NeighborSend, because we won't
             // receive before sending.
@@ -859,6 +868,7 @@ public:
             // waits for FWR before sending.
             return 0;
         }
+#endif
 
         return 1;
     }
@@ -1008,11 +1018,11 @@ public:
         raw_number_executed = cpd;
     }
 
-    int precondition(int slab){ return 1; }
-    void action(int slab){ return; }
+    int precondition(int slab [[maybe_unused]]){ return 1; }
+    void action(int slab [[maybe_unused]]){ return; }
 
     int Attempt(void) { return 0; }
-    int done(int s) { return 1; }
+    int done(int s [[maybe_unused]]) { return 1; }
 };
 
 class NoopEvent : public EventDependency {
@@ -1027,6 +1037,7 @@ public:
 
 // ===================================================================
 
+#ifdef PARALLEL
 class ReceiveManifestEvent : public EventDependency {
 public:
     ReceiveManifestEvent()
@@ -1046,9 +1057,11 @@ public:
         return didsomething;
     }
 };
+#endif
 
 // -----------------------------------------------------------------
 
+#ifdef PARALLEL
 class SendManifestEvent : public EventDependency {
 public:
     SendManifestEvent()
@@ -1062,9 +1075,11 @@ public:
         return ret;
     }
 };
+#endif
 
 // -----------------------------------------------------------------
 
+#ifdef PARALLEL
 class Multipole2DMPIEvent : public EventDependency {
 public:
     Multipole2DMPIEvent()
@@ -1074,9 +1089,11 @@ public:
         return MF->CheckAnyMPIDone();
     }
 };
+#endif
 
 // -----------------------------------------------------------------
 
+#ifdef PARALLEL
 class Taylor2DMPIEvent : public EventDependency {
 public:
     Taylor2DMPIEvent()
@@ -1086,5 +1103,6 @@ public:
         return TY->CheckAnyMPIDone();
     }
 };
+#endif
 
 // -----------------------------------------------------------------

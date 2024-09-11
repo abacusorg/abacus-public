@@ -919,7 +919,7 @@ void load_socg() {
 /// Return the number of multiplet groups.
 /// pos[], etc. will be unchanged.
 
-int findgroups(posstruct *pos, velstruct *vel, auxstruct *aux, FLOAT3p1 *acc, int n) {
+int findgroups(posstruct *pos, velstruct *vel [[maybe_unused]], auxstruct *aux, FLOAT3p1 *acc, int n) {
     Total.Start();
     reset(n);
     np = n;

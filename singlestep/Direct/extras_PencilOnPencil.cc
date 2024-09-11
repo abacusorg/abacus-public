@@ -147,15 +147,3 @@ void SetInteractionCollection::CPUExecute(){
     delete SinkSetPositions;
     delete SourceSetPositions;
 }
-
-
-
-
-
-/// This routine removed.  Old code in 1bde1c52074dcfdf6355f03ea3c11cdff3f68206
-void SetInteractionCollection::PrintInteractions(){
-}
-
-/// This routine removed.  Old code in 1bde1c52074dcfdf6355f03ea3c11cdff3f68206
-void SetInteractionCollection::AddInteractionList( std::vector<uint64> ** il){
-}

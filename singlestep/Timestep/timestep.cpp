@@ -51,14 +51,13 @@ EventDependency *Check2DTaylorMPI;
 #include "ParallelConvolution.cpp"
 STimer ConvolutionWallClock;
 STimer BarrierWallClock;
+
+#include "manifest.cpp"
 #endif
 
 // The wall-clock time minus all of the above Timers might be a measure
 // of the spin-locked time in the timestep() loop.
 STimer TimeStepWallClock;
-
-
-#include "manifest.cpp"
 
 #include "pipeline.cpp"
 
@@ -67,9 +66,11 @@ void InitializeForceRadius(int NoForces){
     assertf(FORCE_RADIUS >= 0, "Illegal FORCE_RADIUS: {:d}\n", FORCE_RADIUS);
     STDLOG(0,"Adopting FORCE_RADIUS = {:d}\n", FORCE_RADIUS);
 
+#ifdef PARALLEL
     // The IL will use this to size itself
     if(MPI_size_z > 1) NeighborRecvEvent::receive_ahead = 3;
     else NeighborRecvEvent::receive_ahead = 0;
+#endif
 }
 
 
