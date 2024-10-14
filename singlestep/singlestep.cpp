@@ -239,7 +239,6 @@ int main(int argc, char **argv) {
     }
 
     BuildWriteState(da);
-    InitializeLightCones();
 
     // Set up the Group Finding concepts and decide if Group Finding output is requested.
     InitGroupFinding(MakeIC);

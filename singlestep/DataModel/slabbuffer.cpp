@@ -389,17 +389,17 @@ fs::path SlabBuffer::WriteSlabPath(int type, int slab) {
         case NearAccSlab         : { return P.OutputDirectory / "acc" / ("Step" + stepstr) / ("nearacc_" + slabstr); break; }
         case FarAccSlab          : { return P.OutputDirectory / "acc" / ("Step" + stepstr) / ("faracc_" + slabstr); break; }
 
-        case L1halosSlab           : { return P.GroupDirectory / ("Step" + stepstr) / ("_z" + zstr) / ("halo_info_" + slabstr); break;}
+        case L1halosSlab           : { return P.GroupDirectory / ("Step" + stepstr + "_z" + zstr) / ("halo_info_" + slabstr); break;}
 
-        case HaloPIDsSlabA    : { return P.GroupDirectory / ("Step" + stepstr) / ("_z" + zstr) / ("halo_pids_A_" + slabstr); break;}
-        case HaloPIDsSlabB    : { return P.GroupDirectory / ("Step" + stepstr) / ("_z" + zstr) / ("halo_pids_B_" + slabstr); break;}
-        case FieldPIDSlabA    : { return P.GroupDirectory / ("Step" + stepstr) / ("_z" + zstr) / ("field_pids_A_" + slabstr); break;}
-        case FieldPIDSlabB    : { return P.GroupDirectory / ("Step" + stepstr) / ("_z" + zstr) / ("field_pids_B_" + slabstr); break;}
+        case HaloPIDsSlabA    : { return P.GroupDirectory / ("Step" + stepstr + "_z" + zstr) / ("halo_pids_A_" + slabstr); break;}
+        case HaloPIDsSlabB    : { return P.GroupDirectory / ("Step" + stepstr + "_z" + zstr) / ("halo_pids_B_" + slabstr); break;}
+        case FieldPIDSlabA    : { return P.GroupDirectory / ("Step" + stepstr + "_z" + zstr) / ("field_pids_A_" + slabstr); break;}
+        case FieldPIDSlabB    : { return P.GroupDirectory / ("Step" + stepstr + "_z" + zstr) / ("field_pids_B_" + slabstr); break;}
 
-        case HaloRVSlabA : { return P.GroupDirectory / ("Step" + stepstr) / ("_z" + zstr) / ("halo_rv_A_" + slabstr); break;}
-        case HaloRVSlabB : { return P.GroupDirectory / ("Step" + stepstr) / ("_z" + zstr) / ("halo_rv_B_" + slabstr); break;}
-        case FieldRVSlabA       : { return P.GroupDirectory / ("Step" + stepstr) / ("_z" + zstr) / ("field_rv_A_" + slabstr); break;}
-        case FieldRVSlabB       : { return P.GroupDirectory / ("Step" + stepstr) / ("_z" + zstr) / ("field_rv_B_"+ slabstr); break;}
+        case HaloRVSlabA : { return P.GroupDirectory / ("Step" + stepstr + "_z" + zstr) / ("halo_rv_A_" + slabstr); break;}
+        case HaloRVSlabB : { return P.GroupDirectory / ("Step" + stepstr + "_z" + zstr) / ("halo_rv_B_" + slabstr); break;}
+        case FieldRVSlabA       : { return P.GroupDirectory / ("Step" + stepstr + "_z" + zstr) / ("field_rv_A_" + slabstr); break;}
+        case FieldRVSlabB       : { return P.GroupDirectory / ("Step" + stepstr + "_z" + zstr) / ("field_rv_B_"+ slabstr); break;}
 
         case L0TimeSlice          : { return P.OutputDirectory / ("slice" + zstr) / (P.SimName + ".z" + zstr + ".slab" + slabstr + ".L0_pack9.dat"); break; }
         case FieldTimeSlice            : { return P.OutputDirectory / ("slice" + zstr) / (P.SimName + ".z" + zstr + ".slab" + slabstr + ".field_pack9.dat"); break; }

@@ -250,6 +250,8 @@ void Prologue(Parameters &P, int MakeIC, int NoForces) {
     SetupManifest(2*P.GroupRadius+1);
 #endif
 
+    InitializeLightCones();
+    
     Grid = new grid(cpd);
     SB = new SlabBuffer(cpd, order, LCOrigin.size());
     CP = new CellParticles(cpd, SB);
