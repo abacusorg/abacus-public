@@ -705,9 +705,6 @@ void InitKernelDensity(){
     #endif
 }
 
-template<class C, typename T>
-bool contains(const C &a, const C &b, const T e) { return std::find(a, b, e) != b; };
-
 
 double EvolvingDelta(float z){
     float omegaMz = P.Omega_M * pow(1.0 + z, 3.0) / (P.Omega_DE + P.Omega_M *  pow(1.0 + z, 3.0) );

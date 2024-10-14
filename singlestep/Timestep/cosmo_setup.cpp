@@ -101,12 +101,20 @@ double ChooseTimeStep(int NoForces){
         STDLOG(0, "da = 0 to synchronize vel & pos for 2D group finding next step\n");
     }
 
-    double finala = 1.0/(1+P.FinishingRedshift());
+    // Usually we don't shorten the timestep to land on a L1OutputRedshift.
+    // The final z is an exception.
+    // If we did choose the final z because of L1OutputRedshift, then we should output.
+    // We ought to generalize this logic to TimeStepRedshifts, but those are already
+    // more robust because they're not best-effort.
+    bool finalz_is_L1 = false;
+    double finalz = P.FinishingRedshift(&finalz_is_L1);
+
+    double finala = 1.0/(1+finalz);
     da = fmax(fmin(finala - ReadState.ScaleFactor, da), 0);
 
     // We might have already reached the FinishingRedshift.
-    if (ReadState.Redshift < P.FinishingRedshift()+1e-12) {
-        STDLOG(0,"We have reached the Finishing Redshift of {:f}\n", P.FinishingRedshift());
+    if (ReadState.Redshift < finalz+1e-12) {
+        STDLOG(0,"We have reached the Finishing Redshift of {:f}\n", finalz);
         da = 0.0;
     }
 
@@ -205,6 +213,11 @@ double ChooseTimeStep(int NoForces){
             
             break;
         }
+    }
+
+    if(finalz_is_L1) {
+        STDLOG(0,"Final redshift is an L1OutputRedshift, ensuring group finding output.\n");
+        ReadState.DoGroupFindingOutput = 1;
     }
 
     if(ReadState.DoTimeSliceOutput >= 2) WriteState.LastTimeSliceOutput = ReadState.DoTimeSliceOutput - 2;

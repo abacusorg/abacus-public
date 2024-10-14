@@ -79,4 +79,7 @@ using DFLOAT = float;
 #define LIKELY(x) __builtin_expect((x),1)
 #define UNLIKELY(x) __builtin_expect((x),0)
 
+template<class C, typename T>
+bool contains(const C &a, const C &b, const T e) { return std::find(a, b, e) != b; };
+
 #endif

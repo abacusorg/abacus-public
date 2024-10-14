@@ -492,7 +492,7 @@ public:
         if (n*n*n==np) return 1; else return 0;
     }
 
-    double FinishingRedshift() {
+    double FinishingRedshift(bool *finalz_is_L1 = NULL) {
         // Return the redshift where the code should halt.
         // FinalRedshift is the controlling item, but if that's
         // not set (value<=-1), then we will the redshifts of
@@ -518,7 +518,10 @@ public:
             have_minz = true;
         }
 
-        if (have_minz) return minz;
+        if (have_minz) {
+            if(finalz_is_L1 != NULL) *finalz_is_L1 = contains(L1OutputRedshifts.begin(), L1OutputRedshifts.end(), minz);
+            return minz;
+        }
         return 0.0;
     }
 
