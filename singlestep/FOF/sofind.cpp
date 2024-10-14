@@ -869,9 +869,9 @@ inline unsigned int compute_cellindex(posstruct &p) {
 
 /// Given the cellindex number, return the cell center
 inline FOFparticle compute_cellcenter(unsigned int cellidx) {
-    unsigned int k = (cellidx&0xff);
-    unsigned int j = (cellidx&0xff00)>>8;
-    unsigned int i = (cellidx&0xff0000)>>16;
+    int k = static_cast<int>(cellidx&0xff);
+    int j = static_cast<int>((cellidx&0xff00)>>8);
+    int i = static_cast<int>((cellidx&0xff0000)>>16);
     // assertf(i>=0&&i<256, "Bad cell index i={:d}", i);
     // assertf(j>=0&&j<256, "Bad cell index j={:d}", j);
     // assertf(k>=0&&k<256, "Bad cell index k={:d}", k);
