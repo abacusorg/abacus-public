@@ -471,8 +471,7 @@ void finish_fftw(){
             STDLOG(1, "Sending wisdom over MPI\n");
             std::string wis(fftw_export_wisdom_to_string());
             if(!wis.empty()){
-                MPI_Send(wis, (int) wis.size(), MPI_CHAR, 0, 0, comm_1d_z);
-                free(wis);
+                MPI_Send(wis.c_str(), (int) wis.size(), MPI_CHAR, 0, 0, comm_1d_z);
             } else {
                 // Some fftw implementations do not use wisdom
                 char dummywis = '\0';

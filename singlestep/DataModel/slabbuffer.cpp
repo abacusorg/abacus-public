@@ -52,7 +52,7 @@ enum SlabType { CellInfoSlab,           //0
                 L0TimeSlice,            //28
                 L0TimeSlicePIDs,        //29
 
-                ICSlab,                 //39
+                ICSlab,                 //30
 
                 // The start of the LC slabs
                 // SB->NumTypes is the total number of types

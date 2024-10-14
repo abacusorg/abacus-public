@@ -97,7 +97,6 @@ int SinkPencilPlan::load(int x, int y, int z, int nfradius, int truncate) {
 #ifdef PARALLEL
     cellinfo *startci = CP->CellInfo(x,y,node_z_start);
     ghostoffset = startci->startindex_with_ghost - startci->startindex;
-    assert(ghostoffset >= 0);
 #endif
 
     int total = 0;

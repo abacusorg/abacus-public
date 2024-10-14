@@ -181,6 +181,15 @@ struct ManifestCore {
     int remote_first_slab_finished;
 };
 
+enum class ManifestStatus : int {
+    NOTREADY,
+    TRANSFERRING,
+    READY,
+    ALREADYIMPORTED,
+};
+
+auto format_as(ManifestStatus f) { return fmt::underlying(f); }
+
 /// This is the class for sending information between the nodes.
 class Manifest {
     AbacusMPILimiter mpi_limiter;
@@ -193,14 +202,7 @@ class Manifest {
     GroupLink *links;   ///< Storage for the GLL
     
     // Control logic
-    enum ManifestStatus {
-        MANIFEST_NOTREADY,
-        MANIFEST_TRANSFERRING,
-        MANIFEST_READY,
-        MANIFEST_ALREADYIMPORTED,
-    };
-
-    enum ManifestStatus completed;	///< The current status of the manifest
+    ManifestStatus completed;	///< The current status of the manifest
     STimer Load;        ///< The timing for the Queue & Import blocking routines
     STimer Transmit;	///< The timing for the Send & Receive routines, usually non-blocking
     STimer CheckCompletion;        ///< The timing to check for completion
@@ -226,7 +228,7 @@ class Manifest {
 
     Manifest() : mpi_limiter(P.MPICallRateLimit_ms) {
     	m.numarenas = m.numil = m.numlinks = m.numdep = 0;
-        completed = MANIFEST_NOTREADY;
+        completed = ManifestStatus::NOTREADY;
         bytes = 0;
         il = NULL;
         links = NULL;
@@ -301,9 +303,9 @@ class Manifest {
         }
     }
 
-    inline int is_ready() { if (completed==MANIFEST_READY) return 1; return 0;}
+    inline int is_ready() { if (completed==ManifestStatus::READY) return 1; return 0;}
 	// Call this to see if the Manifest is ready to retrieve
-    void done() { completed = MANIFEST_ALREADYIMPORTED; }
+    void done() { completed = ManifestStatus::ALREADYIMPORTED; }
 
     void LoadArena(int type, int s) {
         // SB->SlabSizeBytes() gives us the allocated size (minus guards), i.e. the size with ghost.
@@ -459,9 +461,10 @@ void Manifest::QueueToSend(int finished_slab) {
 
     m.numil = IL->length-mid;
     int ret = posix_memalign((void **)&il, PAGE_SIZE, sizeof(ilstruct)*m.numil);
+    assertf(ret==0, "posix_memalign failed with error {:d}\n", ret);
     
     #pragma omp parallel for schedule(static)
-    for(uint64 i = 0; i < m.numil; i++){
+    for(int i = 0; i < m.numil; i++){
         il[i] = IL->list[mid + i];
     }
     
@@ -478,7 +481,7 @@ void Manifest::QueueToSend(int finished_slab) {
         m.numlinks = GFC->GLL->length-mid;
         
         #pragma omp parallel for schedule(static)
-        for(uint64 i = 0; i < m.numlinks; i++){
+        for(int i = 0; i < m.numlinks; i++){
             links[i] = GFC->GLL->list[mid + i];
         }
         
@@ -519,7 +522,7 @@ void Manifest::Send() {
     } 
     // Victory!
     STDLOG(1,"Done queuing the SendManifest, {:d} total MPI parts, {:d} bytes\n", maxpending, bytes);
-    completed = MANIFEST_TRANSFERRING;
+    completed = ManifestStatus::TRANSFERRING;
     Transmit.Stop();
     Communication.Start();
     return;
@@ -530,7 +533,7 @@ void Manifest::Send() {
 inline int Manifest::FreeAfterSend() {
     int ret = 0;  // did something?
     
-    if (completed != MANIFEST_TRANSFERRING) return ret;   // No active Isend's yet
+    if (completed != ManifestStatus::TRANSFERRING) return ret;   // No active Isend's yet
 
     // Has it been long enough since our last time querying MPI?
     if(!mpi_limiter.Try())
@@ -555,7 +558,7 @@ inline int Manifest::FreeAfterSend() {
             STDLOG(2,"Freeing the Send Manifest Arena, slab {:d} of type {:d}\n",
                 m.arenas[n].slab, m.arenas[n].type);
         }
-        completed=MANIFEST_READY;
+        completed=ManifestStatus::READY;
         STDLOG(1,"Marking the Send Manifest as completely sent: {:6.3f} sec for {:d} bytes, {:6.3f} GiB/sec\n", Communication.Elapsed(),
             bytes, bytes/(Communication.Elapsed()+1e-15)/(1024.0*1024.0*1024.0));
     }
@@ -582,7 +585,7 @@ void Manifest::SetupToReceive() {
 /// whether Receive is ready to run.
 inline int Manifest::Check() {
     int ret = 0;  // did something?
-    if (completed >= MANIFEST_READY) return ret;   // Nothing's active now
+    if (completed >= ManifestStatus::READY) return ret;   // Nothing's active now
 
     // Has it been long enough since our last time querying MPI?
     if(!mpi_limiter.Try())
@@ -595,15 +598,15 @@ inline int Manifest::Check() {
 	}
     CheckCompletion.Stop();
     if (check_all_done()) {
-        if (completed == MANIFEST_TRANSFERRING) {
+        if (completed == ManifestStatus::TRANSFERRING) {
             STDLOG(2,"Marking the Receive Manifest as fully received\n");
-            completed = MANIFEST_READY;
+            completed = ManifestStatus::READY;
         }
-        if (completed == MANIFEST_NOTREADY) {
+        if (completed == ManifestStatus::NOTREADY) {
             STDLOG(2,"Received the Manifest Core\n");
             ReleaseFreeMemoryToKernel();
             Receive();
-            completed = MANIFEST_TRANSFERRING;
+            completed = ManifestStatus::TRANSFERRING;
             ret = 1;
         } 
     }
@@ -644,7 +647,6 @@ void Manifest::Receive() {
     Transmit.Start();
     /// set_pending(m.numarenas+2);
     int rank = MPI_rank_x;
-    MPI_Status retval;
     rank++; if (rank>=MPI_size_x) rank-=MPI_size_x;   // Now rank is the source node
     STDLOG(2,"Will receive the ReceiveManifest from node rank {:d}\n", rank);
     // Receive all the Arenas
@@ -695,7 +697,7 @@ opening this region for use.
 */
 
 void Manifest::ImportData() {
-    assertf(completed==MANIFEST_READY, "ImportData has been called when completed=={:d}\n", completed);
+    assertf(completed==ManifestStatus::READY, "ImportData has been called when completed=={}\n", completed);
 
     Communication.Stop();
     STDLOG(1,"Importing ReceiveManifest of {:d} bytes into the flow; took {:6.3f} sec, {:6.3f} GiB/sec\n", bytes,
@@ -752,7 +754,7 @@ void Manifest::ImportData() {
     STDLOG(2, "Growing IL list from {:d} by {:d} = {:d}\n", len, m.numil, IL->length);
     
     #pragma omp parallel for schedule(static)
-    for(uint64 i = 0; i < m.numil; i++){
+    for(int i = 0; i < m.numil; i++){
         IL->list[len + i] = il[i];
     }
 	
@@ -764,7 +766,7 @@ void Manifest::ImportData() {
         GFC->GLL->GrowMAL(len+m.numlinks);
 
         #pragma omp parallel for schedule(static)
-        for(uint64 i = 0; i < m.numlinks; i++){
+        for(int i = 0; i < m.numlinks; i++){
             GFC->GLL->list[len + i] = links[i];
         }
         

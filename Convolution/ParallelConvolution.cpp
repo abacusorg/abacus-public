@@ -105,7 +105,7 @@ ParallelConvolution::ParallelConvolution(int _cpd, int _order, const fs::path &M
 	STDLOG(2, "Doing zstart = {:d} and znode = {:d}\n", zstart, znode);
 	
 	CompressedMultipoleLengthXY = ((1+cpd)*(3+cpd))/8;
-	invcpd3 = (Complex) (pow(cpd * cpd * cpd, -1.0)); //NAM TODO get rid of Complex typecasting. 
+	invcpd3 = Complex(1.0/(cpd * cpd * cpd), 0.);
 		 
     int cml = ((order+1)*(order+2)*(order+3))/6;
     int nprocs = omp_get_max_threads();
@@ -294,8 +294,8 @@ void ParallelConvolution::AllocMT(){
 	    assertf(res == 0, "ftruncate on shared memory mt_file = {} to size = {:d} failed\n", mt_file, MTdisk_bytes);
     } else {
         // check that the size is as expected
-        assertf(res == 0, "fstat on shared memory ramdisk_fn = {}\n", mt_file);
-        assertf(fs::file_size(mt_file) == MTdisk_bytes, "Found shared memory size {:d}; expected {:d} (ramdisk_fn = {})\n", shmstat.st_size, MTdisk_bytes, mt_file);
+		size_t shm_size = fs::file_size(mt_file);
+        assertf(shm_size == MTdisk_bytes, "Found shared memory size {:d}; expected {:d} (ramdisk_fn = {})\n", shm_size, MTdisk_bytes, mt_file);
     }
     // map the shared memory fd to an address
     int mmap_flags = create_MT_file ? (PROT_READ | PROT_WRITE) : (PROT_READ | PROT_WRITE);  // the same
@@ -308,7 +308,7 @@ void ParallelConvolution::AllocMT(){
     assertf(MTdisk != NULL, "mmap shared memory from fd = {:d} of size = {:d} failed\n", fd, MTdisk_bytes);
     assertf(res == 0, "Failed to close fd {:d}\n", fd);
 	
-	STDLOG(2, "Successfully mapped MTdisk of size {:d} bytes at address {:p}.\n", MTdisk_bytes, MTdisk);
+	STDLOG(2, "Successfully mapped MTdisk of size {:d}.\n", MTdisk_bytes);
 	
 	MmapMT.Stop(); 
 		
@@ -316,7 +316,7 @@ void ParallelConvolution::AllocMT(){
 	
 	MTzmxy = (Complex *) fftw_malloc(bufsize);
 	assertf(MTzmxy!=NULL, "Failed fftw_malloc for MTzmxy of size {:d}\n", bufsize);
-	STDLOG(2, "Successfully malloced MTzmxy at address {:p}\n", MTzmxy);
+	STDLOG(2, "Successfully malloced MTzmxy\n");
 	
 	AllocateMT.Stop(); 
 	CS.AllocMT = AllocateMT.Elapsed();
@@ -372,7 +372,7 @@ void ParallelConvolution::LoadDerivatives(int z) {
 	
     // note the derivatives are stored in z-slabs, not x-slabs
     fs::path fn = P.DerivativesDirectory / fmt::format(
-			"fourierspace{:s}{:s}_{:d}_{:d}_{:d}_{:d}_{:d}"
+			"fourierspace{:s}{:s}_{:d}_{:d}_{:d}_{:d}_{:d}",
 			f32str, twoDstr,
             (int) cpd, order, P.NearFieldRadius,
             P.DerivativeExpansionRadius, z_file);
@@ -465,7 +465,7 @@ int ParallelConvolution::CheckRecvMultipoleComplete(int slab) {
         return 1;
 
     int received = 0;
-    int err = MPI_Test(&Mrecv_requests[slab], &received, MPI_STATUS_IGNORE);
+    MPI_Test(&Mrecv_requests[slab], &received, MPI_STATUS_IGNORE);
 
 	if (!received) STDLOG(4, "Multipole slab {:d} not received yet...\n", slab);
     else assert(Mrecv_requests[slab] == MPI_REQUEST_NULL);
@@ -482,12 +482,12 @@ int ParallelConvolution::CheckSendMultipoleComplete(int slab) {
     if (Msend_requests[x] == NULL) return 1;  // Nothing to do for this slab
 
     // This slab has pending MPI calls
-    int err = 0, sent = 0, done = 1;
+    int sent = 0, done = 1;
 	
     for (int r = 0; r < MPI_size_x; r++) {
 		if (Msend_requests[x][r]==MPI_REQUEST_NULL) continue;  // Already done
 
-	    err = MPI_Test(Msend_requests[x] + r, &sent, MPI_STATUS_IGNORE);
+	    MPI_Test(Msend_requests[x] + r, &sent, MPI_STATUS_IGNORE);
 	
 		if (!sent) {
 		    done=0;
@@ -609,7 +609,7 @@ int ParallelConvolution::CheckTaylorSendComplete(int slab){
         return 1;
 
 	int sent = 0;
-    int err = MPI_Test(&Tsend_requests[slab], &sent, MPI_STATUS_IGNORE);
+    MPI_Test(&Tsend_requests[slab], &sent, MPI_STATUS_IGNORE);
 	
     if (sent) {
     	assert(Tsend_requests[slab] == MPI_REQUEST_NULL);
@@ -667,8 +667,9 @@ void ParallelConvolution::Swizzle_to_zmxy() {
 				int xout = x + 1;
 				if (xout>=cpd) xout=0;
 				for(int64_t ky = 0; ky < node_ky_size; ky++){
-					MTzmxy[ zoff*rml*cpdky_pad + m*cpdky_pad + xout*node_ky_size + ky] =
-						MTdisk[ x*znode*rml*node_ky_size + zoff*rml*node_ky_size + m*node_ky_size + ky ];
+					MTzmxy[ zoff*rml*cpdky_pad + m*cpdky_pad + xout*node_ky_size + ky] = static_cast<Complex>(
+						MTdisk[ x*znode*rml*node_ky_size + zoff*rml*node_ky_size + m*node_ky_size + ky ]
+					);
 				}
 			}
 		}
@@ -693,8 +694,9 @@ void ParallelConvolution::Swizzle_to_xzmy() {
 			for (int y = 0; y < node_ky_size; y++){	 
 				// One factor of 1/CPD comes from the FFT below.
 				// Two more are needed for the FFTs in slab taylor -- we choose to throw them in here. 
-				MTdisk[ (int64)((xz  * rml + m)) * node_ky_size + y ] = 
-					MTzmxy[ z * cpdky_pad * rml + m * cpdky_pad + x * node_ky_size + y ] * invcpd3;
+				MTdisk[ (int64)((xz  * rml + m)) * node_ky_size + y ] = static_cast<MTCOMPLEX>(
+					MTzmxy[ z * cpdky_pad * rml + m * cpdky_pad + x * node_ky_size + y ] * invcpd3
+				);
 			}
 		}
 	}

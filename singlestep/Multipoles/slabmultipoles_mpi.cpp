@@ -1,12 +1,12 @@
 
 #ifdef MULTIPOLE_2D_MPI_USE_FLOAT
 // Precision of network transfers (Taylors and Multipoles)
-using mpi_complex_t = std::complex<float>;
+using mpi_complex_t = AbacusComplex<float>;
 const MPI_Datatype mpi_dtype = MPI_C_FLOAT_COMPLEX;
 
 #else
 
-using mpi_complex_t = std::complex<double>;
+using mpi_complex_t = AbacusComplex<double>;
 const MPI_Datatype mpi_dtype = MPI_C_DOUBLE_COMPLEX;
 
 #endif
@@ -114,7 +114,7 @@ void SlabMultipolesMPI::FFTY(mpi_complex_t *out, const double *in) {
             fftw_execute(plan_forward_r2c_1d[g]);
 
             for(int64_t y=0; y < cpdp1half; y++)
-                out[ z*cpdp1half*rml + m*cpdp1half + y] = (mpi_complex_t) out_r2c[g][y];
+                out[ z*cpdp1half*rml + m*cpdp1half + y] = static_cast<mpi_complex_t>(out_r2c[g][y]);
         }
     }
     FFTMultipole.Stop();
@@ -185,7 +185,7 @@ int SlabMultipolesMPI::IsMPIDone(int slab){
 }
 
 void SlabMultipolesMPI::ComputeMultipoleFFT( int x, FLOAT3 *spos, 
-                     int *count, int *offset, FLOAT3 *cc, MTCOMPLEX *_out_unused) {
+                     int *count, int *offset, FLOAT3 *cc, MTCOMPLEX *_out [[maybe_unused]]) {
     STimer wc;
     PTimer _kernel, _c2r;
     
@@ -307,7 +307,7 @@ void SlabMultipolesMPI::FFTZ(MTCOMPLEX *out, const mpi_complex_t *in) {
         for(int64_t m = 0; m < rml; m++) {
             int g = omp_get_thread_num();
             for(int64_t z = 0; z < cpd; z++)
-                in_1d[g][z] = (Complex) in[y*rml*cpd + m*cpd + z];
+                in_1d[g][z] = static_cast<Complex>(in[y*rml*cpd + m*cpd + z]);
             
             fftw_execute( plan_forward_c2c_1d[g] );
 

@@ -203,7 +203,7 @@ void SlabTaylorMPI::InverseFFTY(double *out, const mpi_complex_t *in){
         for(int64_t m = 0; m < rml; m++) {
             int g = omp_get_thread_num();
             for(int64_t ky = 0; ky < cpdp1half; ky++)
-                in_c2r[g][ky] = (Complex) in[z*rml*cpdp1half + m*cpdp1half + ky];
+                in_c2r[g][ky] = static_cast<Complex>(in[z*rml*cpdp1half + m*cpdp1half + ky]);
             fftw_execute( plan_backward_c2r_1d[g] );
             for(int64_t y = 0; y < cpd; y++)
                 out[z*rml*cpd + m*cpd + y] = out_c2r[g][y];
@@ -214,7 +214,7 @@ void SlabTaylorMPI::InverseFFTY(double *out, const mpi_complex_t *in){
 
 void SlabTaylorMPI::EvaluateSlabTaylor(int x, FLOAT3 *FA, const FLOAT3 *spos,
                                         const int *count, const int *offset, const int *ghost_offset,
-                                        const FLOAT3 *cc, const MTCOMPLEX *_taylors_unused){
+                                        const FLOAT3 *cc, const MTCOMPLEX *_taylors [[maybe_unused]]){
     // FA: particle accelerations
 
     UnpackRecvBuf.Start();

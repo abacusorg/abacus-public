@@ -180,7 +180,7 @@ public:
     }
 	
 #ifdef PARALLEL
-	void transpose_z_to_x(int zstart, int zwidth, int thread_num, int z_slabs_per_node, MTCOMPLEX * sendbuf, MTCOMPLEX * recvbuf, int * first_slabs_all, int * total_slabs_all, uint64_t sendbufsize, uint64_t recvbufsize){
+	void transpose_z_to_x(int zstart, int zwidth, int thread_num, int z_slabs_per_node, MTCOMPLEX * sendbuf, MTCOMPLEX * recvbuf, int * first_slabs_all, int * total_slabs_all, uint64_t sendbufsize [[maybe_unused]], uint64_t recvbufsize [[maybe_unused]]){
 				
 		TransposeBuffering.Start(thread_num); 
 				
@@ -189,7 +189,7 @@ public:
 		
 		 int size_skewer;
 		 MPI_Type_size(MPI_skewer, &size_skewer);
-		 assert(size_skewer == sizeof(MTCOMPLEX)*rml_times_cpd);
+		 assert(static_cast<unsigned int>(size_skewer) == sizeof(MTCOMPLEX)*rml_times_cpd);
 		 
 		STDLOG(1,"Beginning first transpose for zstart with int64 {:d}\n", zstart);
 		 
@@ -374,7 +374,7 @@ public:
 		
 		 int size_skewer;
 		 MPI_Type_size(MPI_skewer, &size_skewer);
-		 assert(size_skewer == sizeof(MTCOMPLEX)*rml_times_cpd);
+		 assert(static_cast<unsigned int>(size_skewer) == sizeof(MTCOMPLEX)*rml_times_cpd);
  
 
 		int sendcounts[MPI_size];

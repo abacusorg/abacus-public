@@ -19,7 +19,7 @@ void ReadNodeSlabs(int get_all_nodes [[maybe_unused]] = 0, int * first_slabs_all
         // So one should use MPI_rank_x and MPI_size_x in this function
 
         int neighbor = (MPI_rank_x+1)%MPI_size_x;
-        int value, last_slab;
+        int value, last_slab = -1;
 		
 		int *last_slabs = new int[MPI_size_x];
 			
