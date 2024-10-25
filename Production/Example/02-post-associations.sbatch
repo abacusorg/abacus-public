@@ -25,8 +25,8 @@ if [ -z "$sim" ]; then
 fi
 
 $HOME/abacus_mergertree/create_associations_slabwise.py \
-    -inputdir $PSCRATCH \
+    -inputdir $(dirname $sim) \
     -simname $(basename $sim) \
     -num_cores $SLURM_CPUS_PER_TASK \
-    -outputdir $PSCRATCH/merger/ \
+    -outputdir $(dirname $sim)/merger/ \
     -num_epochs 100

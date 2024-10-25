@@ -26,10 +26,10 @@ fi
 
 for zdir in $sim/halos/z*; do
     python $HOME/abacus_mergertree/postprocess_trees/extract_mergerhistory_slabwise_slim_mpi.py \
-        $PSCRATCH/ \
+        $(dirname $sim) \
         $(basename $sim) \
         $(basename ${zdir} | cut -c2-) \
-        $PSCRATCH/mergerhistory/ &
+        $(dirname $sim)/mergerhistory/ &
     pids+=($!)
 done
 
