@@ -116,6 +116,11 @@ double ChooseTimeStep(int NoForces){
     if (ReadState.Redshift < finalz+1e-12) {
         STDLOG(0,"We have reached the Finishing Redshift of {:f}\n", finalz);
         da = 0.0;
+
+        if(finalz_is_L1) {
+            STDLOG(0,"Final redshift is an L1OutputRedshift, ensuring group finding output.\n");
+            ReadState.DoGroupFindingOutput = 1;
+        }
     }
 
     // Particles should not be able to move more than one cell per timestep
@@ -213,11 +218,6 @@ double ChooseTimeStep(int NoForces){
             
             break;
         }
-    }
-
-    if(finalz_is_L1) {
-        STDLOG(0,"Final redshift is an L1OutputRedshift, ensuring group finding output.\n");
-        ReadState.DoGroupFindingOutput = 1;
     }
 
     if(ReadState.DoTimeSliceOutput >= 2) WriteState.LastTimeSliceOutput = ReadState.DoTimeSliceOutput - 2;
