@@ -128,6 +128,7 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     logdir = params['LogDirectory']
     groupdir  = params.get('GroupDirectory', '')
     basedir = params['WorkingDirectory']
+    backupdir = params.get('BackupDirectory', '')
 
     # might be global; might be local
     multipoledir = params.get('MultipoleDirectory', '')
@@ -141,6 +142,13 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
 
     # If we requested a resume, but there is no state, assume we are starting fresh
     if not clean:
+        wd = params.get('WorkingDirectory', basedir)
+        if not parallel and not path.exists(wd) and path.exists(pjoin(backupdir, 'backup')):
+            print('Restoring state from backup...', end='', flush=True)
+            with Tools.ContextTimer() as restore_timer:
+                shutil.copytree(pjoin(backupdir, 'backup'), wd, symlinks=True)
+            print(f' done in {restore_timer.elapsed:.1f} s', flush=True)
+
         # TODO: in an interactive parallel session, the state may already exist on the remote nodes. How to check?
         if (parallel and path.exists(resumedir)) or (not parallel and path.exists(basedir)):
             print('Resuming from existing state.')
@@ -714,12 +722,15 @@ class StatusLogWriter:
         self.log_fp.flush()
 
 
-    def print(self, fmtstring, end='\n', *args, **kwargs):
+    def print(self, fmtstring, end='\n', tee=False, *args, **kwargs):
         '''
         Print a plain statement to the status log
         '''
         #self.log_fp.write(('\n' + fmtstring.format(*args, **kwargs) + end).encode('utf-8'))
-        self.log_fp.write((fmtstring.format(*args, **kwargs) + end).encode('utf-8'))
+        out = fmtstring.format(*args, **kwargs) + end
+        if tee:
+            print(out, end='', flush=True)
+        self.log_fp.write(out.encode('utf-8'))
         self.log_fp.flush()
 
 
@@ -1014,10 +1025,14 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
 
         # Check if we need to back up the write state
         if backups_enabled and write_state.FullStepNumber > 0 and write_state.FullStepNumber % param['BackupStepInterval'] == 0:
+            # TODO: this only works for non-parallel sims and doesn't cover all valid directory structures
+            backup_src = param['WorkingDirectory']
             backup_dir = pjoin(param['BackupDirectory'], 'backup')
-            print(f'Backing up state to {backup_dir}')
+            status_log.print(f'# Backing up state to {backup_dir}...', tee=True, end='')
             tmp_backup = pjoin(param['BackupDirectory'], 'backup_inprogress')
-            shutil.copytree(write, tmp_backup)
+            with Tools.ContextTimer() as backup_timer:
+                shutil.copytree(backup_src, tmp_backup, symlinks=True)
+            status_log.print(f' done in {backup_timer.elapsed:.1f} s.', tee=True)
             if path.isdir(backup_dir):
                 shutil.rmtree(backup_dir)
             shutil.move(tmp_backup, backup_dir)
@@ -1058,7 +1073,6 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             #    are we ~halfway through our long run?  ---> backup to NVME and continue.   (just in case.)
             #    are we running out of time in the job? ---> backup to global dir and exit.
             #    did the user ask to abandon ship?      ---> backup to global dir and exit.
-
 
             abandon_ship = path.exists(emergency_exit_fn)
             
