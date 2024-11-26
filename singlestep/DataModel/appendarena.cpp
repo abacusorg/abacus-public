@@ -162,7 +162,7 @@ class AppendArena {
 
     inline void addheader(const std::string &c) {
         // Write the given string to the arena, without the final \0.
-        int size = c.size() - 1;
+        int size = c.size();
         memcpy(startdata, c.c_str(), size);
         startdata += size; bytes += size;
     }
