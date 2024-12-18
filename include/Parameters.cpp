@@ -123,11 +123,11 @@ public:
 
     int  OutputFullLightCones;
 
-    std::vector<double> LightConeOrigins;  // Same units as BoxSize
+    std::vector<double> LCorigins;  // Same units as BoxSize
 
-    fs::path LightConeDirectory;
-    int LightConeCheckAcrossWrap;  // If 1, check for light cone particles that cross the periodic wrap
-    int LightConeBoxRepeats;  // The number of times to repeat the box in +/- x, y, z directions (0 = normal light cone)
+    fs::path LCDirectory;
+    int LCCheckAcrossWrap;  // If 1, check for light cone particles that cross the periodic wrap
+    int LCBoxRepeats;  // The number of times to repeat the box in +/- x, y, z directions (0 = normal light cone)
 
     int PowerSpectrumStepInterval;
     int PowerSpectrumN1d; //1D number of bins to use in the powerspectrum
@@ -303,15 +303,15 @@ public:
     	OutputEveryStep = 0;
     	installscalar("OutputEveryStep",OutputEveryStep,DONT_CARE);
 
-        installscalar("LightConeDirectory",LightConeDirectory,MUST_DEFINE); //Where the lightcones go. Generally will be the same as the Output directory
+        installscalar("LCDirectory",LCDirectory,MUST_DEFINE); //Where the lightcones go. Generally will be the same as the Output directory
         OutputFullLightCones = 0;
         installscalar("OutputFullLightCones",OutputFullLightCones,DONT_CARE); //if not set, we assume 0
 
-        installvector("LightConeOrigins",LightConeOrigins,DONT_CARE);
-        LightConeCheckAcrossWrap = 0;
-        installscalar("LightConeCheckAcrossWrap",LightConeCheckAcrossWrap,DONT_CARE);
-        LightConeBoxRepeats = 0;
-        installscalar("LightConeBoxRepeats",LightConeBoxRepeats,DONT_CARE);
+        installvector("LCOrigins",LCorigins,DONT_CARE);
+        LCCheckAcrossWrap = 0;
+        installscalar("LCCheckAcrossWrap",LCCheckAcrossWrap,DONT_CARE);
+        LCBoxRepeats = 0;
+        installscalar("LCBoxRepeats",LCBoxRepeats,DONT_CARE);
 
         FinalRedshift = -2.0;        // If <-1, then we will cascade back to the minimum of the TimeSliceRedshifts list
         installscalar("FinalRedshift",FinalRedshift,DONT_CARE);
@@ -541,7 +541,7 @@ void Parameters::SortTimeSlices(){
     std::sort(TimeSliceRedshifts_Subsample.begin(), TimeSliceRedshifts_Subsample.end(), std::greater<double>());
     std::sort(L1OutputRedshifts.begin(), L1OutputRedshifts.end(), std::greater<double>());
 
-    if(! (TimeSliceRedshifts.size() > 0 || TimeSliceRedshifts_Subsample.size() > 0 || L1OutputRedshifts.size() > 0 || OutputEveryStep || StoreForces || LightConeOrigins.size()) )
+    if(! (TimeSliceRedshifts.size() > 0 || TimeSliceRedshifts_Subsample.size() > 0 || L1OutputRedshifts.size() > 0 || OutputEveryStep || StoreForces || LCorigins.size()) )
         fmt::print("Warning! No output requested. Are you sure you want this?\n");
 }
 

@@ -357,7 +357,7 @@ fs::path SlabBuffer::WriteSlabPath(int type, int slab) {
         int lcn = (type - LightCone0RV) / 3;
         int lct = (type - LightCone0RV) % 3;
         std::string lct_name = (lct == 0) ? "rv" : (lct == 1) ? "pid" : "heal";
-        return P.LightConeDirectory / ("Step" + stepstr) / fmt::format("LightCone{:d}_{:s}{:s}", lcn, lct_name, NodeString);
+        return P.LCDirectory / ("Step" + stepstr) / fmt::format("LightCone{:d}_{:s}{:s}", lcn, lct_name, NodeString);
     }
 
     switch(type) {

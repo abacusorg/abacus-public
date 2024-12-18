@@ -459,7 +459,7 @@ placed; in particular, the time slices will be here.  The default is
 stored.  The default is ``\$ABACUS\_PERSIST/SimName/log''.  Each time step
 generates several log files, but these all go in the same directory.
 
-\param{LightConeDirectory}{string} The directory where the light
+\param{LCDirectory}{string} The directory where the light
 cones should get written.  The default is ``\$ABACUS\_SSD/SimName/''.
 The individual LCs will be organized into directorys called ``lc\_rawN'', where N is the number
 of the light cone 0..7.
@@ -523,7 +523,7 @@ These choices produce the following hierarchy of files:
 \fdir{\$ABACUS\_PERSIST/SimName/group}	(aka GroupDirectory) \\
 \$ABACUS\_PERSIST/SimName/group/stepNNNN/SimName.stepNNNN.slabNNNN.grp
 
-\fdir{\$ABACUS\_PERSIST/SimName/lc\_rawN}	(aka LightConeDirectory + lc\_rawN) \\
+\fdir{\$ABACUS\_PERSIST/SimName/lc\_rawN}	(aka LCDirectory + lc\_rawN) \\
 \$ABACUS\_PERSIST/SimName/lc\_rawN/stepNNNN/SimName.lcN.stepNNNN.slabNNNN.php14
 
 \fdir{\$ABACUS\_PERSIST/SimName/info}	(misc.~important files) \\

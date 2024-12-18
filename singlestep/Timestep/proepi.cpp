@@ -56,11 +56,12 @@ STimer WriteMultipoleSlab;
 STimer QueueMultipoleMPI;
 STimer ParallelConvolveDestructor;
 
-STimer OutputLightConeSearch;
-STimer OutputLightConeSetup;
-STimer OutputLightConeTeardown;
-STimer OutputLightConeFreeSlabAccum;
-STimer OutputLightConeSortHealpix;
+STimer LCSearch;
+STimer LCSetup;
+STimer LCFreeSlabAccum;
+STimer LCSortHealpix;
+STimer LCCreateSparseMap;
+STimer LCGatherOutput;
 STimer FifoWriteTimer;
 STimer OutputTimeSlice;
 STimer OutputLightCone;
@@ -1101,7 +1102,7 @@ void FinalizeWriteState() {
     // But a-priori there's no good way to know which nodes/slabs will have LC particles,
     // Now that we've done the reduction, we know if any LC particles were written, thus rank 0 can write the header
     if(WriteState.np_lightcone && MPI_rank == 0){
-        LightCone::WriteHeaderFile(P.LightConeDirectory / fmt::format("step{:04d}", ReadState.FullStepNumber) / "header");
+        LightCone::WriteHeaderFile(P.LCDirectory / fmt::format("Step{:04d}", ReadState.FullStepNumber) / "header");
     }
 
     return;

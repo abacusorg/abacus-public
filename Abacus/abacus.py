@@ -124,7 +124,7 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     # These directories are global; i.e. treated the same in the parallel and serial versions
     icdir = params['InitialConditionsDirectory']
     outdir = params['OutputDirectory']
-    lcdir = params['LightConeDirectory']
+    lcdir = params['LCDirectory']
     logdir = params['LogDirectory']
     groupdir  = params.get('GroupDirectory', '')
     basedir = params['WorkingDirectory']
@@ -178,7 +178,7 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
 
     os.makedirs(basedir, exist_ok=True)
 
-    for d in ['LogDirectory', 'OutputDirectory', 'GroupDirectory', 'LightConeDirectory']:
+    for d in ['LogDirectory', 'OutputDirectory', 'GroupDirectory', 'LCDirectory']:
         if d in params and params[d]:
             os.makedirs(params[d], exist_ok=True)
 
@@ -1354,7 +1354,7 @@ def merge_checksum_files(nnodes, param=None, dir_globs=None, checksum_fn='checks
     if not dir_globs:
         dir_globs = [pjoin(param.OutputDirectory, 'slice*'),
                     pjoin(param.GroupDirectory, 'Step*'),
-                    pjoin(param.LightConeDirectory, 'Step*'),
+                    pjoin(param.LCDirectory, 'Step*'),
             ]
 
     for pat in dir_globs:
