@@ -30,10 +30,9 @@ fi
 
 inputs=$(echo $sim/{halos,slices}/z*)
 workdir=$sim/post_log/$SLURM_JOBID-power
-disBatch=$HOME/abacus/external/disBatch/disBatch
 
 mkdir -p $workdir
 cd $workdir
 
 python -m Abacus.post.power_tasks --nfft $nfft -t $nthread -r $nreader -l $workdir $inputs > tasks
-$disBatch -e --status-header tasks
+disBatch -e --status-header tasks

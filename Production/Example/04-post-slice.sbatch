@@ -27,14 +27,13 @@ fi
 
 slices=$sim/slice*.*
 workdir=$sim/post_log/$SLURM_JOBID-slice
-disBatch=$ABACUS/external/disBatch/disBatch
 merge_cksum=$ABACUS/external/fast-cksum/bin/merge_checksum_files.py
 
 mkdir -p $workdir
 cd $workdir
 
 python -m Abacus.post.timeslice_tasks --delete -c $chunk -l $workdir $slices > tasks
-$disBatch -e --status-header tasks
+disBatch -e --status-header tasks
 
 for d in $sim/slices/z*/*; do
     cd $d

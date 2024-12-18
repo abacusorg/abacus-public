@@ -28,10 +28,9 @@ fi
 
 groups=$sim/group/Step*
 workdir=$sim/post_log/$SLURM_JOBID-groups
-disBatch=$ABACUS/external/disBatch/disBatch
 
 mkdir -p $workdir
-cd $workdir
+python -m Abacus.post.group_tasks --delete -c $chunk -l $workdir -w $workers $groups > $workdir/tasks
 
-python -m Abacus.post.group_tasks --delete -c $chunk -l $workdir -w $workers $groups > tasks
-$disBatch -e --status-header tasks
+cd $workdir
+disBatch --fill -e --status-header tasks

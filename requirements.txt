@@ -24,4 +24,4 @@ pybind11
 meson
 cmake
 ninja
-setuptools
+disbatch

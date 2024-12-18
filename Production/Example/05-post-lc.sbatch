@@ -25,14 +25,14 @@ if [ -z "$sim" ]; then
 fi
 
 workdir=$sim/post_log/$SLURM_JOBID-lc
-disBatch=$ABACUS/external/disBatch/disBatch
 merge_cksum=$ABACUS/external/fast-cksum/bin/merge_checksum_files.py
 
 mkdir -p $workdir
-cd $workdir
+python -m Abacus.post.lc_tasks --delete -l $workdir $sim/lightcone > $workdir/tasks
 
-python -m Abacus.post.lc_tasks --delete -l $workdir $sim/lightcone > tasks
-$disBatch -e --status-header tasks
+cd $workdir
+disBatch --fill -e --status-header tasks
+cd -
 
 for d in $sim/lightcone-post/*; do
     cd $d
