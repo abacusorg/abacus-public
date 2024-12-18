@@ -57,6 +57,8 @@ using int64 = int64_t;
 using Complex = AbacusComplex<double>;
 using FFTComplex = AbacusComplex<double>;
 
+#include "AbacusVector.hh"
+
 // So that we can easily adjust to double precision for kinematics
 #ifdef DOUBLEPRECISION
 using FLOAT = double;
