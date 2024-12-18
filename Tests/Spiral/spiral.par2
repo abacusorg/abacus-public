@@ -1,8 +1,8 @@
 #level 2 parameter file for spiral test
 SimName = "spiral"
 #include "$ABACUS$/Tests/test.def"
-#include "$ABACUS$/Production/site_files/site.def"
 #include "$ABACUS$/Production/directory.def"
+#include "$ABACUS$/Production/site_files/site.def"
 
 Parallel = 0
 

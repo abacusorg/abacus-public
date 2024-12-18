@@ -16,18 +16,19 @@ TASK = 'python -m Abacus.post.groups'
 @click.option('-w', '--nworkers', default=1, help='Number of subprocesses per task')
 @click.option('-l', '--logdir', default='post_log', help='Log directory', metavar='DIR')
 def main(groups, chunk=10, nworkers=1, delete=False, logdir='post_log'):
-    groups = [Path(s) for s in groups]
+    groups = [Path(s).absolute() for s in groups]
+    logdir = Path(logdir).absolute()
 
     flags = [f'-c {chunk} -w {nworkers}']
     if delete:
         flags += ['--delete']
     flags = ' '.join(flags)
 
-    print(f'#DISBATCH PREFIX logdir={logdir}; (mkdir -p $logdir; {TASK} {flags} ')  # N.B. trailing space
-    print('#DISBATCH SUFFIX  ) &> $logdir/group-$DISBATCH_TASKID.log')
+    print(f'#DISBATCH PREFIX {TASK} {flags} ')  # N.B. trailing space
+    print(f'#DISBATCH SUFFIX  &> {logdir}/group-$DISBATCH_TASKID.log')
 
     for group in groups:
-        print(group.resolve())
+        print(group.absolute())
 
 
 if __name__ == '__main__':

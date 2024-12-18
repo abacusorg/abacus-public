@@ -9,6 +9,8 @@ to read the ASDF catalogs.  Thus, end users should not have to use this file.
 For developers examining the raw binary catalogs, the Numpy dtype
 "halo_dt" defined in this file may be useful as well.
 
+This file used to be called `convert_raw_groups_to_asdf.py`.
+
 Usage
 =====
 $ python -m Abacus.post.groups --help
@@ -81,7 +83,7 @@ fast_cksum_cat = Path(os.getenv('ABACUS')) / 'external' / 'fast-cksum' / 'bin' /
 @click.option('-w', '--nworkers', default=1,
               help='Number of workers/subprocesses to use. Parallelism is over superslabs.',
               )
-@click.option('--empty-ok', is_flag=True,
+@click.option('--empty-ok', is_flag=True, default=True,
               help='Whether a catalog without any halo_info files will raise an error',
               )
 def convert(group_dir_or_file, chunk=50, asdf_data_key='data', asdf_header_key='header', asdf_compression='blsc', delete=False,
