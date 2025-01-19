@@ -225,5 +225,12 @@ double ChooseTimeStep(int NoForces){
     if(P.MicrostepTimeStep > 0)
         MicrostepEpochs = new MicrostepEpochTable(cosm, cosm->current.a, cosm->current.a + da, P.np);
 
+    // da *= -1;  // reverse the time step TODO: make parameter
+    double dlna = da/ReadState.ScaleFactor;
+    STDLOG(0,"Chose Time Step da = {:6.4f}, dlna = {:6.4f}\n", da, dlna);
+    if(dlna > 0){
+        STDLOG(0, "\t\tAt the current rate, this implies {:d} more steps to z_final={:f}\n", (int64)ceil(log(1./ReadState.ScaleFactor/(1. + P.FinishingRedshift()))/dlna), P.FinishingRedshift());
+    }
+
     return da;
 }

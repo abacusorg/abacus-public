@@ -141,7 +141,9 @@ void PlanOutput(bool MakeIC) {
     // but we'd like to use some elements from WriteState.  So we
     // overwrite some ReadState elements.
     // We will call this output by the WriteState FullStepNumber, as that
-    // is what is required for the velocities (and is the run writing the output).
+    // is what is required for the velocities (and is the step writing the output).
+    // TODO: this gives us a different mapping of FullStepNumber -> Redshift than
+    // one would infer from the state. This seems like a potential source of confusion/bugs.
     ReadState.ParameterFileName = WriteState.ParameterFileName;
     ReadState.CodeVersion = WriteState.CodeVersion;
     ReadState.MachineName = WriteState.MachineName;
@@ -229,14 +231,7 @@ int main(int argc, char **argv) {
     // Set up the major classes (including NFD)
     Prologue(P,MakeIC,NoForces);
 
-    double da = ChooseTimeStep(NoForces);
-
-    // da *= -1;  // reverse the time step TODO: make parameter
-    double dlna = da/ReadState.ScaleFactor;
-    STDLOG(0,"Chose Time Step da = {:6.4f}, dlna = {:6.4f}\n", da, dlna);
-    if(dlna > 0){
-        STDLOG(0, "\t\tAt the current rate, this implies {:d} more steps to z_final={:f}\n", (int64)ceil(log(1./ReadState.ScaleFactor/(1. + P.FinishingRedshift()))/dlna), P.FinishingRedshift());
-    }
+    double da = ChooseTimeStep(NoForces);  // needs NFD
 
     BuildWriteState(da);
 
