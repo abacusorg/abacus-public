@@ -13,15 +13,18 @@ that basically just stores the (sorted) structs in compressed ASDF.
 """
 
 from pathlib import Path
+from timeit import default_timer as timer
 
 import asdf
 import click
 import numba
 import numpy as np
-from timeit import default_timer as timer
 
 from Abacus.fast_cksum.cksum_io import CksumReader, CksumWriter
 from Abacus.InputFile import InputFile
+
+# The bit that indicates a halo pixel
+HALO_MASK = np.uint32(0x80000000)
 
 
 def get_healstruct_dtype(HealpixWeightScheme):
@@ -79,7 +82,7 @@ def read_structs(files: list[Path], healstruct_dtype):
 
 
 @numba.njit(parallel=False, fastmath=True)
-def make_map(structs, Nside, maskbits):
+def make_map(structs, Nside, maskbits, discard_halo_bit):
     npix = 12 * Nside**2
     density = np.zeros(npix, dtype=np.uint32)
     n_weights = structs['weights'].shape[-1]
@@ -91,6 +94,8 @@ def make_map(structs, Nside, maskbits):
 
     for i in range(nstruct):
         healid = structs[i]['id']
+        if discard_halo_bit:
+            healid &= ~HALO_MASK
         density[healid] += structs[i]['N']
 
         for j in range(n_weights):
@@ -133,17 +138,35 @@ def write_to_asdf(healpix, lc_prefix, quantity, step_range, outdir, meta, nthrea
         nthreads=nthread,
     )
 
+    outfn.parent.mkdir(parents=True, exist_ok=True)
     with asdf.AsdfFile(tree) as af, CksumWriter(outfn) as fp:
         af.write_to(
             fp, all_array_compression='blsc', compression_kwargs=compression_kwargs
         )
     print(f'Wrote to {outfn}')
     print(
-        f'IO took {fp.io_timer.elapsed:.4g} sec, {fp.bytes_written/fp.io_timer.elapsed/1e6:.4g} MB/sec'
+        f'IO took {fp.io_timer.elapsed:.4g} sec, {fp.bytes_written / fp.io_timer.elapsed / 1e6:.4g} MB/sec'
     )
     print(
-        f'Checksum took {fp.checksum_timer.elapsed:.4g} sec, {fp.bytes_written/fp.checksum_timer.elapsed/1e6:.4g} MB/sec'
+        f'Checksum took {fp.checksum_timer.elapsed:.4g} sec, {fp.bytes_written / fp.checksum_timer.elapsed / 1e6:.4g} MB/sec'
     )
+
+
+@numba.njit(parallel=False, fastmath=True)
+def searchsorted_bit(a, mask):
+    """Search a sorted array of integers for the first element a[i] where mask & a[i] != 0"""
+
+    lo = 0
+    hi = len(a)
+
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if a[mid] & mask:
+            hi = mid
+        else:
+            lo = mid + 1
+
+    return lo
 
 
 @click.command
@@ -167,9 +190,18 @@ def write_to_asdf(healpix, lc_prefix, quantity, step_range, outdir, meta, nthrea
     '-s',
     '--split-halo',
     is_flag=True,
-    help='Interpret the high bit of the healpix ID as indicating a halo pixel',
+    help='Output a healpix map with just the halo pixels',
 )
-def main(files, outdir, verbose=True, nthread=4, delete=False, bit_trunc=0, dtype='f4', split_halo=True):
+def main(
+    files,
+    outdir,
+    verbose=True,
+    nthread=4,
+    delete=False,
+    bit_trunc=0,
+    dtype='f4',
+    split_halo=True,
+):
     files = [Path(f) for f in files]
     if not files:
         return
@@ -185,67 +217,95 @@ def main(files, outdir, verbose=True, nthread=4, delete=False, bit_trunc=0, dtyp
     healpix_weight_scheme = headers[0]['HealpixWeightScheme']
     healstruct_dtype = get_healstruct_dtype(healpix_weight_scheme)
 
-    quantities = ['density', 'momentum-los']
-    if healpix_weight_scheme == 'vel3':
-        quantities += ['momentum-theta', 'momentum-phi']
-    for q in quantities:
-        (outdir / (f'heal-{q}')).mkdir(exist_ok=True)
-
+    t = -timer()
     structs = read_structs(files, healstruct_dtype)
+    N_struct = len(structs)
+    t += timer()
+
+    print(f'Read took {t:.4g} sec, {structs.nbytes / t / 1e6:.4g} MB/sec')
+
     step_range = get_step_range(headers)
 
     t = -timer()
     iord = np.argsort(structs['id'])
     structs = structs.take(iord)
     t += timer()
-    print(f'Sort took {t:.4g} sec, {len(structs)/t/1e6:.4g} Mstruct/sec')
+    print(f'Sort took {t:.4g} sec, {N_struct / t / 1e6:.4g} Mstruct/sec')
 
     print(f'Max N: {structs["N"].max()}')
 
     print(structs)
 
-    t = -timer()
-    # wouldn't be hard to downgrade nside here if the user wanted
-    nside = headers[0]['LCHealpixNside']
-    density, wmaps = make_map(structs, nside, maskbits=bit_trunc)
+    totalhalo = ['total']
+    if split_halo:
+        totalhalo += ['halo']
 
-    # numba doesn't support np.float16, so do it here
-    # density = density.astype(dtype, copy=False)
-    wmaps = [w.astype(dtype, copy=False) for w in wmaps]
-    
-    for m in [density] + wmaps:
-        assert np.all(np.isfinite(m))
-    
-    t += timer()
-    print(f'Map took {t:.4g} sec, {len(structs)/t/1e6:.4g} Mstruct/sec')
+    for which_th in totalhalo:
+        t = -timer()
+        # wouldn't be hard to downgrade nside here if the user wanted
+        nside = headers[0]['LCHealpixNside']
 
-    print(density)
+        if which_th == 'total':
+            start = 0
+        else:
+            start = searchsorted_bit(structs['id'], HALO_MASK)
+            print(f'Found {N_struct - start} halo pixels, {(N_struct - start) / N_struct * 100:.4f}%')
 
-    meta = {
-        'headers': headers,
-        'input_files': [str(f) for f in files],
-        'bit_trunc': bit_trunc,
-        'healpix_order': 'nest',
-    }
+        # Currently, Abacus always outputs the halo bit
+        discard_halo_bit = True
 
-    write_to_asdf(
-        density, lc_prefix, 'density', step_range, outdir, meta, nthread=nthread
-    )
-    write_to_asdf(
-        wmaps[0], lc_prefix, 'momentum-los', step_range, outdir, meta, nthread=nthread
-    )
-    
-    if healpix_weight_scheme == 'vel3':
-        write_to_asdf(
-            wmaps[1], lc_prefix, 'momentum-theta', step_range, outdir, meta, nthread=nthread
+        density, wmaps = make_map(
+            structs[start:],
+            nside,
+            maskbits=bit_trunc,
+            discard_halo_bit=discard_halo_bit,
         )
-        write_to_asdf(
-            wmaps[2], lc_prefix, 'momentum-phi', step_range, outdir, meta, nthread=nthread
-        )
+
+        # numba doesn't support np.float16, so do it here
+        # density = density.astype(dtype, copy=False)
+        wmaps = [w.astype(dtype, copy=False) for w in wmaps]
+
+        for m in [density] + wmaps:
+            assert np.all(np.isfinite(m))
+
+        t += timer()
+        print(f'Map took {t:.4g} sec, {N_struct / t / 1e6:.4g} Mstruct/sec')
+
+        print(density)
+
+        meta = {
+            'headers': headers,
+            'input_files': [str(f) for f in files],
+            'bit_trunc': bit_trunc,
+            'healpix_order': 'nest',
+        }
+
+        if len(totalhalo) > 1:
+            this_outdir = outdir / which_th
+            this_lc_prefix = f'{lc_prefix}_{which_th}'
+        else:
+            this_outdir = outdir
+            this_lc_prefix = lc_prefix
+
+        maps = {'density': density, 'momentum-los': wmaps[0]}
+        if healpix_weight_scheme == 'vel3':
+            maps |= {'momentum-theta': wmaps[1], 'momentum-phi': wmaps[2]}
+
+        for quantity, mp in maps.items():
+            write_to_asdf(
+                mp,
+                this_lc_prefix,
+                quantity,
+                step_range,
+                this_outdir,
+                meta,
+                nthread=nthread,
+            )
 
     if delete:
         for fn in files:
             fn.unlink()
+
 
 if __name__ == '__main__':
     main()
