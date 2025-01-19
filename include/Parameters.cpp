@@ -197,6 +197,8 @@ public:
 
     int ForceAuxDensity;  // Use densities from the aux in group finding, even if we have acc densities
 
+    int ReleaseFreeMemory;  // Whether to intermittently release free memory to the system
+
     // Return the L{tier} size in MiB
     double getCacheSize(int tier){
         int cache_size = 0;
@@ -462,6 +464,9 @@ public:
 
         ForceAuxDensity = 0;
         installscalar("ForceAuxDensity", ForceAuxDensity, DONT_CARE);
+
+        ReleaseFreeMemory = 1;
+        installscalar("ReleaseFreeMemory", ReleaseFreeMemory, DONT_CARE);
     }
 
     // We're going to keep the HeaderStream, so that we can output it later.

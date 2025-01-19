@@ -426,7 +426,7 @@ public:
         }
         KickCellTimer.Stop();
 
-        ReleaseFreeMemoryToKernel();
+        if (P.ReleaseFreeMemory) ReleaseFreeMemoryToKernel();
     }
 };
 
@@ -791,7 +791,7 @@ public:
             }
             else{
                 SB->DeAllocate(AccSlab,slab);
-                ReleaseFreeMemoryToKernel();
+                if (P.ReleaseFreeMemory) ReleaseFreeMemoryToKernel();
             }
         }
     }
@@ -977,6 +977,7 @@ public:
         STDLOG(1, "Current pipeline width (N_fetch - N_finish) is {:d}\n", pwidth);
         // release is cheap but not totally free, so might run every few Finishes
         //if (FinishMultipoles->raw_number_executed % 3 == 0)
+        if(P.ReleaseFreeMemory && FinishMultipoles->raw_number_executed == 0)
             ReleaseFreeMemoryToKernel();
         ReportMemoryAllocatorStats();
     }
