@@ -20,7 +20,7 @@ Density: 49-58
 
 L0: 15
 L1: 31
-L2: 47 (if we even use this?)
+L1 Sticky: 47
 SubA: 59
 SubB: 60
 LightCone (3): 61-63
@@ -71,7 +71,7 @@ using accstruct = FLOAT3;
 #define AUXDENSITY (uint64) 0x7fe000000000000 //bits 49-58
 #define AUXINL0BIT 15llu //Is the particle in a level 0 group
 #define AUXINL1BIT 31llu //Is the particle in a level 1 group
-#define AUXINL2BIT 47llu //Is the particle in a level 2 group
+#define AUXINL1STICKYBIT 47llu //Was the particle ever in a level 1 group
 
 #define AUXTAGGABLE_A_BIT 59llu //Can this particle be tagged in subsample A? 
 #define AUXTAGGABLE_B_BIT 60llu //Can this particle be tagged in subsample B? 
@@ -247,7 +247,7 @@ public:
     
     inline void reset_L01_bits() {
         // We need to be able to unset these bits each time we run groupfinding
-        uint64 mask = ((uint64)1 << AUXINL0BIT) + ((uint64)1 << AUXINL1BIT);
+        uint64 mask = ((uint64)1 << AUXINL0BIT) | ((uint64)1 << AUXINL1BIT);
         aux &= ~mask;
     }
 
@@ -259,9 +259,13 @@ public:
     }
     inline void set_L1() {
         aux |= ((uint64)1 << AUXINL1BIT);
+        aux |= ((uint64)1 << AUXINL1STICKYBIT);
     }
     inline bool is_L1() {
         return aux & ((uint64)1 << AUXINL1BIT);
+    }
+    inline bool is_L1_sticky() const {
+        return aux & ((uint64)1 << AUXINL1STICKYBIT);
     }
 
     inline uint64 get_aux_pid_dens_tagged(){
