@@ -264,6 +264,7 @@ class PencilAccum {
     }
 
     inline void append(T item) {
+		// TODO: emplace semantics
 	// Call this function to add one item to the current cell
 	buffer->append(item);
 	return;
@@ -314,7 +315,7 @@ class SlabAccum {
 	    // repack the pencils into a contiguous buffer.
 
     // Provide [] to get to the Pencil-based values
-    inline PencilAccum<T> operator[](int j) { return pencils[j]; }
+    inline PencilAccum<T> operator[](int j) const { return pencils[j]; }
 
     SlabAccum() {
         // Only have null constructor.
@@ -351,7 +352,7 @@ class SlabAccum {
 	destroy();
     }
 
-    inline bool is_setup() {
+    inline bool is_setup() const {
 	// Returns true is setup has been called; false otherwise.
         return cpd>0;
     }
@@ -413,13 +414,13 @@ class SlabAccum {
 	return pencils+pnum;
     }
 
-    uint64 get_slab_size() {
+    uint64 get_slab_size() const {
         uint64 total = 0;
 	for (int j=0; j<maxthreads; j++) total += buffers[j].get_buffer_size();
 	return total;
     }
 
-    size_t get_slab_bytes() {
+    size_t get_slab_bytes() const {
         return sizeof(T)*get_slab_size();
     }
 
@@ -440,7 +441,8 @@ class SlabAccum {
     void copy_to_ptr(T *destination) {
 		build_pstart();
 
-	// #pragma omp parallel for schedule(dynamic)
+	// This will only do anything if we're already in a parallel region
+	#pragma omp taskloop
 	for (int j=0; j<cpd; j++) {
 		size_t offset = pstart[j];
 	    memcpy(destination+offset, pencils[j].data, 
@@ -450,14 +452,15 @@ class SlabAccum {
     
     
     /// Same as copy_to_ptr, but accepts a function to do e.g. unit conversion
-    void copy_convert(T *destination, std::function< T(T) > const & conversion) {
+	template <class U, typename Func>
+    void transform_to_ptr(U *destination, Func&& transform) {
 		build_pstart();
 
 		// #pragma omp parallel for schedule(dynamic)
         for (int j=0; j<cpd; j++) {
 			size_t offset = pstart[j];
             for(int i = 0; i < pencils[j]._size; i++){
-                destination[offset + i] = conversion(pencils[j].data[i]);
+                destination[offset + i] = transform(pencils[j].data[i]);
             }
         }
     }
@@ -465,7 +468,7 @@ class SlabAccum {
 
     /// Write all of the data to a file, making this contiguous 
     /// and in pencil order.  
-    void dump_to_file(const fs::path &fname) {
+    void dump_to_file(const fs::path &fname) const {
 	FILE *fp = fopen(fname.c_str(), "wb");
 	for (int j=0; j<cpd; j++) {
 	    fwrite(pencils[j].data, sizeof(T), pencils[j]._size, fp);
@@ -475,7 +478,7 @@ class SlabAccum {
 
     /// Write the CellAccum of the data to a file, making this contiguous 
     /// and in pencil order.  
-    void dump_cells_to_file(const fs::path &fname) {
+    void dump_cells_to_file(const fs::path &fname) const {
 	FILE *fp = fopen(fname.c_str(), "w");
 	for (int j=0; j<cpd; j++) {
 	    for (int k=0; k<zwidth; k++) {
