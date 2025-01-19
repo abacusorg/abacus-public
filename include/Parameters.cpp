@@ -197,6 +197,8 @@ public:
 
     int ForceAuxDensity;  // Use densities from the aux in group finding, even if we have acc densities
 
+    int OutputRVAtL1RedshiftsA;  // Whether to output subsample A RVs at L1 output redshifts
+
     int ReleaseFreeMemory;  // Whether to intermittently release free memory to the system
 
     // Return the L{tier} size in MiB
@@ -464,6 +466,9 @@ public:
 
         ForceAuxDensity = 0;
         installscalar("ForceAuxDensity", ForceAuxDensity, DONT_CARE);
+
+        OutputRVAtL1RedshiftsA = 0;
+        installscalar("OutputRVAtL1RedshiftsA", OutputRVAtL1RedshiftsA, DONT_CARE);
 
         ReleaseFreeMemory = 1;
         installscalar("ReleaseFreeMemory", ReleaseFreeMemory, DONT_CARE);

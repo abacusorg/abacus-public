@@ -1280,13 +1280,15 @@ void GlobalGroupSlab::HaloOutput() {
     fs::create_directory(dir);
     WriteGroupHeaderFile(dir / "header");
 
-    if (ReadState.DoSubsampleOutput){
+    if (ReadState.DoSubsampleOutput || P.OutputRVAtL1RedshiftsA){
          // Write out the pos/vel of the taggable particles in L1 halos
         if (P.ParticleSubsampleA > 0){
             SB->AllocateSpecificSize(HaloRVSlabA, slab, HaloRVA.get_slab_bytes());
             HaloRVA.copy_to_ptr((RVfloat *)SB->GetSlabPtr(HaloRVSlabA, slab));
             SB->StoreArenaNonBlocking(HaloRVSlabA, slab);
         }
+    }
+    if (ReadState.DoSubsampleOutput){
         if (P.ParticleSubsampleB > 0) {
             SB->AllocateSpecificSize(HaloRVSlabB, slab, HaloRVB.get_slab_bytes());
             HaloRVB.copy_to_ptr((RVfloat *)SB->GetSlabPtr(HaloRVSlabB, slab));
