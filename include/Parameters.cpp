@@ -197,6 +197,12 @@ public:
 
     int ForceAuxDensity;  // Use densities from the aux in group finding, even if we have acc densities
 
+    uint64_t LCHealpixNside;  // Healpix lightcone resolution
+
+    int LCHealpixOutputSparseMap;  // Output healpix "structs" that can later be binned into a map
+
+    int LCOutputRVPID;  // Whether to output the RV & PID on the lightcone
+
     int OutputRVAtL1RedshiftsA;  // Whether to output subsample A RVs at L1 output redshifts
 
     int ReleaseFreeMemory;  // Whether to intermittently release free memory to the system
@@ -466,6 +472,15 @@ public:
 
         ForceAuxDensity = 0;
         installscalar("ForceAuxDensity", ForceAuxDensity, DONT_CARE);
+
+        LCHealpixNside = 16384;
+        installscalar("LCHealpixNside", LCHealpixNside, DONT_CARE);
+
+        LCOutputRVPID = 1;
+        installscalar("LCOutputRVPID", LCOutputRVPID, DONT_CARE);
+
+        LCHealpixOutputSparseMap = 0;
+        installscalar("LCHealpixOutputSparseMap", LCHealpixOutputSparseMap, DONT_CARE);
 
         OutputRVAtL1RedshiftsA = 0;
         installscalar("OutputRVAtL1RedshiftsA", OutputRVAtL1RedshiftsA, DONT_CARE);

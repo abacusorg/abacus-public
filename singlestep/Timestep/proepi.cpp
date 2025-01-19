@@ -253,11 +253,10 @@ void Prologue(Parameters &P, int MakeIC, int NoForces) {
     // Call this to setup the Manifests
     SetupManifest(2*P.GroupRadius+1);
 #endif
-
-    InitializeLightCones();
     
     Grid = new grid(cpd);
-    SB = new SlabBuffer(cpd, order, LCOrigin.size());
+    // LightCones not available yet, but we can always count them
+    SB = new SlabBuffer(cpd, order, CountLightCones());
     CP = new CellParticles(cpd, SB);
 
     STDLOG(2,"Initializing Multipoles\n");
@@ -438,6 +437,8 @@ void Epilogue(Parameters &P) {
     } else {
         WriteState.DirectsPerParticle = 0;
     }
+
+    FinalizeLightCones();
 
     finish_fftw();
 

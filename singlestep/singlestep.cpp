@@ -235,6 +235,8 @@ int main(int argc, char **argv) {
 
     BuildWriteState(da);
 
+    if (!NoForces) InitializeLightCones();  // needs the read and write state
+
     // Set up the Group Finding concepts and decide if Group Finding output is requested.
     InitGroupFinding(MakeIC);
 
@@ -270,7 +272,6 @@ int main(int argc, char **argv) {
     Epilogue(P);
 
     delete cosm;
-    FinalizeLightCones();
     free_dependencies();
 
     // Print out some final stats
