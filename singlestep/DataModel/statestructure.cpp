@@ -418,6 +418,7 @@ void State::write_to_file(const fs::path &dir, const fs::path &suffix) {
     WPR(np_subB_state                  , ISYM);
     WPR(cpd_state                      , ISYM);
     WPR(order_state                    , ISYM);
+    WPR(np_lightcone                   , ISYM);
 
     fmt::print(statefp, header());
 
