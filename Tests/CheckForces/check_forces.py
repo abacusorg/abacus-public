@@ -526,7 +526,7 @@ def plot_forceoutputdebug(diff, fmag):
     
     
 def load_results(load, order=None, dtype=None, plot=True):
-    with asdf.open(load, lazy_load=False, copy_arrays=True) as af:
+    with asdf.open(load, lazy_load=False, memmap=False) as af:
         results = af.tree['results']
 
     if order != None:

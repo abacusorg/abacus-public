@@ -976,7 +976,7 @@ def read_asdf(fn, colname=None, out=None, return_pos='auto', return_vel='auto', 
     from abacusnbody.data import bitpacked
     import astropy.table
 
-    with asdf.open(fn, lazy_load=True, copy_arrays=True) as af:
+    with asdf.open(fn, lazy_load=True, memmap=False) as af:
         if colname is None:
             _colnames = ['rvint', 'pack9', 'packedpid', 'pid']
             for cn in _colnames:

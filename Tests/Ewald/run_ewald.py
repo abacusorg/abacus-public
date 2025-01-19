@@ -205,7 +205,7 @@ def plot_orders(all_results, pltfn='ewald_allorders.pdf', style='line'):
 
 
 def load_results(load):
-    with asdf.open(load, lazy_load=False, copy_arrays=True) as af:
+    with asdf.open(load, lazy_load=False, memmap=False) as af:
         results = af.tree['results']
 
     plot_orders(results)
