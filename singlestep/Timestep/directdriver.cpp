@@ -324,6 +324,14 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
     SB->AllocateSpecificSize(NearField_SIC_Slab, slabID, bsize);
     char *buffer = SB->GetSlabPtr(NearField_SIC_Slab, slabID);
 
+    // Zero the buffer in parallel. This seems to help the SICs get
+    // constructed and launched smoothly. In theory this will get
+    // initialized when the SIC touches it, but that many not bring
+    // as many threads to bear.
+    #pragma omp parallel for schedule(static)
+    for (uint64 i = 0; i < bsize; i++)
+        buffer[i] = 0;
+
     // And allocate space for the accelerations
     SB->AllocateArena(AccSlab,slabID);
 

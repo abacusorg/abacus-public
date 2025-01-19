@@ -226,6 +226,11 @@ void GPUPencilTask(void *item, int g){
 
     // Now copy the data from Pinned back to the SIC buffer
     task->CopyAccelFromPinned.Start();
+    // Any way to reduce this latency...?
+    // We could also do O(few) DtoH copies, and put an event after each one, then wait on the events
+    // Do we want a more flexible queue-based system? Where we push stage-in and stage-out tasks?
+    // CUDA callbacks could push the next operation to the queue
+
     int k = 0;
     for (int j=0; j<task->NSinkSets; j++) {
         task->SinkPlan[j].copy_from_pinned_memory(
