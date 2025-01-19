@@ -73,10 +73,12 @@ public:
     }
 
     template<typename... Args>
-    void emplace_back(Args&&... args){
+    T& emplace_back(Args&&... args){
         new(&this->arr[this->size_++]) T{std::forward<Args>(args)...};
 
         if constexpr (bounds_check) this->validate();
+
+        return this->arr[this->size_-1];
     }
 
     T& operator[](size_t i) {
