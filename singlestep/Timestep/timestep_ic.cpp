@@ -12,12 +12,13 @@ lot of infrastructure from there.
 uint64 NP_from_IC = 0;
 
 class ReadICDep : public SlabDependency {
+    static constexpr int ICFETCHAHEAD = 16;
+
 public:
     ReadICDep(int cpd, int initialslab)
         : SlabDependency("ReadIC", cpd, initialslab){ }
 
     int precondition(int slab [[maybe_unused]]) {
-        // We always do this.
         #ifdef PARALLEL
         if (raw_number_executed>=total_slabs_on_node) return 0;
         // This prevents ReadICAction from reading beyond the 
@@ -27,6 +28,11 @@ public:
         // by the Manifest, which leads to a race condition when running
         // the PARALLEL code on a single node test.
         #endif
+
+        // In rare cases, IO may be faster than unpacking + multipoles
+        if (raw_number_executed > FinishParticles->raw_number_executed + ICFETCHAHEAD)
+            return 0;
+
         return 1;
     }
 
