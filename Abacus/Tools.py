@@ -1,20 +1,23 @@
 #Misc functions that don't belong anywhere else
 
+import argparse
+import concurrent.futures
+import contextlib
+import csv
 import ctypes as ct
 import os
-import csv
-import contextlib
+import shutil
 import string
-from collections import OrderedDict
 import subprocess
+from collections import OrderedDict
 
-import numpy as np
-import numexpr as ne
-import matplotlib.pyplot as plt
-import matplotlib.colors as colors
 import contexttimer
-import argparse
+import matplotlib.colors as colors
+import matplotlib.pyplot as plt
 import numba
+import numexpr as ne
+import numpy as np
+
 
 # all values returned in GB
 # try to return 'available' RAM, but some systems only have 'total' and 'free', so fallback to those
@@ -449,3 +452,15 @@ def call_subprocess(*args, reset_affinity=True, **kwargs):
 
     # A TimeoutExpired error will be raised if we time out. Could catch it, but probably fine to crash
     subprocess.run(*args, **kwargs, timeout=timeout, preexec_fn=preexec_fn, check=True)
+
+
+class MultithreadedCopier(concurrent.futures.ThreadPoolExecutor):
+    """
+    Usage:
+
+    with MultithreadedCopier(max_workers=16) as copier:
+        shutil.copytree(src_dir, dest_dir, copy_function=copier.copy)
+    """
+
+    def copy(self, source, dest):
+        self.submit(shutil.copy2, source, dest)
