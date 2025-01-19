@@ -1,5 +1,5 @@
 # Sets up default directory structure. Should be included in a parameter file *AFTER* setting simname.
-WorkingDirectory = "$ABACUS_TMP$/" + @SimName@ 
+WorkingDirectory = "$ABACUS_TMP$/" + @_SimSet@ + "/" + @SimName@
 InitialConditionsDirectory = "$ABACUS_PERSIST$/" + @_SimSet@ + "/" + @SimName@ + "/ic"  # An underscore indicates an optional var
 #MultipoleDirectory = "$ABACUS_SSD$/" + @SimName@ + "/multipole"
 #TaylorDirectory = "$ABACUS_SSD$/" + @SimName@ + "/taylor"
