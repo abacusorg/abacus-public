@@ -1020,12 +1020,19 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             backup_dir = pjoin(param['BackupDirectory'], 'backup')
             status_log.print(f'# Backing up state to {backup_dir}...', tee=True, end='')
             tmp_backup = pjoin(param['BackupDirectory'], 'backup_inprogress')
-            with Tools.ContextTimer() as backup_timer:
-                shutil.copytree(backup_src, tmp_backup, symlinks=True)
+            backup_concurrency = param.get('BackupConcurrency', 1)
+            with Tools.ContextTimer() as backup_timer, Tools.MultithreadedCopier(backup_concurrency) as copier:
+                shutil.copytree(backup_src, tmp_backup, symlinks=True, copy_function=copier.copy)
             status_log.print(f' done in {backup_timer.elapsed:.1f} s.', tee=True)
             if path.isdir(backup_dir):
                 shutil.rmtree(backup_dir)
             shutil.move(tmp_backup, backup_dir)
+
+            if param.get('DeleteICsAfterFirstBackup', 0) and write_state.FullStepNumber == param['BackupStepInterval']:
+                try:
+                    shutil.rmtree(pjoin(param['InitialConditionsDirectory']))
+                except FileNotFoundError:
+                    pass
 
         if not parallel:
             # Make a power spectrum
