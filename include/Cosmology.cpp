@@ -19,7 +19,7 @@ Cosmology::Cosmology(double a_initial, MyCosmology& _C) {
     return;
 }
 
-void Cosmology::CopyEpoch(Epoch& dest, Epoch& source) {
+void Cosmology::CopyEpoch(Epoch& dest, const Epoch& source) {
     /// standard "copy(dest, source)"
     Epoch tmp = source; // need to make tmp copy to allow source<-source copies
     dest = tmp;
@@ -69,7 +69,7 @@ void Cosmology::InitializeEarly(double a_early) {
     return;
 }
 
-void Cosmology::BuildEpoch(Epoch& start, Epoch& end, double a) {
+void Cosmology::BuildEpoch(const Epoch& start, Epoch& end, double a) {
     /// This will construct epoch 'end' at scale factor 'a', starting
     /// the integration from 'start'.  The epoch 'start' is not altered
     /// by this routine.  It is legal to use end==start, in which case

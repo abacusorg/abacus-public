@@ -42,7 +42,7 @@ public:
     Cosmology(double a_initial, MyCosmology& cos);
     void InitializeEarly(double a_early);
     //void SetupTimeStep(double next_a);
-    void BuildEpoch(Epoch& start, Epoch& end, double a);  
+    void BuildEpoch(const Epoch& start, Epoch& end, double a);  
     double DriftFactor(double a, double da);
     double KickFactor(double a, double da);
     double a2t(double a);
@@ -64,7 +64,7 @@ private:
     void Pack(Epoch& epoch, double *lna, double *vars);
     void Unpack(Epoch& epoch, double lna, double *vars);
     void Deriv(double lna, double *vars, double *dvars);
-    void CopyEpoch(Epoch& dest, Epoch& source);
+    void CopyEpoch(Epoch& dest, const Epoch& source);
 };
 
 #endif
