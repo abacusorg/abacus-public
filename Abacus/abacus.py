@@ -68,9 +68,6 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     copies parameter files, and parses parameter files as appropriate, then
     invokes `singlestep()`.
 
-    Files in the `config_dir` directory will be carried around in the `info`
-    directory alongside time slices, data products, etc.
-
     Parameters
     ----------
     parfn: str, optional
@@ -185,18 +182,12 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     shutil.copy(output_parfile, pjoin(basedir, 'abacus.par'))
     output_parfile = pjoin(basedir, 'abacus.par')
 
-    info_out_path = pjoin(basedir, 'info')
-    copy_contents(config_dir, info_out_path, clean=True)
-
     # Copy over all of the input files to the output folder for reference
     os.makedirs(outdir, exist_ok=True)
     try:
         shutil.copy(output_parfile, outdir)
     except shutil.Error:
         pass  # same file?
-
-    info_out_path = pjoin(outdir, 'info')
-    copy_contents(config_dir, info_out_path, clean=True)
 
     # Note: we are cd-ing into the global working directory if this is a parallel run
     with Tools.chdir(basedir):
@@ -707,7 +698,7 @@ class StatusLogWriter:
             except:
                 conv_time = 0.
         ss_rate = param['NP']/1e6/(ss_time+conv_time)  # Mpart/s
-	
+
         code_to_kms = write_state.VelZSpace_to_kms / write_state.VelZSpace_to_Canonical
         info = dict(Step=step_num, Rate=ss_rate, Elapsed=ss_time+conv_time, Conv=conv_time,
             Redshift=read_state.Redshift, DeltaZ=write_state.DeltaRedshift,
@@ -726,7 +717,6 @@ class StatusLogWriter:
         '''
         Print a plain statement to the status log
         '''
-        #self.log_fp.write(('\n' + fmtstring.format(*args, **kwargs) + end).encode('utf-8'))
         out = fmtstring.format(*args, **kwargs) + end
         if tee:
             print(out, end='', flush=True)
