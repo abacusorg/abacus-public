@@ -58,8 +58,10 @@ enum SlabType { CellInfoSlab,           //0
                 // SB->NumTypes is the total number of types
                 LightCone0RV,
                 LightCone0PID,
-                LightCone0Heal
+                LightCone0HealSparse,
                 };
+
+const int NumLCTypes = 3;
 
 enum SlabIntent { READSLAB,
                   WRITESLAB,
@@ -101,7 +103,7 @@ public:
     fs::path ReadSlabPath(int type, int slab);
 
     SlabBuffer(int _cpd, int _order, int num_lc) {
-        NumTypes = LightCone0RV + 3*num_lc;
+        NumTypes = LightCone0RV + NumLCTypes*num_lc;
 
         order = _order;
         cpd = _cpd;
@@ -354,10 +356,23 @@ fs::path SlabBuffer::WriteSlabPath(int type, int slab) {
     std::string zstr = fmt::format("{:5.3f}", ReadState.Redshift);
 
     if (type >= LightCone0RV && type < NumTypes) {
-        int lcn = (type - LightCone0RV) / 3;
-        int lct = (type - LightCone0RV) % 3;
-        std::string lct_name = (lct == 0) ? "rv" : (lct == 1) ? "pid" : "heal";
-        return P.LCDirectory / ("Step" + stepstr) / fmt::format("LightCone{:d}_{:s}{:s}", lcn, lct_name, NodeString);
+        int lcid = (type - LightCone0RV) / NumLCTypes;
+        int lct = (type - LightCone0RV) % NumLCTypes;
+        std::string lct_name;
+        switch (lct) {
+            case 0:
+            lct_name = "rv";
+            break;
+            case 1:
+            lct_name = "pid";
+            break;
+            case 2:
+            lct_name = "healsparse";
+            break;
+            default:
+            QUIT("Unexpected lct value {:d}\n", lct);
+        }
+        return P.LCDirectory / ("Step" + stepstr) / fmt::format("LightCone{:d}_{:s}{:s}", lcid, lct_name, NodeString);
     }
 
     switch(type) {
