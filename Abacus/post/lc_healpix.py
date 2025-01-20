@@ -26,6 +26,10 @@ from Abacus.InputFile import InputFile
 # The bit that indicates a halo pixel
 HALO_MASK = np.uint32(0x80000000)
 
+print_ = print
+def print(*args, **kwargs):
+    kwargs['flush'] = True
+    return print_(*args, **kwargs)
 
 def get_healstruct_dtype(HealpixWeightScheme):
     if HealpixWeightScheme == 'vel':
@@ -64,19 +68,64 @@ def get_step_range(headers) -> (int, int):
     return min(steps), max(steps)
 
 
+@numba.njit(parallel=False, fastmath=True)
+def _compress_helper(structs):
+    nstruct = len(structs)
+    j = 0
+    for i in range(1, nstruct):
+        if structs[i]['id'] == structs[j]['id']:
+            structs[j]['N'] += structs[i]['N']
+            structs[j]['weights'] += structs[i]['weights']
+        else:
+            j += 1
+            structs[j] = structs[i]
+
+    return j + 1
+
+
+def compress_healstructs(structs):
+    # Sort by healid, co-add identical pixels towards the front.
+    structs = structs.take(np.argsort(structs['id']))
+    newsize = _compress_helper(structs)
+    return structs[:newsize]
+
+
 def read_structs(files: list[Path], healstruct_dtype):
     nstruct = sum(f.stat().st_size for f in files) // healstruct_dtype.itemsize
 
     structs = np.empty(nstruct, dtype=healstruct_dtype)
 
+    tio = 0
+    tcompress = 0
+
+
     i = 0
+    # TODO: we could parallelize this, similar to pcopy
+    # TODO: if the memory due to IO is the bottleneck, we could read in chunks
+    # and compress as we go
     for fn in files:
         cksum_reader = CksumReader(fn.parent / 'checksums.crc32')
+
+        tio -= timer()
         new = np.frombuffer(cksum_reader(fn), dtype=healstruct_dtype)
+        tio += timer()
+
+        tcompress -= timer()
+        new = compress_healstructs(new)
+        tcompress += timer()
+
         structs[i : i + len(new)] = new
         i += len(new)
         del new
-    assert i == nstruct
+    assert i <= nstruct
+
+    structs = structs[:i]
+
+    # Could do a final compress here, which would also allow us to
+    # parallelize make_map
+
+    print(f'IO took {tio:.4g} sec, {nstruct * healstruct_dtype.itemsize / tio / 1e6:.4g} MB/sec')
+    print(f'Compression took {tcompress:.4g} sec, {nstruct / tcompress / 1e6:.4g} Mstruct/sec')
 
     return structs
 
@@ -169,6 +218,76 @@ def searchsorted_bit(a, mask):
     return lo
 
 
+def process_structs(
+    structs,
+    headers,
+    bit_trunc,
+    dtype,
+    files,
+    totalhalo,
+    outdir,
+    which_th,
+    lc_prefix,
+    step_range,
+    nthread,
+    healpix_weight_scheme,
+):
+    t = -timer()
+    # wouldn't be hard to downgrade nside here if the user wanted
+    nside = headers[0]['LCHealpixNside']
+
+    # Currently, Abacus always outputs the halo bit
+    discard_halo_bit = True
+
+    density, wmaps = make_map(
+        structs,
+        nside,
+        maskbits=bit_trunc,
+        discard_halo_bit=discard_halo_bit,
+    )
+
+    # numba doesn't support np.float16, so do it here
+    # density = density.astype(dtype, copy=False)
+    wmaps = [w.astype(dtype, copy=False) for w in wmaps]
+
+    for m in [density] + wmaps:
+        assert np.all(np.isfinite(m))
+
+    t += timer()
+    print(f'Map took {t:.4g} sec, {len(structs) / t / 1e6:.4g} Mstruct/sec')
+
+    print(density)
+
+    meta = {
+        'headers': headers,
+        'input_files': [str(f) for f in files],
+        'bit_trunc': bit_trunc,
+        'healpix_order': 'nest',
+    }
+
+    if len(totalhalo) > 1:
+        this_outdir = outdir / which_th
+        this_lc_prefix = f'{lc_prefix}_{which_th}'
+    else:
+        this_outdir = outdir
+        this_lc_prefix = lc_prefix
+
+    maps = {'density': density, 'momentum-los': wmaps[0]}
+    if healpix_weight_scheme == 'vel3':
+        maps |= {'momentum-theta': wmaps[1], 'momentum-phi': wmaps[2]}
+
+    for quantity, mp in maps.items():
+        write_to_asdf(
+            mp,
+            this_lc_prefix,
+            quantity,
+            step_range,
+            this_outdir,
+            meta,
+            nthread=nthread,
+        )
+
+
 @click.command
 @click.argument('files', nargs=-1)
 @click.option('-o', 'outdir', required=True, help='Output directory', metavar='DIR')
@@ -217,18 +336,13 @@ def main(
     healpix_weight_scheme = headers[0]['HealpixWeightScheme']
     healstruct_dtype = get_healstruct_dtype(healpix_weight_scheme)
 
-    t = -timer()
     structs = read_structs(files, healstruct_dtype)
     N_struct = len(structs)
-    t += timer()
-
-    print(f'Read took {t:.4g} sec, {structs.nbytes / t / 1e6:.4g} MB/sec')
 
     step_range = get_step_range(headers)
 
     t = -timer()
-    iord = np.argsort(structs['id'])
-    structs = structs.take(iord)
+    structs = structs.take(np.argsort(structs['id']))
     t += timer()
     print(f'Sort took {t:.4g} sec, {N_struct / t / 1e6:.4g} Mstruct/sec')
 
@@ -241,66 +355,30 @@ def main(
         totalhalo += ['halo']
 
     for which_th in totalhalo:
-        t = -timer()
-        # wouldn't be hard to downgrade nside here if the user wanted
-        nside = headers[0]['LCHealpixNside']
-
         if which_th == 'total':
             start = 0
         else:
             start = searchsorted_bit(structs['id'], HALO_MASK)
-            print(f'Found {N_struct - start} halo pixels, {(N_struct - start) / N_struct * 100:.4f}%')
-
-        # Currently, Abacus always outputs the halo bit
-        discard_halo_bit = True
-
-        density, wmaps = make_map(
-            structs[start:],
-            nside,
-            maskbits=bit_trunc,
-            discard_halo_bit=discard_halo_bit,
-        )
-
-        # numba doesn't support np.float16, so do it here
-        # density = density.astype(dtype, copy=False)
-        wmaps = [w.astype(dtype, copy=False) for w in wmaps]
-
-        for m in [density] + wmaps:
-            assert np.all(np.isfinite(m))
-
-        t += timer()
-        print(f'Map took {t:.4g} sec, {N_struct / t / 1e6:.4g} Mstruct/sec')
-
-        print(density)
-
-        meta = {
-            'headers': headers,
-            'input_files': [str(f) for f in files],
-            'bit_trunc': bit_trunc,
-            'healpix_order': 'nest',
-        }
-
-        if len(totalhalo) > 1:
-            this_outdir = outdir / which_th
-            this_lc_prefix = f'{lc_prefix}_{which_th}'
-        else:
-            this_outdir = outdir
-            this_lc_prefix = lc_prefix
-
-        maps = {'density': density, 'momentum-los': wmaps[0]}
-        if healpix_weight_scheme == 'vel3':
-            maps |= {'momentum-theta': wmaps[1], 'momentum-phi': wmaps[2]}
-
-        for quantity, mp in maps.items():
-            write_to_asdf(
-                mp,
-                this_lc_prefix,
-                quantity,
-                step_range,
-                this_outdir,
-                meta,
-                nthread=nthread,
+            print(
+                f'Found {N_struct - start} halo pixels, {(N_struct - start) / N_struct * 100:.4f}%'
             )
+
+        # TODO: calling a function with so many args is unsatisfying, but the other solutions
+        # (object-oriented, dataclass config, dict config, etc) all have problems, too.
+        process_structs(
+            structs[start:],
+            headers,
+            bit_trunc,
+            dtype,
+            files,
+            totalhalo,
+            outdir,
+            which_th,
+            lc_prefix,
+            step_range,
+            nthread,
+            healpix_weight_scheme,
+        )
 
     if delete:
         for fn in files:
