@@ -1251,6 +1251,11 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
         print(f'Retrieving and storing final state took {restore_time:.1f} seconds. ', end = '')
         status_log.print(f'# Retrieving and storing final state took {restore_time:.1f} seconds.')
 
+    if finished and not parallel and not param.get('SaveFinalState',False):
+        backup_dir = pjoin(param['BackupDirectory'], 'backup')
+        if path.isdir(backup_dir):
+            shutil.rmtree(backup_dir)
+
     # If there is more work to be done, signal that we are ready for requeue
     if not finished and not ProfilingMode:
         ending_time = time.time()
