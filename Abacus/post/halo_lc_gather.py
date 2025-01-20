@@ -80,6 +80,14 @@ def main(halo_lc_path, sim_path):
         tread += timer()
         print(f'Read LC catalog in {tread:.4g}s')
 
+        # The halo light cone code seems to be outputting cleaned halos, as well as marking
+        # some halos ineligible for the light cone by setting their mass to zero. We'd probably
+        # rather make these decisions this upstream, but for now we'll just remove
+        # the halos here.
+        len_before = len(lc_cat)
+        lc_cat = lc_cat[lc_cat['InterpolatedN'] > 0]
+        print(f'Removed {len_before - len(lc_cat)} halos with zero mass')
+
         # Sort on HaloIndex
         tsort = -timer()
         lc_cat.sort('HaloIndex')
@@ -101,15 +109,9 @@ def main(halo_lc_path, sim_path):
         # CHC will take care of selecting the particles corresponding to the loaded halos,
         # including cleaning
         with asdf.open(halo_info_fns[ss], lazy_load=True) as af:
-            halo_N = np.asarray(af['data']['N'])
-        mask = np.zeros(len(halo_N), dtype=np.bool)
+            N_halo = len(af['data']['N'])
+        mask = np.zeros(N_halo, dtype=np.bool)
         mask[indices] = True
-
-        # The halo light cone code seems to be outputting cleaned halos, as well as marking
-        # some halos ineligible for the light cone by setting their mass to zero. We'd really
-        # rather address this upstream, but for now we'll just remove the halos here.
-        mask[halo_N == 0] = False
-        del halo_N
 
         snapshot_cat = CompaSOHaloCatalog(
             halo_info_fns[ss],
