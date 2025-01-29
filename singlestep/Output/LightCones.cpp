@@ -585,11 +585,12 @@ void fill_lightcone_slabaccums(
                                     // but that hasn't happened yet.
 
                                     // Need to unkick by half
+                                    // We're going to modify pos and vel, so make sure they're copies
                                     velstruct vel = c.vel[p] - static_cast<FLOAT3>(acc[p])*WriteState.FirstHalfEtaKick;
-                                    double3 pos = c.pos[p];  // Need a copy, since it will be changed
-                                    if (LC.isParticleInLightCone(cc, pos, vel, acc[p], box_repeat_offset)) { 
-
+                                    double3 pos = c.pos[p];
+                                    if (LC.isParticleInLightCone(cc, pos, vel, acc[p], box_repeat_offset)) {
                                         // Yes, it's in the light cone.  pos and vel were updated, and the pos made global.
+                                        vel *= vunits;
                                         
                                         if (P.LCHealpixOutputSparseMap){
                                             // All particles are part of the healpix map
@@ -607,7 +608,7 @@ void fill_lightcone_slabaccums(
                                             pLightConePIDs->append(TaggedPID(c.aux[p]));
                                             pLightConeRV->append(RVfloat(
                                                 pos.x * rvfloat_scale, pos.y * rvfloat_scale, pos.z * rvfloat_scale,
-                                                vel.x * vunits, vel.y * vunits, vel.z * vunits
+                                                vel.x, vel.y, vel.z
                                                 ));
                                             nrvpid++;
                                         }
