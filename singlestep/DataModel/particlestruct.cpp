@@ -409,8 +409,8 @@ public:
     auxstruct *aux;
     accstruct *acc = NULL;
 
-    inline int count() { return ci->count; }
-    inline int active() { return ci->active; }
+    inline int count() const { return ci->count; }
+    inline int active() const { return ci->active; }
 
     inline void swap(int a, int b) {
         // Swap two particles in the list
