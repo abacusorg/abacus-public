@@ -70,9 +70,9 @@ Be sure to replace `gnu_12.3_cxx11_64_relwithdebinfo` with your platform directo
 tcmalloc is bunded in `external/gperftools`. One can use an external installation or module, or the bundled version. The bundled version can be built with:
 ```console
 $ cd external/gperftools
-$ cmake -B build -G Ninja --install-prefix=install -Dgperftools_build_minimal=TRUE -Dgperftools_tcmalloc_pagesize=256
-$ cmake --build build
-$ cmake --install build
+$ ./autogen.sh
+$ ./configure --prefix=$(pwd)/install --enable-minimal --with-tcmalloc-pagesize=256
+$ make && make install
 ```
 
 The following environment variables should be set:
