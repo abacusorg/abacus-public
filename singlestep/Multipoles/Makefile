@@ -3,14 +3,14 @@ include $(ROOT_DIR)/common.mk
 
 all: Cartesian2Reduced.a $(MULTIPOLES_OBJ)
 
-ETAVX.o: generateCartesianTaylorAVX.c
-	$(CC) $(CPPFLAGS) $(CFLAGS) -O0 -o genTaylorAVX generateCartesianTaylorAVX.c
+ETAVX.o: generateCartesianTaylorAVX.cpp
+	$(CXX) $(CPPFLAGS) $(CFLAGS) -O0 -o genTaylorAVX generateCartesianTaylorAVX.cpp
 	./genTaylorAVX
 	$(RM) ./genTaylorAVX
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c ETAVX.c
 
-CMAVX.o: generateCartesianMultipolesAVX.c
-	$(CC) $(CPPFLAGS) $(CFLAGS) -O0 -o genMultipoleAVX generateCartesianMultipolesAVX.c
+CMAVX.o: generateCartesianMultipolesAVX.cpp
+	$(CXX) $(CPPFLAGS) $(CFLAGS) -O0 -o genMultipoleAVX generateCartesianMultipolesAVX.cpp
 	./genMultipoleAVX
 	$(RM) genMultipoleAVX
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c CMAVX.c
