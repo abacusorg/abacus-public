@@ -98,7 +98,6 @@ def read_structs(files: list[Path], healstruct_dtype):
     tio = 0
     tcompress = 0
 
-
     i = 0
     # TODO: we could parallelize this, similar to pcopy
     # TODO: if the memory due to IO is the bottleneck, we could read in chunks
@@ -133,7 +132,7 @@ def read_structs(files: list[Path], healstruct_dtype):
 @numba.njit(parallel=False, fastmath=True)
 def make_map(structs, Nside, maskbits, discard_halo_bit):
     npix = 12 * Nside**2
-    density = np.zeros(npix, dtype=np.uint32)
+    counts = np.zeros(npix, dtype=np.uint32)
     n_weights = structs['weights'].shape[-1]
 
     # use float64 to try to avoid underflow in accumulations
@@ -145,17 +144,22 @@ def make_map(structs, Nside, maskbits, discard_halo_bit):
         healid = structs[i]['id']
         if discard_halo_bit:
             healid &= ~HALO_MASK
-        density[healid] += structs[i]['N']
+        counts[healid] += structs[i]['N']
 
         for j in range(n_weights):
             wmaps[j][healid] += structs[i]['weights'][j]
 
-    # TODO: density in float or int? ints compress better
-    # density = density.astype(np.float32)
+    for w in wmaps:
+        for i in range(npix):
+            if counts[i] > 0:
+                w[i] /= counts[i]
+
+    # TODO: counts in float or int? ints compress better
+    # counts = counts.astype(np.float32)
     wmaps = [w.astype(np.float32) for w in wmaps]
 
     if maskbits:
-        # healview = density.view(np.uint32)
+        # healview = counts.view(np.uint32)
         mask = np.uint32(~np.uint32((1 << maskbits) - 1))
         # np.bitwise_and(healview, mask, healview)
 
@@ -163,7 +167,7 @@ def make_map(structs, Nside, maskbits, discard_halo_bit):
             wview = w.view(np.uint32)
             np.bitwise_and(wview, mask, wview)
 
-    return density, wmaps
+    return counts, wmaps
 
 
 def write_to_asdf(healpix, lc_prefix, quantity, step_range, outdir, meta, nthread=4):
@@ -239,7 +243,7 @@ def process_structs(
     # Currently, Abacus always outputs the halo bit
     discard_halo_bit = True
 
-    density, wmaps = make_map(
+    counts, wmaps = make_map(
         structs,
         nside,
         maskbits=bit_trunc,
@@ -247,16 +251,16 @@ def process_structs(
     )
 
     # numba doesn't support np.float16, so do it here
-    # density = density.astype(dtype, copy=False)
+    # counts = counts.astype(dtype, copy=False)
     wmaps = [w.astype(dtype, copy=False) for w in wmaps]
 
-    for m in [density] + wmaps:
+    for m in [counts] + wmaps:
         assert np.all(np.isfinite(m))
 
     t += timer()
     print(f'Map took {t:.4g} sec, {len(structs) / t / 1e6:.4g} Mstruct/sec')
 
-    print(density)
+    print(counts)
 
     meta = {
         'headers': headers,
@@ -272,7 +276,7 @@ def process_structs(
         this_outdir = outdir
         this_lc_prefix = lc_prefix
 
-    maps = {'density': density, 'momentum-los': wmaps[0]}
+    maps = {'counts': counts, 'momentum-los': wmaps[0]}
     if healpix_weight_scheme == 'vel3':
         maps |= {'momentum-theta': wmaps[1], 'momentum-phi': wmaps[2]}
 
