@@ -27,6 +27,7 @@ def emit_AVX512_Multipoles(orders, fn='CMAVX512.cpp'):
     w = Writer(fn)
 
     w("""
+        #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
         #include "config.h"
         #ifdef AVX512MULTIPOLES
 
@@ -174,6 +175,7 @@ def emit_AVX512_Multipoles_FMA(
     w = Writer(fn)
 
     w("""
+        #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
         #include "config.h"
         #ifdef AVX512MULTIPOLES
 
@@ -342,6 +344,7 @@ def emit_AVX512_Taylors(orders, fn='ETAVX512.cpp'):
     w = Writer(fn)
 
     w("""
+        #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
         #include "config.h"
         
         #ifdef AVX512MULTIPOLES

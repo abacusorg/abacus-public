@@ -22,7 +22,10 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wparentheses"
 #include "ips4o.hpp"
+#pragma GCC diagnostic pop
 
 #include "mpi_header.cpp"
 #include "header.cpp"
