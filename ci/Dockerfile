@@ -105,7 +105,7 @@ RUN . /opt/spack-environment/activate.sh && \
         abacusutils
 
 # Bare OS image to run the installed executables
-FROM docker.io/rockylinux:9
+FROM docker.io/rockylinux:8
 
 COPY --from=builder /opt/spack-environment /opt/spack-environment
 COPY --from=builder /opt/software /opt/software
