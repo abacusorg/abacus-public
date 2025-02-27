@@ -1,7 +1,6 @@
 # Build stage with Spack pre-installed and ready to be used
-# TODO: try 0.23 when available (with bison fix)
 
-FROM spack/rockylinux9@sha256:c11fa50081b0bf74a40a0b410256976ebee91972075a930ee74863d9ad56dda2 as builder
+FROM spack/rockylinux8:0.23.1 as builder
 
 # What we want to install and how we want to install it
 # is specified in a manifest file (spack.yaml)

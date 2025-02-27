@@ -5,11 +5,26 @@ spack:
   - gsl
   - flex
   - bison
-  - python@3.11
+  - python
   - py-pip
   - gperftools
   - intel-oneapi-tbb
   - meson
+  - git
+  - gmake
+  - numactl
+  - py-numpy
+  - py-numexpr
+  - py-numba ^llvm~clang
+  - py-scipy
+  - py-matplotlib
+  - py-contexttimer
+  - py-cffi
+  - py-scikit-learn
+  - py-asdf
+  - py-click
+  - py-tqdm
+  - py-pybind11
   
   concretizer:
     unify: true
@@ -17,7 +32,7 @@ spack:
   container:
     images:
       os: rockylinux:8
-      spack: '0.22'
+      spack: '0.23'
 
     strip: false
 
@@ -36,8 +51,12 @@ spack:
         - PATH
       ./lib:
         - LD_LIBRARY_PATH
+        - LIBRARY_PATH
       ./lib64:
         - LD_LIBRARY_PATH
+        - LIBRARY_PATH
+      ./include:
+        - CPATH
       ./man:
         - MANPATH
       ./share/man:
