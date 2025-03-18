@@ -50,6 +50,7 @@ $ ./zeldovich.py --help
 import os
 import os.path as path
 from os.path import join as pjoin
+from pathlib import Path
 import shutil
 import argparse
 import shlex
@@ -162,6 +163,25 @@ def ensure_2d(param, nthread=2):
 
     transpose_ic.transpose(icdir, param['NP'], param['ICFormat'],
         nthread=nthread)
+
+def have_ics(param: dict):
+    '''Check that all IC files [0,cpd) exist, and no extras.
+    '''
+
+    icdir = Path(param['InitialConditionsDirectory'])
+    if not icdir.is_dir():
+        return False
+
+    cpd = param['CPD']
+    for i in range(cpd)[::-1]:
+        fn = icdir / f'ic_{i:d}'
+        if not fn.is_file():
+            return False
+
+    if (icdir / f'ic_{cpd:d}').is_file():
+        return False
+
+    return True
 
 
 def run(paramfn, allow_eigmodes_fn_override=False, no_parallel=True, white=False):
