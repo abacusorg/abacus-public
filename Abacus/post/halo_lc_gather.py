@@ -31,6 +31,9 @@ unique is 0.58x of total snapshot
   + ??? A rv
 """
 
+import gc
+import shutil
+from builtins import print as builtin_print
 from pathlib import Path
 from timeit import default_timer as timer
 
@@ -53,10 +56,20 @@ COMPRESSION_KWARGS = dict(
 DIR_ARG = click.Path(exists=True, file_okay=False, dir_okay=True, path_type=Path)
 
 
+def print(*args, **kwargs):
+    flush = kwargs.pop('flush', True)
+    return builtin_print(*args, **kwargs, flush=flush)
+
+
 @click.command
 @click.argument('halo_lc_path', type=DIR_ARG)
 @click.argument('sim_path', type=DIR_ARG)
-def main(halo_lc_path, sim_path):
+@click.option(
+    '--delete', '-d',
+    is_flag=True,
+    help='Delete the original halo light cone catalog after gathering',
+)
+def main(halo_lc_path, sim_path, delete=False):
     # halo_lc_path is the input
     # sim_path is the input for the time slice catalog, and the output for the gathered catalog
 
@@ -112,6 +125,7 @@ def main(halo_lc_path, sim_path):
             N_halo = len(af['data']['N'])
         mask = np.zeros(N_halo, dtype=np.bool)
         mask[indices] = True
+        del indices
 
         snapshot_cat = CompaSOHaloCatalog(
             halo_info_fns[ss],
@@ -154,9 +168,11 @@ def main(halo_lc_path, sim_path):
         outfn.parent.mkdir(parents=True, exist_ok=True)
 
         tree = {
-            'halo_lightcone': {k: np.asarray(v) for (k, v) in lc_cat.items()},
+            'halo_lightcone': {
+                k: np.asarray(v, copy=False) for (k, v) in lc_cat.items()
+            },
             'halo_timeslice': {
-                k: np.asarray(v) for (k, v) in snapshot_cat.halos.items()
+                k: np.asarray(v, copy=False) for (k, v) in snapshot_cat.halos.items()
             },
             'header': dict(snapshot_cat.header),
             # LC cat header is actually the WriteState
@@ -169,9 +185,14 @@ def main(halo_lc_path, sim_path):
                 all_array_compression='blsc',
                 compression_kwargs=COMPRESSION_KWARGS,
             )
+        del lc_cat, tree, snapshot_cat.halos, af
+        gc.collect()
 
         particle_tree = {
-            'data': {k: np.asarray(v) for (k, v) in snapshot_cat.subsamples.items()},
+            'data': {
+                k: np.asarray(v, copy=False)
+                for (k, v) in snapshot_cat.subsamples.items()
+            },
             'header': dict(snapshot_cat.header),
         }
 
@@ -182,10 +203,16 @@ def main(halo_lc_path, sim_path):
                 all_array_compression='blsc',
                 compression_kwargs=COMPRESSION_KWARGS,
             )
+        del snapshot_cat, particle_tree, af
+        gc.collect()
 
         tsave += timer()
         print(f'Saved gathered catalog in {tsave:.4g}s')
         print(f'Wrote to {outfn}')
+
+    if delete:
+        shutil.rmtree(halo_lc_path)
+        print(f'Deleted {halo_lc_path}')
 
 
 def read_many(fns):
