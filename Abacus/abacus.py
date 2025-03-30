@@ -1020,6 +1020,7 @@ def singlestep(paramfn, maxsteps=None, make_ic=False, stopbefore=-1, resume_dir=
             backup_dir = pjoin(param['BackupDirectory'], 'backup')
             status_log.print(f'# Backing up state to {backup_dir}...', tee=True, end='')
             tmp_backup = pjoin(param['BackupDirectory'], 'backup_inprogress')
+            shutil.rmtree(tmp_backup, ignore_errors=True)
             backup_concurrency = param.get('BackupConcurrency', 1)
             with Tools.ContextTimer() as backup_timer, Tools.MultithreadedCopier(backup_concurrency) as copier:
                 shutil.copytree(backup_src, tmp_backup, symlinks=True, copy_function=copier.copy)
