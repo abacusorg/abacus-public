@@ -326,7 +326,7 @@ void NearFieldDriver::ExecuteSlabGPU(int slabID, int blocking){
 
     // Zero the buffer in parallel. This seems to help the SICs get
     // constructed and launched smoothly. In theory this will get
-    // initialized when the SIC touches it, but that many not bring
+    // initialized when the SIC touches it, but that may not bring
     // as many threads to bear.
     #pragma omp parallel for schedule(static)
     for (uint64 i = 0; i < bsize; i++)
