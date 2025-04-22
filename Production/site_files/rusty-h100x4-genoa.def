@@ -1,0 +1,56 @@
+# 4 H100s, two 48 core Genoa, 1.5 TB RAM
+
+StateIOMode = "overwrite"
+Conv_IOMode = "overwrite"
+#IODirs = ["multipole/", "taylor/", "multipole2/", "taylor2/"]
+#IODirThreads = [2, 2, 3, 3]
+MemPerGPUBufferGB = 1.0
+# ConvolutionCacheSizeMB = 30  # This will be automatically detected
+AllowDirectIO = 0
+
+# OpenMP and thread parameters
+# OMP_NUM_THREADS = 47
+# OMP_PLACES = "{0}:23,{48}:24"
+# OMP_PROC_BIND = "spread"
+# GPUThreadCoreStart = [23, 35, 72, 84]
+# NGPUThreadCores = 12
+# DirectBPD = 12
+
+OMP_NUM_THREADS = 71
+OMP_PLACES = "{0}:35,{48}:36"
+OMP_PROC_BIND = "spread"
+GPUThreadCoreStart = [35, 41, 84, 90]
+NGPUThreadCores = 6
+DirectBPD = 6
+
+# OMP_NUM_THREADS = 83
+# OMP_PLACES = "{0}:41,{48}:42"
+# OMP_PROC_BIND = "spread"
+# GPUThreadCoreStart = [41, 44, 90, 93]
+# NGPUThreadCores = 3
+# DirectBPD = 3
+
+GPUQueueAssignments = [0, 0, 0, 0]
+MunmapThreadCore = 47
+IOCores = [47]
+
+# Convolution OpenMP parameters
+Conv_OMP_NUM_THREADS = 0
+Conv_OMP_PLACES = "cores"
+Conv_OMP_PROC_BIND = "close"
+Conv_IOCores = [0]
+
+# WorkingDirectory = "$HOME$/ceph/" + @_SimSet@ + "/" + @SimName@  # global
+# LocalWorkingDirectory = "$ABACUS_SSD$/" + @SimName@  # node-local
+WorkingDirectory = "$ABACUS_SSD$/" + @SimName@  # node-local
+
+DerivativesSourceDirectory = "$ABACUS_PERSIST$/Derivatives"
+DerivativesDirectory = "$ABACUS_SSD$/Derivatives"
+InitialConditionsDirectory = "/mnt/gpuxl/scc/$USER$/" + @SimName@ + "/ic"
+BackupDirectory = "/mnt/gpuxl/scc/$USER$/" + @SimName@
+
+# Parallel options
+#mpirun_cmd = "mpirun --bind-to none"
+mpirun_cmd = "srun --mpi=pmix"
+Parallel = 0
+NumZRanks = 1
