@@ -32,7 +32,7 @@ outtmp=/dev/shm/$USER/halo_lc_out/
 worktmp=/dev/shm/$USER/halo_lc_tmp/
 
 srun -n 1 --cpu-bind=none \
-    python -u $HOME/abacus_cookiecutter/build_mt.py $simpath \
+    python -u $ABACUS_COOKIECUTTER/build_mt.py $simpath \
     --output-parent=$outtmp \
     --tmpdir=$worktmp \
     --merger-dir=$simpath/merger &> $workdir/build_mt.log

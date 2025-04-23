@@ -24,7 +24,7 @@ if [ -z "$sim" ]; then
     exit 1
 fi
 
-$HOME/abacus_mergertree/create_associations_slabwise.py \
+$ABACUS_MERGERTREE/create_associations_slabwise.py \
     -inputdir $(dirname $sim) \
     -simname $(basename $sim) \
     -num_cores $SLURM_CPUS_PER_TASK \

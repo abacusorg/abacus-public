@@ -25,7 +25,7 @@ if [ -z "$sim" ]; then
 fi
 
 for zdir in $sim/halos/z*; do
-    python $HOME/abacus_mergertree/postprocess_trees/extract_mergerhistory_slabwise_slim_mpi.py \
+    python $ABACUS_MERGERTREE/postprocess_trees/extract_mergerhistory_slabwise_slim_mpi.py \
         $(dirname $sim)/ \
         $(basename $sim) \
         $(basename ${zdir} | cut -c2-) \
@@ -39,7 +39,7 @@ done
 unset pids
 
 for zdir in $sim/halos/z*; do
-    python $HOME/abacus_mergertree/postprocess_trees/build_particle_lists.py \
+    python $ABACUS_MERGERTREE/postprocess_trees/build_particle_lists.py \
         $(basename $sim) \
         $(basename ${zdir} | cut -c2-) &
     pids+=($!)

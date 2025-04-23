@@ -24,7 +24,7 @@ mkdir -p $workdir
 cd $workdir
 
 # write the disBatch tasks
-echo "#DISBATCH PREFIX (python $HOME/abacus_mergertree/postprocess_trees/extract_mergerhistory_slabwise_slim_mpi.py $simdir/merger $simdir " > tasks
+echo "#DISBATCH PREFIX (python $ABACUS_MERGERTREE/postprocess_trees/extract_mergerhistory_slabwise_slim_mpi.py $simdir/merger $simdir " > tasks
 echo "#DISBATCH SUFFIX  $simdir/mergerhistory/ ) &> clean-\$DISBATCH_TASKID.log" >> tasks
 
 # sorted zdirs
@@ -37,7 +37,7 @@ done
 echo "#DISBATCH BARRIER CHECK" >> tasks
 
 # build up the next task list
-echo "#DISBATCH PREFIX (python $HOME/abacus_mergertree/postprocess_trees/build_particle_lists.py $simdir $simdir 0 " >> tasks
+echo "#DISBATCH PREFIX (python $ABACUS_MERGERTREE/postprocess_trees/build_particle_lists.py $simdir $simdir 0 " >> tasks
 echo "#DISBATCH SUFFIX ) &> particles-\$DISBATCH_TASKID.log" >> tasks
 
 for zdir in ${zdirs[@]}; do

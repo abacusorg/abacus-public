@@ -20,7 +20,7 @@ simdir=$HOME/ceph/AbacusBacklight/AbacusBacklight_base_c${cosm}_ph000
 logdir=$simdir/post_log/$SLURM_JOBID-merger
 mkdir -p $logdir
 
-srun python $HOME/abacus_mergertree/create_associations_slabwise.py \
+srun python $ABACUS_MERGERTREE/create_associations_slabwise.py \
     -inputdir $(dirname $simdir) \
     -simname $(basename $simdir) \
     -num_cores $SLURM_CPUS_PER_TASK \
