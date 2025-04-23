@@ -18,7 +18,7 @@ workers=1  # max(cpus-per-task / 4, n_superslab) is a good value
 set -eu
 
 cosm=$(printf "%04d" $SLURM_ARRAY_TASK_ID)
-sim=$HOME/ceph/AbacusBacklight/AbacusBacklight_base_c${cosm}_ph000
+sim=$HOME/ceph/AbacusBacklight/AbacusBacklight_base_c${cosm}_ph${cosm}
 
 groups=$sim/group/Step*
 workdir=$sim/post_log/$SLURM_JOBID-groups

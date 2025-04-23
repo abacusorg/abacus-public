@@ -20,7 +20,7 @@
 set -eu
 
 cosm=$(printf "%04d" $SLURM_ARRAY_TASK_ID)
-sim=AbacusBacklight_base_c${cosm}_ph000
+sim=AbacusBacklight_base_c${cosm}_ph${cosm}
 
 # TODO: checkpoint more often if using the preempt queue, less often if not
 

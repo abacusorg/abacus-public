@@ -16,7 +16,7 @@
 set -eu
 
 cosm=$(printf "%04d" $SLURM_ARRAY_TASK_ID)
-simdir=$HOME/ceph/AbacusBacklight/AbacusBacklight_base_c${cosm}_ph000
+simdir=$HOME/ceph/AbacusBacklight/AbacusBacklight_base_c${cosm}_ph${cosm}
 
 workdir=$simdir/post_log/$SLURM_JOBID-cleaning
 mkdir -p $workdir

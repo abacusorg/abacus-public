@@ -19,7 +19,7 @@
 set -eu
 
 cosm=$(printf "%04d" $SLURM_ARRAY_TASK_ID)
-simname=AbacusBacklight_base_c${cosm}_ph000
+simname=AbacusBacklight_base_c${cosm}_ph${cosm}
 simpath=$HOME/ceph/AbacusBacklight/$simname
 
 workdir=$simpath/post_log/$SLURM_JOBID-halo-lc

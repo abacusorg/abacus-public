@@ -14,7 +14,7 @@
 set -eu
 
 cosm=$(printf "%04d" $SLURM_ARRAY_TASK_ID)
-sim=$HOME/ceph/AbacusBacklight/AbacusBacklight_base_c${cosm}_ph000
+sim=$HOME/ceph/AbacusBacklight/AbacusBacklight_base_c${cosm}_ph${cosm}
 
 cd $sim
 
