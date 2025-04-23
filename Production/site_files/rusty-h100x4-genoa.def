@@ -46,8 +46,8 @@ WorkingDirectory = "$ABACUS_SSD$/" + @SimName@  # node-local
 
 DerivativesSourceDirectory = "$ABACUS_PERSIST$/Derivatives"
 DerivativesDirectory = "$ABACUS_SSD$/Derivatives"
-InitialConditionsDirectory = "/mnt/gpuxl/scc/$USER$/" + @SimName@ + "/ic"
-BackupDirectory = "/mnt/gpuxl/scc/$USER$/" + @SimName@
+InitialConditionsDirectory = "$GPUXL$/" + @SimName@ + "/ic"
+BackupDirectory = "$GPUXL$/" + @SimName@
 
 # Parallel options
 #mpirun_cmd = "mpirun --bind-to none"
