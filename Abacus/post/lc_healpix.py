@@ -27,9 +27,12 @@ from Abacus.InputFile import InputFile
 HALO_MASK = np.uint32(0x80000000)
 
 print_ = print
+
+
 def print(*args, **kwargs):
     kwargs['flush'] = True
     return print_(*args, **kwargs)
+
 
 def get_healstruct_dtype(HealpixWeightScheme):
     if HealpixWeightScheme == 'vel':
@@ -123,8 +126,12 @@ def read_structs(files: list[Path], healstruct_dtype):
     # Could do a final compress here, which would also allow us to
     # parallelize make_map
 
-    print(f'IO took {tio:.4g} sec, {nstruct * healstruct_dtype.itemsize / tio / 1e6:.4g} MB/sec')
-    print(f'Compression took {tcompress:.4g} sec, {nstruct / tcompress / 1e6:.4g} Mstruct/sec')
+    print(
+        f'IO took {tio:.4g} sec, {nstruct * healstruct_dtype.itemsize / tio / 1e6:.4g} MB/sec'
+    )
+    print(
+        f'Compression took {tcompress:.4g} sec, {nstruct / tcompress / 1e6:.4g} Mstruct/sec'
+    )
 
     return structs
 
@@ -154,8 +161,9 @@ def make_map(structs, Nside, maskbits, discard_halo_bit):
             if counts[i] > 0:
                 w[i] /= counts[i]
 
-    # TODO: counts in float or int? ints compress better
-    # counts = counts.astype(np.float32)
+    # Compute the mean in float64 before truncating to float32
+    # N.B. counts stay uint32
+    means = [counts.sum(dtype=np.uint64) / len(counts)] + [w.mean() for w in wmaps]
     wmaps = [w.astype(np.float32) for w in wmaps]
 
     if maskbits:
@@ -167,7 +175,7 @@ def make_map(structs, Nside, maskbits, discard_halo_bit):
             wview = w.view(np.uint32)
             np.bitwise_and(wview, mask, wview)
 
-    return counts, wmaps
+    return counts, wmaps, means
 
 
 def write_to_asdf(healpix, lc_prefix, quantity, step_range, outdir, meta, nthread=4):
@@ -177,7 +185,7 @@ def write_to_asdf(healpix, lc_prefix, quantity, step_range, outdir, meta, nthrea
         steptag = 'Step{:04d}-{:04d}'.format(*step_range)
 
     outfn = outdir / f'heal-{quantity}' / f'{lc_prefix}_heal-{quantity}_{steptag}.asdf'
-    meta = meta | {'LCHealpixMapQuantity': quantity}
+    meta['header_post'] |= {'healpix_map_quantity': quantity}
     tree = meta | {
         'data': {f'heal-{quantity}': healpix},
     }
@@ -243,7 +251,7 @@ def process_structs(
     # Currently, Abacus always outputs the halo bit
     discard_halo_bit = True
 
-    counts, wmaps = make_map(
+    counts, wmaps, means = make_map(
         structs,
         nside,
         maskbits=bit_trunc,
@@ -254,20 +262,13 @@ def process_structs(
     # counts = counts.astype(dtype, copy=False)
     wmaps = [w.astype(dtype, copy=False) for w in wmaps]
 
-    for m in [counts] + wmaps:
+    for m in [counts] + wmaps + means:
         assert np.all(np.isfinite(m))
 
     t += timer()
     print(f'Map took {t:.4g} sec, {len(structs) / t / 1e6:.4g} Mstruct/sec')
 
     print(counts)
-
-    meta = {
-        'headers': headers,
-        'input_files': [str(f) for f in files],
-        'bit_trunc': bit_trunc,
-        'healpix_order': 'nest',
-    }
 
     if len(totalhalo) > 1:
         this_outdir = outdir / which_th
@@ -276,11 +277,19 @@ def process_structs(
         this_outdir = outdir
         this_lc_prefix = lc_prefix
 
-    maps = {'counts': counts, 'momentum-los': wmaps[0]}
-    if healpix_weight_scheme == 'vel3':
-        maps |= {'momentum-theta': wmaps[1], 'momentum-phi': wmaps[2]}
+    map_labels = ['counts', 'momentum-los', 'momentum-theta', 'momentum-phi']
 
-    for quantity, mp in maps.items():
+    for quantity, mp, mean in zip(map_labels, [counts] + wmaps, means):
+        meta = {
+            'headers': headers,
+            'header_post' : {
+                'input_files': [str(f) for f in files],
+                'bit_trunc': bit_trunc,
+                'healpix_order': 'nest',
+                'healpix_map_mean_fp64': mean,
+            },
+        }
+        
         write_to_asdf(
             mp,
             this_lc_prefix,
