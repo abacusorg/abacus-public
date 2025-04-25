@@ -65,7 +65,8 @@ def print(*args, **kwargs):
 @click.argument('halo_lc_path', type=DIR_ARG)
 @click.argument('sim_path', type=DIR_ARG)
 @click.option(
-    '--delete', '-d',
+    '--delete',
+    '-d',
     is_flag=True,
     help='Delete the original halo light cone catalog after gathering',
 )
@@ -90,6 +91,25 @@ def main(halo_lc_path, sim_path, delete=False):
         # Load all observers into one table
         tread = -timer()
         lc_cat = read_many(halo_lc_path.glob(f'Merger_lc*.{ss:02d}.asdf'))
+
+        # FUTURE: rename these upstream
+        lc_cat.rename_columns(
+            (
+                'InterpolatedPosition',
+                'InterpolatedVelocity',
+                'InterpolatedN',
+                'InterpolatedComovingDist',
+                'HaloIndex',
+            ),
+            (
+                'Interpolated_x_L2com',
+                'Interpolated_v_L2com',
+                'Interpolated_N',
+                'Interpolated_ComovingDist',
+                'halo_timeslice_index',
+            ),
+        )
+
         tread += timer()
         print(f'Read LC catalog in {tread:.4g}s')
 
@@ -98,12 +118,12 @@ def main(halo_lc_path, sim_path, delete=False):
         # rather make these decisions this upstream, but for now we'll just remove
         # the halos here.
         len_before = len(lc_cat)
-        lc_cat = lc_cat[lc_cat['InterpolatedN'] > 0]
+        lc_cat = lc_cat[lc_cat['Interpolated_N'] > 0]
         print(f'Removed {len_before - len(lc_cat)} halos with zero mass')
 
-        # Sort on HaloIndex
+        # Sort on halo_timeslice_index
         tsort = -timer()
-        lc_cat.sort('HaloIndex')
+        lc_cat.sort('halo_timeslice_index')
         tsort += timer()
         print(f'Sorted LC catalog in {tsort:.4g}s')
 
@@ -111,7 +131,7 @@ def main(halo_lc_path, sim_path, delete=False):
         tunique = -timer()
         # This could be accelerated because we know the indices are sorted,
         # but it's already fast
-        indices = np.unique_values(lc_cat['HaloIndex'])
+        indices = np.unique_values(lc_cat['halo_timeslice_index'])
         tunique += timer()
         print(f'Got unique indices in {tunique:.4g}s')
 
@@ -152,9 +172,9 @@ def main(halo_lc_path, sim_path, delete=False):
 
         # Fix up the light cone catalog indices by making them contiguous, starting from 0.
         # The indices are sorted but not unique.
-        lc_cat['HaloIndex'][1:] = (np.diff(lc_cat['HaloIndex']) > 0).cumsum()
-        lc_cat['HaloIndex'][0] = 0
-        assert lc_cat['HaloIndex'][-1] == len(snapshot_cat.halos) - 1
+        lc_cat['halo_timeslice_index'][1:] = (np.diff(lc_cat['halo_timeslice_index']) > 0).cumsum()
+        lc_cat['halo_timeslice_index'][0] = 0
+        assert lc_cat['halo_timeslice_index'][-1] == len(snapshot_cat.halos) - 1
 
         tfixup += timer()
         print(f'Fixed up LC catalog in {tfixup:.4g}s')
@@ -175,8 +195,9 @@ def main(halo_lc_path, sim_path, delete=False):
                 k: np.asarray(v, copy=False) for (k, v) in snapshot_cat.halos.items()
             },
             'header': dict(snapshot_cat.header),
-            # LC cat header is actually the WriteState
-            'header_next': dict(lc_cat.meta),
+            # "header_next" is not really useful, since the shell is centered on a timeslice,
+            # rather than bounded by timeslices
+            # 'header_next': dict(lc_cat.meta),
         }
 
         with CksumWriter(outfn) as fp, asdf.AsdfFile(tree) as af:
