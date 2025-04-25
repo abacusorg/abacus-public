@@ -22,6 +22,9 @@ cosm=$(printf "%04d" $SLURM_ARRAY_TASK_ID)
 simname=AbacusBacklight_base_c${cosm}_ph${cosm}
 simpath=$HOME/ceph/AbacusBacklight/$simname
 
+# Needed by halo light cone
+python -m Abacus.post.state_log $simpath/log
+
 workdir=$simpath/post_log/$SLURM_JOBID-halo-lc
 mkdir -p $workdir
 cd $workdir

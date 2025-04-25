@@ -24,9 +24,6 @@ dtype=f2
 workdir=$sim/post_log/$SLURM_JOBID-lc
 merge_cksum=$ABACUS/external/fast-cksum/bin/merge_checksum_files.py
 
-# Needed by halo light cone
-python -m Abacus.post.state_log $sim/log
-
 mkdir -p $workdir
 python -m Abacus.post.lc_tasks -s -n $nconcat -b $bit_trunc -d $dtype --delete -l $workdir $sim/lightcone > $workdir/tasks
 
