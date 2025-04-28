@@ -301,6 +301,20 @@ def process_structs(
         )
 
 
+def get_bracketing_headers(files: list[Path]):
+    """Get the read state header for each shell, as well as the write state
+    for the last shell. This is always possible because for each shell
+    singlestep outputs both the read and write state header.
+
+    In other words, a healpix ASDF output with 5 shells will have 6 headers.
+    """
+
+    headers = [dict(InputFile(f.parent / 'header_read')) for f in files]
+    headers.append(dict(InputFile(f.parent / 'header_write')) for f in files)
+
+    return headers
+
+
 @click.command
 @click.argument('files', nargs=-1)
 @click.option('-o', 'outdir', required=True, help='Output directory', metavar='DIR')
@@ -345,14 +359,14 @@ def main(
 
     lc_prefix = validate_files(files)  # LightCone0
 
-    headers = [dict(InputFile(f.parent / 'header')) for f in files]
+    headers = get_bracketing_headers(files)
     healpix_weight_scheme = headers[0]['HealpixWeightScheme']
     healstruct_dtype = get_healstruct_dtype(healpix_weight_scheme)
 
     structs = read_structs(files, healstruct_dtype)
     N_struct = len(structs)
 
-    step_range = get_step_range(headers)
+    step_range = get_step_range(headers[:-1])  # exclude the write header
 
     t = -timer()
     structs = structs.take(np.argsort(structs['id']))
@@ -376,7 +390,7 @@ def main(
                 f'Found {N_struct - start} halo pixels, {(N_struct - start) / N_struct * 100:.4f}%'
             )
 
-        # TODO: calling a function with so many args is unsatisfying, but the other solutions
+        # FUTURE: calling a function with so many args is unsatisfying, but the other solutions
         # (object-oriented, dataclass config, dict config, etc) all have problems, too.
         process_structs(
             structs[start:],

@@ -122,7 +122,7 @@ public:
     // files.  We will collect that information here.
     std::string output_header;
     void make_output_header();
-    std::string header() { 
+    std::string header() const { 
     	return output_header;
     }
     int DoTimeSliceOutput;
@@ -156,6 +156,7 @@ public:
     void read_from_file(const fs::path &fn);
     void write_to_file(const fs::path &dir, const fs::path &fname);
     void write_to_file(const fs::path &dir) { write_to_file(dir,""); }
+    std::string get_state_string() const;
     
     State();
     
@@ -321,7 +322,10 @@ void State::make_output_header() {
     // We're going to output most, but not all of the fields, into a 
     // nice header.  This will be prepended to many output files.
     // It also will get used to write the state.
-    // Only those items that are setup in BuildWriteState should be in here.
+    
+    // Note that this is written *during* the timestep, so only properties
+    // that are known at the beginning of the timestep (i.e. those setup in
+    // BuildWriteState) should be in here.
     
     std::stringstream ss;
 
@@ -403,41 +407,53 @@ void State::make_output_header() {
 
 #undef WPR
 #undef WPRS
-#define WPR(X,XSYM) fmt::print(statefp, PRQUOTEME({:>26s} = {:XSYM}\n), PRQUOTEME(X), X); 
-#define WPRS(X,XSYM) fmt::print(statefp, "{:>26s} = \"{}\" \n", PRQUOTEME(X), X); 
+#define WPR(X,XSYM) {ss << fmt::format(PRQUOTEME({:>26s} = {:XSYM}\n), PRQUOTEME(X), X);}
+#define WPRS(X,XSYM) {ss << fmt::format("{:>26s} = \"{}\" \n", PRQUOTEME(X), X);}
+
+std::string State::get_state_string() const {
+    std::stringstream ss;
+    
+    // The quantities known at the beginning of the timestep
+    ss << header();
+
+    // The quantities known at the end of the timestep
+    WPR(np_state, ISYM);
+    WPR(np_with_ghost_state, ISYM);
+    WPR(np_subA_state, ISYM);
+    WPR(np_subB_state, ISYM);
+    WPR(cpd_state, ISYM);
+    WPR(order_state, ISYM);
+    WPR(np_lightcone, ISYM);
+
+    WPR(MaxVelocity, FSYM);
+    WPR(MaxAcceleration, FSYM);
+    WPR(RMS_Velocity, FSYM);
+    WPR(MinVrmsOnAmax, FSYM);
+    WPR(MaxCellSize, ISYM);
+    WPR(MinCellSize, ISYM);
+    WPR(StdDevCellSize, FSYM);
+    WPR(MaxGroupDiameter, ISYM); 
+    WPR(MaxL0GroupSize, ISYM); 
+    WPR(DirectsPerParticle, FSYM);
+    WPR(LPTVelScale, ESYM);
+
+    time_t now = time(0);
+    ss << fmt::format("#State written:{:s}\n", asctime(localtime(&now)));
+    
+    return ss.str();
+}
 
 void State::write_to_file(const fs::path &dir, const fs::path &suffix) {
     fs::path statefn = (dir / "state").string() + suffix.string();
     FILE *statefp;
-    statefp = fopen(statefn.c_str(),"wb");
-    assertf(statefp!=NULL, "Couldn't open file {} to write state\n", statefn);
+    statefp = fopen(statefn.c_str(), "wb");
+    assertf(statefp != NULL, "Couldn't open file {} to write state\n", statefn);
 
-    WPR(np_state                       , ISYM);
-    WPR(np_with_ghost_state            , ISYM);
-    WPR(np_subA_state                  , ISYM);
-    WPR(np_subB_state                  , ISYM);
-    WPR(cpd_state                      , ISYM);
-    WPR(order_state                    , ISYM);
-    WPR(np_lightcone                   , ISYM);
-
-    fmt::print(statefp, header());
-
-    WPR(MaxVelocity		 , FSYM);
-    WPR(MaxAcceleration		 , FSYM);
-    WPR(RMS_Velocity             , FSYM);
-    WPR(MinVrmsOnAmax		 , FSYM);
-    WPR(MaxCellSize              , ISYM);
-    WPR(MinCellSize              , ISYM);
-    WPR(StdDevCellSize           , FSYM);
-    WPR(MaxGroupDiameter         , ISYM); 
-    WPR(MaxL0GroupSize           , ISYM); 
-    WPR(DirectsPerParticle       , FSYM);
-    WPR(LPTVelScale              , ESYM);
-
-    time_t now  = time(0);
-    fmt::print(statefp,"#State written:{:s}\n",asctime(localtime(&now)) );
+    std::string state_content = get_state_string();
+    
+    fwrite(state_content.c_str(), sizeof(char), state_content.length(), statefp);
     FinalizeHeader(statefp);
-
+    
     fclose(statefp);
 }
 

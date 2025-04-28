@@ -134,7 +134,7 @@ def main(
         raise ValueError('Must specify exactly one of --min-width or --nconcat')
 
     stepdirs = sorted(lcdir.glob('Step*'))
-    headers = [dict(InputFile(s / 'header')) for s in stepdirs]
+    headers = [dict(InputFile(s / 'header_write')) for s in stepdirs]
     
     if nconcat is None:
         nconcat = int(min_width / (headers[-1]['FirstHalfEtaKick'] + headers[-1]['LastHalfEtaKick'])) + 1

@@ -1103,7 +1103,9 @@ void FinalizeWriteState() {
     // But a-priori there's no good way to know which nodes/slabs will have LC particles,
     // Now that we've done the reduction, we know if any LC particles were written, thus rank 0 can write the header
     if(WriteState.np_lightcone && MPI_rank == 0){
-        LightCone::WriteHeaderFile(P.LCDirectory / fmt::format("Step{:04d}", ReadState.FullStepNumber) / "header");
+        LightCone::WriteHeaderFiles(
+            P.LCDirectory / fmt::format("Step{:04d}", ReadState.FullStepNumber)
+        );
     }
 
     return;

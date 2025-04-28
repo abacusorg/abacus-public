@@ -135,32 +135,42 @@ class LightCone {
     inline int isCellInLightCone(double3 pos) const;
     inline int isParticleInLightCone(double3 cellcenter, double3 &dpos, velstruct &vel, const accstruct acc, double3 box_repeat_offset) const;
 
-    static void WriteHeaderFile(const fs::path &fn) {
-        FILE *headerfile = fopen(fn.c_str(), "w");
-        if (headerfile == nullptr) {
-            throw std::runtime_error("Failed to open header file for writing: " + fn.string());
-        }
-        fmt::print(headerfile, "{}", P.header().c_str());
-        // Normally, for outputs we write the ReadState header (albeit with WriteState.FullStepNumber)
-        // because the particle positions correspond to that state (i.e. they have not yet been drifted).
-        // However, for the light cones, we're recording particles as they move from the ReadState to the
-        // WriteState. So if we want DeltaRedshift, etc, of the header to correspond to the width of the shell,
-        // then we need to output the WriteState.
-        fmt::print(headerfile, "{}\n", WriteState.header().c_str());
-        fmt::print(headerfile, "OutputType = \"LightCone\"\n");
-
-        std::string HealpixWeightScheme = "";
-        if constexpr (HealStruct::nweights() == 1) {
-            // LOS vel
-            HealpixWeightScheme = "vel";
-        } else if constexpr (HealStruct::nweights() == 3) {
-            // LOS, theta, phi vel
-            HealpixWeightScheme = "vel3";
-        } else {
-            static_assert(HealStruct::nweights() == 1 || HealStruct::nweights() == 3, "Unsupported number of weights for HealStruct");
-        }
-        fmt::print(headerfile, "HealpixWeightScheme = {}\n", HealpixWeightScheme);
-        fclose(headerfile);
+    static void WriteHeaderFiles(const fs::path &dir) {
+        // Write "header_read" and "header_write" files.
+        // This is because for light cones, we output continuously during the timestep,
+        // so one may want to know cosmological quantities at both the start and end of the step.
+        // This is intended to be called at the end of the timestep, which allows us to write
+        // not just the output header but the full state(s).
+        
+        auto write_state_file = [&dir](const State& state, const std::string& suffix) {
+            fs::path fn = dir / ("header_" + suffix);
+            STDLOG(2, "Writing light cone {} file: {}\n", suffix, fn.string());
+            
+            FILE *headerfile = fopen(fn.c_str(), "w");
+            if (headerfile == nullptr) {
+                throw std::runtime_error("Failed to open header file for writing: " + fn.string());
+            }
+            fmt::print(headerfile, "{}", P.header().c_str());
+            fmt::print(headerfile, "{}\n", state.get_state_string().c_str());
+            fmt::print(headerfile, "OutputType = \"LightCone\"\n");
+            
+            std::string HealpixWeightScheme = "";
+            if constexpr (HealStruct::nweights() == 1) {
+                // LOS vel
+                HealpixWeightScheme = "vel";
+            } else if constexpr (HealStruct::nweights() == 3) {
+                // LOS, theta, phi vel
+                HealpixWeightScheme = "vel3";
+            } else {
+                static_assert(HealStruct::nweights() == 1 || HealStruct::nweights() == 3, "Unsupported number of weights for HealStruct");
+            }
+            fmt::print(headerfile, "HealpixWeightScheme = {}\n", HealpixWeightScheme);
+            fclose(headerfile);
+        };
+        
+        // Write both state files
+        write_state_file(ReadState, "read");
+        write_state_file(WriteState, "write");
     }
 };
 
