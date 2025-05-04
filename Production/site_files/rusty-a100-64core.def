@@ -25,7 +25,7 @@ Conv_OMP_PLACES = "{0}:64"
 Conv_OMP_PROC_BIND = "close"
 Conv_IOCores = [0]
 
-WorkingDirectory = "$HOME$/ceph/" + @SimName@  # global
+WorkingDirectory = "$HOME$/ceph/" + @_SimSet@ + "/" + @SimName@  # global
 LocalWorkingDirectory = "$ABACUS_SSD$/" + @SimName@  # node-local
 
 DerivativesSourceDirectory = "$ABACUS_PERSIST$/Derivatives"

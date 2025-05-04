@@ -193,7 +193,7 @@ def run(parfn='abacus.par2', config_dir=path.curdir, maxsteps=10000, clean=False
     with Tools.chdir(basedir):
         # The parfile is directly stored in the basedir
         output_parfile = basename(output_parfile)
-        if not zeldovich.is_on_the_fly_format(params['ICFormat']):
+        if not zeldovich.is_on_the_fly_format(params['ICFormat']) and not params.get('ExternalICs', False):
             if clean and not zeldovich.have_ics(params):
                 zeldovich.run(output_parfile, allow_eigmodes_fn_override=override_directories)
             if params.get('Parallel') and params.get('NumZRanks',1) > 1:

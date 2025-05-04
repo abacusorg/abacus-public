@@ -199,7 +199,7 @@ class SlabWriter:
             self.ppd = None
         self.cpd = cpd
         self.boxsize = boxsize
-        self.num_written = np.zeros(cpd, dtype=np.int)
+        self.num_written = np.zeros(cpd, dtype=np.int64)
         self.verbose = verbose
                 
         self.output_fn_fmt = str(Path(outdir) / "ic_{}")

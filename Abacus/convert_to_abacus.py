@@ -86,7 +86,7 @@ def main(files, cpd, input_format, output_format, flip=False, input_units=None):
     # Get some properties
     if input_format == 'gadget':
         f.set_units_system(**units_system)
-        pynbody.snapshot.gadget.do_properties(f) # why do we have to trigger this?
+        pynbody.snapshot.gadget._do_properties(f) # why do we have to trigger this?
 
         BoxSize = float(f.properties['boxsize'].in_units('h^-1 Mpc a'))
         print('ppd: {:d}, cpd: {:d}, boxsize: {:f}, redshift: {:f}'.format(ppd, cpd, BoxSize, 1./f.properties['a'] - 1))
@@ -121,7 +121,7 @@ def main(files, cpd, input_format, output_format, flip=False, input_units=None):
             f = pynbody.load(fn)
 
             f.set_units_system(**units_system)
-            pynbody.snapshot.gadget.do_properties(f) # why do we have to trigger this?
+            pynbody.snapshot.gadget._do_properties(f) # why do we have to trigger this?
 
             pos = f['pos']
             vel = f['vel']
