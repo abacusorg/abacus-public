@@ -29,13 +29,18 @@ def group_by_prefix(fns: list[Path]) -> dict[str, list[Path]]:
     return groups
 
 
-def decide_shells_simple(nconcat: int, headers: list[dict], plot: bool = False):
+def decide_shells_simple(
+    nconcat: int,
+    widths: list[float],
+    stepnums: list[int],
+    redshifts: list[float],
+    plot: bool = False,
+):
     # Just concatenate steps together in groups of nconcat.
 
-    headers = headers[::-1]
-
-    stepnums = np.array([h['FullStepNumber'] for h in headers])
-    zmap = {step: h['Redshift'] for step, h in zip(stepnums, headers)}
+    widths = widths[::-1]
+    stepnums = stepnums[::-1]
+    redshifts = redshifts[::-1]
 
     groups = [stepnums[i : i + nconcat] for i in range(0, len(stepnums), nconcat)]
 
@@ -45,35 +50,86 @@ def decide_shells_simple(nconcat: int, headers: list[dict], plot: bool = False):
     assert sorted(np.concatenate(groups)) == sorted(stepnums)
 
     if plot:
-        widths = np.array(
-            [h['FirstHalfEtaKick'] + h['LastHalfEtaKick'] for h in headers]
-        )
-        widths *= 2997.92  # Mpc/h
+        zmap = dict(zip(stepnums, redshifts))
         group_widths = [
             sum(widths[(stepnums == s).argmax()] for s in g) for g in groups
         ]
         plot_widths(groups, group_widths, stepnums, widths, zmap)
 
-    print(f'Grouped steps into {len(groups)} groups', file=sys.stderr)
+    print(
+        f'Grouped steps into {len(groups)} groups, mean width of {np.sum(widths) / len(groups):.3g}',
+        file=sys.stderr,
+    )
 
+    return groups
+
+
+def decide_shells_greedy(
+    width: float,
+    widths: list[float],
+    stepnums: list[int],
+    redshifts: list[float],
+    plot: bool = False,
+):
+    # Group shells using a greedy algorithm
+
+    widths = widths[::-1]
+    stepnums = stepnums[::-1]
+    redshifts = redshifts[::-1]
+
+    groups = []
+    current_group = []
+    current_width = 0.0
+
+    for i, (w, s) in enumerate(zip(widths, stepnums)):
+        # Start a new group if more than half of the current step would spill the shell.
+        if current_width + w > width + w / 2:
+            # If we just overfilled a shell, then try to underfill the next shell by carrying
+            # over the spillage. This trick borrowed from:
+            # https://www.werkema.com/2021/11/01/an-efficient-solution-to-linear-partitioning/
+            error = width - current_width
+
+            groups.append(current_group)
+            current_group = [s]
+            current_width = w - error
+        else:
+            current_group.append(s)
+            current_width += w
+
+    if len(current_group) > 0:
+        groups.append(current_group)
+
+    assert all(len(g) > 0 for g in groups)
+    # check that every index was used once
+    assert sorted(np.concatenate(groups)) == sorted(stepnums)
+
+    group_widths = [sum(widths[(stepnums == s).argmax()] for s in g) for g in groups]
+
+    if plot:
+        zmap = dict(zip(stepnums, redshifts))
+        plot_widths(groups, group_widths, stepnums, widths, zmap)
+    print(
+        f'Grouped steps into {len(groups)} groups, '
+        f'mean width {np.mean(group_widths):.3g} '
+        f'± {np.std(group_widths):.3g} Mpc/h',
+        file=sys.stderr,
+    )
     return groups
 
 
 def plot_widths(groups, group_widths, orig_steps, orig_widths, zmap):
     import matplotlib.pyplot as plt
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(constrained_layout=True)
     ax.plot([g[0] for g in groups], group_widths, label='concatenated')
     ax.plot(orig_steps, orig_widths, label='raw')
     ax.tick_params(axis='both', right=True, top=True)
 
     ax.set_xlim(orig_steps[-1], orig_steps[0])
 
-    # add top axis with redshift
     ax2 = ax.twiny()
     ax2.set_xlim(ax.get_xlim())
     bottomticks = ax.get_xticks()
-    print(bottomticks)
     ax2.set_xticks(bottomticks)
     ax2.set_xticklabels(
         [f'{zmap[int(s)]:.2f}' if int(s) in zmap else '' for s in bottomticks]
@@ -83,13 +139,40 @@ def plot_widths(groups, group_widths, orig_steps, orig_widths, zmap):
     ax.set_xlabel('Step number')
     ax.set_ylabel('Shell width [Mpc/h]')
     ax.legend()
-    fig.savefig('shell_widths.png')
+    fig.savefig(fn := 'shell_widths.png')
+    print(f'Saved plot of shell widths to {fn}', file=sys.stderr)
+
+
+def get_steps_and_headers(lcdir: Path, discard_partialsky: bool = False):
+    stepdirs = sorted(lcdir.glob('Step*'))
+
+    # Get the headers that bound all the steps.
+    bounding_headers = [
+        (dict(InputFile(s / 'header_read')), dict(InputFile(s / 'header_write')))
+        for s in stepdirs
+    ]
+
+    if discard_partialsky:
+        rmax = bounding_headers[0][0]['BoxSize'] * (
+            bounding_headers[0][0]['LCBoxRepeats'] + 0.5
+        )
+
+        # If the outer edge of the step is within the volume, keep it.
+        mask = [
+            hpair[0]['CoordinateDistanceHMpc'] <= rmax for hpair in bounding_headers
+        ]
+        stepdirs = [s for (s, keep) in zip(stepdirs, mask) if keep]
+        bounding_headers = [b for (b, keep) in zip(bounding_headers, mask) if keep]
+
+    return stepdirs, bounding_headers
 
 
 @click.command
 @click.argument('lcdir')
 @click.option('-l', '--logdir', default='post_log', help='Log directory', metavar='DIR')
-@click.option('--delete', is_flag=True, help='Delete input files after processing')
+@click.option(
+    '--delete', is_flag=True, help='Have the tasks delete input files after processing'
+)
 @click.option(
     '-b',
     '--bit-trunc',
@@ -97,10 +180,10 @@ def plot_widths(groups, group_widths, orig_steps, orig_widths, zmap):
     help='Number of low bits to truncate in the float healpix maps',
 )
 @click.option(
-    '-m',
-    '--min-width',
+    '-w',
+    '--width',
     default=None,
-    help='Minimum width of each shell in Mpc/h',
+    help='Target width of each shell in Mpc/h',
     type=float,
 )
 @click.option(
@@ -119,31 +202,75 @@ def plot_widths(groups, group_widths, orig_steps, orig_widths, zmap):
     is_flag=True,
     help='Output a healpix map with just the halo pixels',
 )
+@click.option(
+    '--coarsify-trans-vel',
+    default=1,
+    help='Coarsify the transverse velocity healpix map Nside by this factor',
+)
+@click.option(
+    '-o',
+    '--out',
+    'outroot',
+    type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
+    default=None,
+    help='Output directory for the healpix maps. Default: LCDIR/../lightcone-post/',
+)
+@click.option(
+    '--discard-partialsky',
+    is_flag=True,
+    help='Discard healpix maps at high enough redshift that they do not cover the full sky',
+)
+@click.option(
+    '-a',
+    '--algorithm',
+    default='greedy',
+    type=click.Choice(['simple', 'greedy']),
+    help='Algorithm to use for grouping shells',
+)
 def main(
     lcdir,
     logdir='post_log',
     delete=False,
     bit_trunc=0,
     dtype='f4',
-    min_width=None,
+    width=None,
     nconcat=None,
     plot=False,
     split_halo=True,
+    coarsify_trans_vel=1,
+    outroot=None,
+    discard_partialsky=False,
+    algorithm='greedy',
 ):
     lcdir = Path(lcdir).absolute()
     logdir = Path(logdir).absolute()
 
-    if (min_width is None) == (nconcat is None):
-        raise ValueError('Must specify exactly one of --min-width or --nconcat')
+    if (width is None) == (nconcat is None):
+        raise ValueError('Must specify exactly one of --width or --nconcat')
 
-    stepdirs = sorted(lcdir.glob('Step*'))
-    headers = [dict(InputFile(s / 'header_write')) for s in stepdirs]
-    
-    if nconcat is None:
-        nconcat = int(min_width / (headers[-1]['FirstHalfEtaKick'] + headers[-1]['LastHalfEtaKick'])) + 1
-        print(f'Using nconcat={nconcat} to get min_width={min_width}', file=sys.stderr)
-    
-    shells = decide_shells_simple(nconcat, headers, plot=plot)
+    stepdirs, bounding_headers = get_steps_and_headers(
+        lcdir, discard_partialsky=discard_partialsky
+    )
+
+    widths = np.array(
+        [
+            h[0]['CoordinateDistanceHMpc'] - h[1]['CoordinateDistanceHMpc']
+            for h in bounding_headers
+        ]
+    )
+    stepnums = np.array([h[1]['FullStepNumber'] for h in bounding_headers], dtype=int)
+    redshifts = np.array(
+        [h[1]['Redshift'] for h in bounding_headers]
+    )  # z at end of step, currently just cosmetic
+
+    if algorithm == 'simple':
+        if nconcat is None:
+            nconcat = int(np.ceil(width / np.mean(widths)))
+        shells = decide_shells_simple(nconcat, widths, stepnums, redshifts, plot=plot)
+    elif algorithm == 'greedy':
+        if width is None:
+            width = np.mean(widths) * nconcat
+        shells = decide_shells_greedy(width, widths, stepnums, redshifts, plot=plot)
 
     for steps in shells:
         stepdirs = [lcdir / f'Step{step:04d}' for step in steps]
@@ -162,7 +289,8 @@ def main(
             f'#DISBATCH SUFFIX  {"--delete" if delete else ""} ) &> {logdir}/lc-$DISBATCH_TASKID.log'
         )
 
-        outroot = lcdir.parent.resolve(strict=True) / 'lightcone-post'
+        if outroot is None:
+            outroot = lcdir.parent.resolve(strict=True) / 'lightcone-post'
 
         for prefix in fns:  # LightCone0_rv
             kind = prefix.split('_')[1]  # rv
