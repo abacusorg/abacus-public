@@ -137,7 +137,7 @@ def read_structs(files: list[Path], healstruct_dtype):
 
 
 @numba.njit(parallel=False, fastmath=True)
-def make_map(structs, Nside, maskbits, discard_halo_bit):
+def make_map(structs, Nside, discard_halo_bit):
     npix = 12 * Nside**2
     counts = np.zeros(npix, dtype=np.uint32)
     n_weights = structs['weights'].shape[-1]
@@ -161,19 +161,9 @@ def make_map(structs, Nside, maskbits, discard_halo_bit):
             if counts[i] > 0:
                 w[i] /= counts[i]
 
-    # Compute the mean in float64 before truncating to float32
+    # Compute the mean in float64. Later we will convert to float32.
     # N.B. counts stay uint32
     means = [counts.sum(dtype=np.uint64) / len(counts)] + [w.mean() for w in wmaps]
-    wmaps = [w.astype(np.float32) for w in wmaps]
-
-    if maskbits:
-        # healview = counts.view(np.uint32)
-        mask = np.uint32(~np.uint32((1 << maskbits) - 1))
-        # np.bitwise_and(healview, mask, healview)
-
-        for w in wmaps:
-            wview = w.view(np.uint32)
-            np.bitwise_and(wview, mask, wview)
 
     return counts, wmaps, means
 
@@ -230,6 +220,32 @@ def searchsorted_bit(a, mask):
     return lo
 
 
+def astype_saturating(a, dtype):
+    """Convert a to dtype, saturating at the limits of dtype"""
+    if np.issubdtype(dtype, np.integer):
+        a = np.clip(a, np.iinfo(dtype).min, np.iinfo(dtype).max)
+    elif np.issubdtype(dtype, np.floating):
+        a = np.clip(a, np.finfo(dtype).min, np.finfo(dtype).max)
+    return a.astype(dtype)
+
+
+def coarsify_wmaps(counts: np.ndarray, wmaps: list[np.ndarray], coarsify):
+    # Coarsify Nside of the given maps by a factor of coarsify.
+    # Note that we need to weight the averaging by the counts; in other words,
+    # we need to be averaging the momentum, not the vel!
+
+    counts_coarse = counts.reshape(-1, coarsify**2).sum(axis=1)
+    counts_coarse[counts_coarse == 0] = 1
+
+    res = []
+    for i in range(len(wmaps)):
+        # The resolution downgrade works because the maps are in nested order
+        wsum_coarse = (wmaps[i] * counts).reshape(-1, coarsify**2).sum(axis=1)
+        res.append(wsum_coarse / counts_coarse)
+
+    return res
+
+
 def process_structs(
     structs,
     headers,
@@ -243,9 +259,9 @@ def process_structs(
     step_range,
     nthread,
     healpix_weight_scheme,
+    coarsify_trans_vel,
 ):
     t = -timer()
-    # wouldn't be hard to downgrade nside here if the user wanted
     nside = headers[0]['LCHealpixNside']
 
     # Currently, Abacus always outputs the halo bit
@@ -254,13 +270,39 @@ def process_structs(
     counts, wmaps, means = make_map(
         structs,
         nside,
-        maskbits=bit_trunc,
         discard_halo_bit=discard_halo_bit,
     )
 
+    if coarsify_trans_vel > 1:
+        wmaps[1:] = coarsify_wmaps(counts, wmaps[1:], coarsify_trans_vel)
+
+    # Having done all processing, we can now convert to float32
+    wmaps = [w.astype(np.float32) for w in wmaps]
+
+    # Truncate low float32 bits if requested
+    if bit_trunc:
+        mask = np.uint32(~np.uint32((1 << bit_trunc) - 1))
+
+        for w in wmaps:
+            wview = w.view(np.uint32)
+            np.bitwise_and(wview, mask, wview)
+
     # numba doesn't support np.float16, so do it here
-    # counts = counts.astype(dtype, copy=False)
-    wmaps = [w.astype(dtype, copy=False) for w in wmaps]
+    if dtype == 'quantize':
+        # Scale to [-6000,6000] and quantize to 13 bits,
+        # which is ~1.5 km/s precision.
+        # This mirrors rvint, except we saturate at int16
+        # instead clipping to 6000 km/s.
+        vscale = 6000
+        quant_bits = 13
+        for i in range(len(wmaps)):
+            wmaps[i] = astype_saturating(
+                np.round(wmaps[i] * (1 << quant_bits) / (2 * vscale)), np.int16
+            )
+    else:
+        wmaps = [w.astype(dtype, copy=False) for w in wmaps]
+        vscale = None
+        quant_bits = None
 
     for m in [counts] + wmaps + means:
         assert np.all(np.isfinite(m))
@@ -277,19 +319,24 @@ def process_structs(
         this_outdir = outdir
         this_lc_prefix = lc_prefix
 
-    map_labels = ['counts', 'momentum-los', 'momentum-theta', 'momentum-phi']
+    map_labels = ['counts', 'vel-los', 'vel-theta', 'vel-phi']
 
     for quantity, mp, mean in zip(map_labels, [counts] + wmaps, means):
+        this_nside = int(round((len(mp) // 12) ** 0.5))
+        assert len(mp) == 12 * this_nside**2
         meta = {
             'headers': headers,
-            'header_post' : {
+            'header_post': {
                 'input_files': [str(f) for f in files],
                 'bit_trunc': bit_trunc,
+                'quantize_vscale': vscale,
+                'quantize_bits': quant_bits,
                 'healpix_order': 'nest',
                 'healpix_map_mean_fp64': mean,
+                'healpix_map_nside': this_nside,
             },
         }
-        
+
         write_to_asdf(
             mp,
             this_lc_prefix,
@@ -309,8 +356,9 @@ def get_bracketing_headers(files: list[Path]):
     In other words, a healpix ASDF output with 5 shells will have 6 headers.
     """
 
+    files = sorted(files)  # this is probably not necessary, but let's be safe
     headers = [dict(InputFile(f.parent / 'header_read')) for f in files]
-    headers.append(dict(InputFile(f.parent / 'header_write')) for f in files)
+    headers.append(dict(InputFile(files[-1].parent / 'header_write')))
 
     return headers
 
@@ -338,6 +386,11 @@ def get_bracketing_headers(files: list[Path]):
     is_flag=True,
     help='Output a healpix map with just the halo pixels',
 )
+@click.option(
+    '--coarsify-trans-vel',
+    default=1,
+    help='Coarsify the transverse velocity healpix map Nside by this factor',
+)
 def main(
     files,
     outdir,
@@ -347,6 +400,7 @@ def main(
     bit_trunc=0,
     dtype='f4',
     split_halo=True,
+    coarsify_trans_vel=1,
 ):
     files = [Path(f) for f in files]
     if not files:
@@ -354,8 +408,6 @@ def main(
     outdir = Path(outdir)
 
     outdir.mkdir(parents=True, exist_ok=True)
-
-    dtype = np.dtype(dtype)
 
     lc_prefix = validate_files(files)  # LightCone0
 
@@ -405,6 +457,7 @@ def main(
             step_range,
             nthread,
             healpix_weight_scheme,
+            coarsify_trans_vel,
         )
 
     if delete:

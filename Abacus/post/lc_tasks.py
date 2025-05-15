@@ -2,6 +2,9 @@
 Output a disBatch task file to run lightcone post-processing.
 
 We have two kinds of tasks to issue: one for rv/pid and one for healpix.
+
+For the healpix tasks, this is where we decide how to group the individual
+light cone shells (one per timestep) into larger shells.
 """
 
 import sys
@@ -172,7 +175,7 @@ def main(
             elif kind == 'healsparse':
                 # healpix accepts an output directory because it writes multiple files
                 out = outroot
-                task = f'{HEALPIX_TASK} -b {bit_trunc} -d {dtype}'
+                task = f'{HEALPIX_TASK} -b {bit_trunc} -d {dtype} --coarsify-trans-vel {coarsify_trans_vel}'
                 if split_halo:
                     task += ' -s'
             else:
