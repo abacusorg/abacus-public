@@ -60,7 +60,6 @@ to the rest of the code, because it needs CUDA.
 #include <algorithm>
 #include <float.h>
 #include <complex>
-#include <omp.h>
 #include <sys/mman.h>
 #include <sched.h>
 #include <pthread.h>
@@ -92,7 +91,6 @@ using int64 = int64_t;
 #include <cstdio>
 #include <cassert>
 #include <pthread.h>
-#include "omp.h"
 
 #include <fmt/format.h>
 #include <fmt/std.h>
