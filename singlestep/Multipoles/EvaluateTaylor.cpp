@@ -190,12 +190,12 @@ void Taylor::AVXEvaluateTaylor( double *CT, FLOAT3 center, int n, FLOAT3 *xyz,
 }
 #endif
 
+#ifdef AVX512MULTIPOLES
 void Taylor::AVX512EvaluateTaylor( double *CT, FLOAT3 center, int n, FLOAT3 *xyz,
                                 FLOAT3 *acc) {
-#ifdef AVX512MULTIPOLES
     DispatchTaylor512Kernel(order, CT, center, n, xyz, acc);
-#endif
 }
+#endif
 
 #ifdef TEST
 #include <cstdlib>

@@ -198,11 +198,11 @@ void Multipoles::AVXCartesianMultipoles(FLOAT3 *xyz, int n, FLOAT3 center,
 }
 #endif
 
-void Multipoles::AVX512CartesianMultipoles(FLOAT3 *xyz, int n, FLOAT3 center, double *CM) {
 #ifdef AVX512MULTIPOLES
+void Multipoles::AVX512CartesianMultipoles(FLOAT3 *xyz, int n, FLOAT3 center, double *CM) {
     DispatchMultipole512Kernel(order, xyz, n, center, CM);
-#endif
 }
+#endif
 
 /****************************************************************************************/
 
