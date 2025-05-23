@@ -28,10 +28,10 @@ public:
     // constructors
 
     // Default is no initialization, just like built-in types
-    inline ThreeVector<T>() = default;
+    inline ThreeVector() = default;
 
     template <class U>
-    inline ThreeVector<T>( const ThreeVector<U>& other )
+    inline ThreeVector( const ThreeVector<U>& other )
     :  x(static_cast<T>(other.x)),
         y(static_cast<T>(other.y)),
         z(static_cast<T>(other.z))
@@ -39,7 +39,7 @@ public:
     
     // want to be able to write: ThreeVector<double> x(2,2.5,4)
     template <class U, class V, class W>
-    inline ThreeVector<T>( const U rhsx, const V rhsy, W const rhsz ) 
+    inline ThreeVector( const U rhsx, const V rhsy, W const rhsz ) 
     : x(static_cast<T>(rhsx)), 
         y(static_cast<T>(rhsy)), 
         z(static_cast<T>(rhsz))
@@ -48,7 +48,7 @@ public:
     // broadcast a scalar
     // use SFINAE to avoid ambiguity with custom cast operators
     template <class U, typename = std::enable_if_t<std::is_convertible_v<U, T>>>
-    inline explicit ThreeVector<T>( const U& s)
+    inline explicit ThreeVector( const U& s)
     : x(static_cast<T>(s)),
         y(static_cast<T>(s)),
         z(static_cast<T>(s))
