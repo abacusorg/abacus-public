@@ -231,6 +231,11 @@ public:
         return *this;
     }
 
+    padded& operator+=(const padded<T>& rhs) {
+        i += rhs.i;
+        return *this;
+    }
+
     template<typename U>
     friend U& operator+=(U& lhs, const padded& rhs) {
         lhs += rhs.i;
