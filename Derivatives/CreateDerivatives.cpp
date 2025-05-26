@@ -94,7 +94,7 @@ void FormDerivatives(int inner_radius, int order, int far_radius, int slabnumber
             // If we were asked to do only one slab, skip each iteration of this loop until you reach the desired slab within the home box. 
 
         // Check if the desired file already exists.  If so, skip the computation in this loop.
-        fs::path fn = fmt::format("slabderiv_{:d}_{:d}_{:d}_{:d}_{:d}__{:d}",CPD,order,inner_radius,far_radius, 0, k);
+        fs::path fn = fmt::format("slabderiv_{:d}_{:d}_{:d}_{:d}_{:d}",CPD,order,inner_radius,far_radius,k);
         FILE *fp;
         fp = fopen(fn.c_str(),"rb");
         if(fp!=NULL) {
@@ -164,7 +164,7 @@ void MergeDerivatives(int inner_radius, int order, int far_radius, double *FarDe
 
     for(int k=0;k<=CPDHALF;k++) {
                 // Fetch FDSlab from disk
-                fs::path fn = fmt::format("slabderiv_{:d}_{:d}_{:d}_{:d}_{:d}__{:d}",CPD,order,inner_radius,far_radius, 0, k);
+                fs::path fn = fmt::format("slabderiv_{:d}_{:d}_{:d}_{:d}_{:d}",CPD,order,inner_radius,far_radius,k);
                 FILE *fp;
                 fp = fopen(fn.c_str(),"rb");
                 assert(fp!=NULL);
@@ -824,6 +824,16 @@ END OLD CODE */
 }
 
 
+void DeleteSlabDerivFiles(int order, int inner_radius, int far_radius) {
+    // Delete the slabderiv files. They should be merged into the farderivatives at this point,
+    // so removing them saves disk space.
+    for(int k=0; k<=CPDHALF; k++) {
+        fs::path fn = fmt::format("slabderiv_{:d}_{:d}_{:d}_{:d}_{:d}",CPD,order,inner_radius,far_radius,k);
+        fs::remove(fn);
+    }
+}
+
+
 int main(int argc, char **argv) {
         
 #if QUAD_DOUBLE
@@ -939,6 +949,8 @@ int main(int argc, char **argv) {
     }
     fclose(fpfar);
 
+    // On successfully writing the far derivatives file, delete the slabderiv files.
+    DeleteSlabDerivFiles(order, inner_radius, far_radius);
 
     //create empty fourier files to store the fourier transforms of the far derivatives in, to be calculated in Part2. 
     if (MultipoleStart==0) CreateFourierFiles(order,inner_radius, far_radius);
