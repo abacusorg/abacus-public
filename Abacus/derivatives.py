@@ -78,6 +78,11 @@ def make_derivatives(param, floatprec=False, twoD=False,
     if twoD:
         source_dir /= '2D'
         derivs_dir /= '2D'
+
+    if floatprec:
+        source_dir /= 'float32'
+        derivs_dir /= 'float32'
+
     source_dir.mkdir(parents=True, exist_ok=True)
     derivs_dir.mkdir(parents=True, exist_ok=True)
 

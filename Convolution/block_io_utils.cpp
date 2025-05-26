@@ -581,7 +581,7 @@ public:
         
         std::string fnfmt;
         if(sizeof(DFLOAT) == sizeof(float))
-            fnfmt = "{}/fourierspace_float32_{:d}_{:d}_{:d}_{:d}_{:d}";
+            fnfmt = "{}/float32/fourierspace_float32_{:d}_{:d}_{:d}_{:d}_{:d}";
         else
             fnfmt = "{}/fourierspace_{:d}_{:d}_{:d}_{:d}_{:d}";
         // note the derivatives are stored in z-slabs, not x-slabs
