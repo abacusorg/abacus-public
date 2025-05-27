@@ -75,13 +75,13 @@ def make_derivatives(param, floatprec=False, twoD=False,
 
     source_dir = Path(param['DerivativesSourceDirectory'])
     derivs_dir = Path(param['DerivativesDirectory'])
-    if twoD:
-        source_dir /= '2D'
-        derivs_dir /= '2D'
-
     if floatprec:
         source_dir /= 'float32'
         derivs_dir /= 'float32'
+
+    if twoD:
+        source_dir /= '2D'
+        derivs_dir /= '2D'
 
     source_dir.mkdir(parents=True, exist_ok=True)
     derivs_dir.mkdir(parents=True, exist_ok=True)

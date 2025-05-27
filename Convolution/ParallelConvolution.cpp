@@ -367,15 +367,14 @@ void ParallelConvolution::AllocDerivs(){
 void ParallelConvolution::LoadDerivatives(int z) {
 	int z_file = z + zstart;	
 
-    const std::string f32str = sizeof(DFLOAT) == 4 ? "_float32" : "";
-	const std::string twoDstr = MPI_size_z > 1 ? "_2D" : "";
-	
-    // note the derivatives are stored in z-slabs, not x-slabs
-    fs::path fn = P.DerivativesDirectory / fmt::format(
-			"fourierspace{:s}{:s}_{:d}_{:d}_{:d}_{:d}_{:d}",
-			f32str, twoDstr,
-            (int) cpd, order, P.NearFieldRadius,
-            P.DerivativeExpansionRadius, z_file);
+	fs::path fn = P.DerivativesDirectory;
+	if (sizeof(DFLOAT) == 4) fn /= "float32";
+
+	fn /= fmt::format("fourierspace{:s}{:s}_{:d}_{:d}_{:d}_{:d}_{:d}",
+		sizeof(DFLOAT) == 4 ? "_float32" : "",
+		MPI_size_z > 1 ? "_2D" : "",
+		cpd, order, P.NearFieldRadius,
+		P.DerivativeExpansionRadius, z_file);
 	
 	assertf(ramdisk_derivs == 0 || ramdisk_derivs == 1, "Ramdisk_derivs detected bad value: {:d}.\n", ramdisk_derivs);
 	
