@@ -807,10 +807,6 @@ void Parameters::ValidateParameters(void) {
         NumZRanks = 1;
     }
 #endif
-
-    if(NumZRanks > 1){
-        DerivativesDirectory /= "2D";
-    }
 }
 
 Parameters P;

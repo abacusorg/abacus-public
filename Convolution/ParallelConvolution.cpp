@@ -369,6 +369,7 @@ void ParallelConvolution::LoadDerivatives(int z) {
 
 	fs::path fn = P.DerivativesDirectory;
 	if (sizeof(DFLOAT) == 4) fn /= "float32";
+	if (MPI_size_z > 1) fn /= "2D";
 
 	fn /= fmt::format("fourierspace{:s}{:s}_{:d}_{:d}_{:d}_{:d}_{:d}",
 		sizeof(DFLOAT) == 4 ? "_float32" : "",
