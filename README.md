@@ -122,8 +122,9 @@ $ make
 For the MPI code:
 ```console
 $ ./configure --enable-parallel CXX=mpicxx
-$ make
 ```
+
+where `mpicxx` is the MPI compiler wrapper (if applicable). This may be different (or not needed) on your system, e.g. `CXX=CC` for Cray compiler wrappers. Alternatively, one can set `CXX` in the shell environment and that will be respected.
 
 The configure script will print out a block of configuration options. Make sure everything looks as expected! More options can be seen by running `./configure --help`.
 
