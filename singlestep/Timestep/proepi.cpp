@@ -196,7 +196,6 @@ Cosmology *cosm;
 FLOAT * density; //!< Array to accumulate gridded densities in for low resolution inline power-spectra.
 
 #include "groupfinding.cpp"
-#include "microstep.cpp"
 #include "output_field.cpp"    // Field particle subsample output
 
 int first_slab_on_node, total_slabs_on_node, first_slab_finished;
@@ -874,7 +873,7 @@ void InitGroupFinding(int MakeIC){
     // done planning for WriteState. Does ReadState tell us to find groups?
 
     // Can we enable group finding?
-    if((P.MicrostepTimeStep > 0 || ReadState.DoGroupFindingOutput) &&
+    if(ReadState.DoGroupFindingOutput &&
         !(!P.AllowGroupFinding || P.ForceOutputDebug || MakeIC || LPTStepNumber())){
         STDLOG(1, "Setting up group finding\n");
 

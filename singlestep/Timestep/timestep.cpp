@@ -30,7 +30,6 @@ SlabDependency *MakeCellGroups;
 SlabDependency *FindCellGroupLinks;
 SlabDependency *DoGlobalGroups;
 SlabDependency *Output;
-SlabDependency *Microstep;
 SlabDependency *FinishGroups;
 SlabDependency *Drift;
 SlabDependency *NeighborSend;  // 2D
@@ -193,13 +192,11 @@ void timestep(int NoForces) {
         MakeCellGroups      = new     MakeCellGroupsDep(nslabs, first + FORCE_RADIUS);
         FindCellGroupLinks  = new FindCellGroupLinksDep(nslabs, first + FORCE_RADIUS + 1);
         DoGlobalGroups      = new     DoGlobalGroupsDep(nslabs, first + first_groupslab);
-        Microstep           = new          MicrostepDep(nslabs, first + first_groupslab);
         FinishGroups        = new       FinishGroupsDep(nslabs, first + first_groupslab);
     } else {
         MakeCellGroups      = new NoopDep(nslabs);
         FindCellGroupLinks  = new NoopDep(nslabs);
         DoGlobalGroups      = new NoopDep(nslabs);
-        Microstep           = new NoopDep(nslabs);
         FinishGroups        = new NoopDep(nslabs);
     }
 
@@ -248,7 +245,6 @@ void timestep(int NoForces) {
            DoGlobalGroups->Attempt();
     
                    Output->Attempt();
-                Microstep->Attempt();
              FinishGroups->Attempt();
     
                     Drift->Attempt();
@@ -337,7 +333,6 @@ void free_dependencies(){
     delete FindCellGroupLinks;
     delete DoGlobalGroups;
     delete Output;
-    delete Microstep;
     delete FinishGroups;
     delete Drift;
     delete NeighborSend;

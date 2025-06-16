@@ -19,7 +19,6 @@ We include this file in the program, and it includes the rest.
 
 
 class GlobalGroupSlab;
-class MicrostepControl;
 
 
 /** This is the control class for all group finding.
@@ -86,7 +85,6 @@ class GroupFindingControl {
     GroupLinkList *GLL;
 
     GlobalGroupSlab **globalslabs;    // Allocated [0,cpd), one for each slab
-    MicrostepControl **microstepcontrol;
 
     STimer CellGroupTime, CreateFaceTime, FindLinkTime, 
             SortLinks, IndexLinks, FindGlobalGroupTime, IndexGroups, 
@@ -440,11 +438,6 @@ GroupFindingControl *GFC = NULL;
 
 void GroupFindingControl::setupGGS() {
     globalslabs = new GlobalGroupSlab*[cpd];
-    microstepcontrol = new MicrostepControl*[cpd];
-    for(int i = 0; i < cpd; i++){
-        globalslabs[i] = NULL;
-        microstepcontrol[i] = NULL;
-    }
 }
 
 GroupFindingControl::~GroupFindingControl() { 
@@ -511,11 +504,6 @@ void FinishGlobalGroups(int slab){
     slab = GFC->WrapSlab(slab);
     GlobalGroupSlab *GGS = GFC->globalslabs[slab];
 
-    // pos,vel have been updated in the group-local particle copies by microstepping
-    // now push these updates to the original slabs
-    if(GFC->microstepcontrol[slab]!=NULL) {
-        GGS->ScatterGlobalGroups();
-    }
     delete GGS;
     GFC->globalslabs[slab] = NULL;
 }

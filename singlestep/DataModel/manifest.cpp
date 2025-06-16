@@ -403,7 +403,6 @@ void Manifest::QueueToSend(int finished_slab) {
 	// the GLL might contain links including begin-1.
     m.dep[m.numdep++].Load(DoGlobalGroups, finished_slab, "DoGlobalGroups");
     m.dep[m.numdep++].Load(Output, finished_slab, "Output");
-    m.dep[m.numdep++].Load(Microstep, finished_slab, "Microstep");
     m.dep[m.numdep++].Load(FinishGroups, finished_slab, "FinishGroups");
     m.dep[m.numdep++].Load(Drift, finished_slab, "Drift");
     int min_il_slab = m.dep[m.numdep-1].begin-FINISH_WAIT_RADIUS;
@@ -726,7 +725,6 @@ void Manifest::ImportData() {
     m.dep[n++].Set(FindCellGroupLinks, "FindCellGroupLinks");
     m.dep[n++].Set(DoGlobalGroups, "DoGlobalGroups");
     m.dep[n++].Set(Output, "Output");
-    m.dep[n++].Set(Microstep, "Microstep");
     m.dep[n++].Set(FinishGroups, "FinishGroups");
     
     // We only want to lie about an extra Drift being completed on this node

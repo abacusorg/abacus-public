@@ -118,7 +118,6 @@ public:
     double TimeStepAccel;         // Time-step parameter based on accelerations
     double TimeStepDlna;        // Maximum time step in d(ln a)
 
-    // Could have microstepping instructions
     // Could have group finding or coevolution set instructions
 
     int  OutputFullLightCones;
@@ -173,8 +172,6 @@ public:
 
     std::vector<double> L1OutputRedshifts;
     int OutputAllHaloParticles;  // ==0 normally, to output only taggable L1 particles.  If non-zero, output all particles
-
-    double MicrostepTimeStep; // Timestep parameter that controls microstep refinement
 
     long long int MaxPID;  // Maximum PID to expect.  A PID equal or larger than this indicates corruption of some sort.  0 means NP; -1 means don't check.
 
@@ -436,9 +433,6 @@ public:
 
         OutputAllHaloParticles = 0;
         installscalar("OutputAllHaloParticles", OutputAllHaloParticles, DONT_CARE);
-
-        MicrostepTimeStep = 0.;  // no microstepping
-        installscalar("MicrostepTimeStep", MicrostepTimeStep, DONT_CARE);
 
         MaxPID = -1;
         installscalar("MaxPID", MaxPID, DONT_CARE);

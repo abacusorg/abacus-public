@@ -543,61 +543,15 @@ public:
 
 // -----------------------------------------------------------------
 
-class MicrostepDep : public SlabDependency {
-public:
-    MicrostepDep(int cpd, int initialslab)
-        : SlabDependency("Microstep", cpd, initialslab){ }
-
-    int precondition(int slab){
-        // We are going to second-half kick this slab
-        if (DoGlobalGroups->notdone(slab))
-            return 0;
-        return 1;
-    }
-
-    void action(int slab){
-
-        // TODO: This is now not the place to do this.
-        // All kicks (and half-unkicks) for output are done; discard accels.
-        // We de-allocate in Drift if we aren't doing group finding
-        // SB->DeAllocate(AccSlab,slab);
-
-        return;
-        MicrostepCPU.Start();
-        // Do microstepping here
-        if(MicrostepEpochs != NULL){
-            STDLOG(1,"Beginning microsteps for slab {:d}\n", slab);
-            MicrostepControl *MC = new MicrostepControl;
-            MC->setup(GFC->globalslabs[slab], *MicrostepEpochs, P.MicrostepTimeStep, NFD->eps);
-            //MC->LaunchGroupsGPU();
-            MC->ComputeGroupsCPU();
-
-            GFC->microstepcontrol[slab] = MC;
-        }
-
-        //SlabDependency do_action() assumes that each SlabDependency processes all particles in a given slab.
-        //Microstepping is an exception; it only does the group particles! Correct the bookkeeping here.
-        Microstep->num_particles += GFC->globalslabs[slab]->np - SS->size(slab);
-
-        MicrostepCPU.Stop();
-    }
-};
-
-// -----------------------------------------------------------------
-
 class FinishGroupsDep : public SlabDependency {
 public:
     FinishGroupsDep(int cpd, int initialslab)
         : SlabDependency("FinishGroups", cpd, initialslab){ }
 
     int precondition(int slab){
-        // Is the asychronous GPU microstepping done?
-        //if (!GFC->microstepcontrol[slab]->GPUGroupsDone()) return 0
-
         // We are going to release these groups.
-        // TODO: If Microstep changes, this may change.  At present, we really need Output to be done
-        // because this step triggers the writeback of the new Pos/Vel.
-        if (Microstep->notdone(slab)) return 0;
+        if (DoGlobalGroups->notdone(slab))
+            return 0;
 
         return 1;
     }
@@ -605,8 +559,6 @@ public:
     void action(int slab){
         // Scatter pos,vel updates to slabs, and release GGS
         FinishGlobalGroups(slab);   // This will Scatter Pos/Vel
-        delete GFC->microstepcontrol[slab];
-        GFC->microstepcontrol[slab] = NULL;
 
         // TODO: When we're ready to send Group-based Manifests, it would go here.
         // Would pass slab+1 to the manifest code as the faux finished slab.

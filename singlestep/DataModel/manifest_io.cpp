@@ -324,7 +324,6 @@ void Manifest::QueueToSend(int finished_slab) {
 	// the GLL might contain links including begin-1.
     m.dep[m.numdep++].Load(DoGlobalGroups, finished_slab);
     m.dep[m.numdep++].Load(Output, finished_slab);
-    m.dep[m.numdep++].Load(Microstep, finished_slab);
     m.dep[m.numdep++].Load(FinishGroups, finished_slab);
     m.dep[m.numdep++].Load(Drift, finished_slab);
     int min_il_slab = m.dep[m.numdep-1].begin-1;
@@ -561,7 +560,6 @@ void Manifest::ImportData() {
     m.dep[n++].Set(FindCellGroupLinks);
     m.dep[n++].Set(DoGlobalGroups);
     m.dep[n++].Set(Output);
-    m.dep[n++].Set(Microstep);
     m.dep[n++].Set(FinishGroups);
     m.dep[n].end++;
         // We need to also mark the first_finished_slab on the other node

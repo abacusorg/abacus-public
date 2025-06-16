@@ -258,10 +258,6 @@ void GatherTimings() {
     if(Output){
         REPORT(1, "Output", Output->Elapsed()); total += thistime;
         REPORT_RATE(Output);
-        if (GFC != NULL){
-            REPORT(1, "Microstep", Microstep->Elapsed()); total += thistime;
-            REPORT_RATE(Microstep);
-        }
     }
 
     REPORT(1, "Drift", Drift->Elapsed()); total += thistime;
@@ -494,17 +490,6 @@ void GatherTimings() {
             denom = Output->Elapsed();
             REPORT(2, "Output Bin", OutputBin.Elapsed());
                 REPORT_RATE(Output);
-    }
-
-    if(GFC != NULL){
-        fmt::print(reportfp, "\n\nBreakdown of Microstep:");
-        denom = TimeStepWallClock.Elapsed();
-        REPORT(1, "Microstep", Microstep->Elapsed());
-            REPORT_RATE(Microstep);
-        denom = thistime;
-        REPORT(2, "Precondition", Microstep->ElapsedPrecon());
-        REPORT(2, "CPU Microsteps", MicrostepCPU.Elapsed());
-            fmt::print(reportfp,"---> {:6.2f} M_group_part/sec", thistime ? GFC->L0stats.tot/thistime/1e6 : 0.);
     }
 
     fmt::print(reportfp, "\n\nBreakdown of Drift:");

@@ -222,9 +222,6 @@ double ChooseTimeStep(int NoForces){
 
     if(ReadState.DoTimeSliceOutput >= 2) WriteState.LastTimeSliceOutput = ReadState.DoTimeSliceOutput - 2;
 
-    if(P.MicrostepTimeStep > 0)
-        MicrostepEpochs = new MicrostepEpochTable(cosm, cosm->current.a, cosm->current.a + da, P.np);
-
     // da *= -1;  // reverse the time step TODO: make parameter
     double dlna = da/ReadState.ScaleFactor;
     STDLOG(0,"Chose Time Step da = {:6.4f}, dlna = {:6.4f}\n", da, dlna);
