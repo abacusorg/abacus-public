@@ -10,6 +10,15 @@ A high-performance N-body code for cosmological simulations.
 [![GPU Tests](https://jenkins.flatironinstitute.org/buildStatus/icon?job=abacus-public%2Fmain&subject=GPU%20Tests)](https://jenkins.flatironinstitute.org/job/abacus-public/job/main/)
 </div>
 
+> [!IMPORTANT]
+> **Pre-Release Status**: Abacus is currently under active development with an unstable API. The code is being shared in the spirit of open science, but please note:
+> 
+> - Documentation is limited and evolving
+> - Developer support for issues is minimal at this time
+> - Pull requests may be deferred while we focus on core architecture
+> 
+> We're currently prioritizing fundamental improvements before establishing official workflows. We appreciate your interest and patience as Abacus matures toward a more supported state!
+
 ## Obtaining the Code
 Clone the code from GitHub, including submodules recursively:
 ```console
