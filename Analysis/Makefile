@@ -1,9 +1,9 @@
-SUBDIRS = PowerSpectrum FoF 
+SUBDIRS = PowerSpectrum
 
 .PHONY: $(SUBDIRS) all default
 
 # don't build Rockstar by default (expensive)
-default: PowerSpectrum FoF
+default: PowerSpectrum
 
 $(SUBDIRS):
 	$(MAKE) -C $@

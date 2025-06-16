@@ -59,7 +59,6 @@ REAL_CC="$REAL_CXX -x c"
 
 # Imports
 m4_include(Configuration/m4/ax_check_cuda.m4)
-m4_include(Configuration/m4/ax_check_compile_flag.m4)
 m4_include(Configuration/m4/ax_gcc_x86_avx_xgetbv.m4)
 m4_include(Configuration/m4/ax_gcc_x86_cpuid.m4)
 m4_include(Configuration/m4/ax_ext.m4)
