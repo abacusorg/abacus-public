@@ -13,7 +13,7 @@ A high-performance N-body code for cosmological simulations.
 ## Obtaining the Code
 Clone the code from GitHub, including submodules recursively:
 ```console
-$ git clone --recursive git@github.com:abacusorg/abacus.git
+$ git clone --recursive git@github.com:abacusorg/abacus-public.git
 ```
 
 If you forget the recursive clone, you can initialize the submodules later:

@@ -16,7 +16,7 @@ of valgrind!
 The ParseHeader library also does many operations
 that make valgrind very upset (produce a lot of warnings).
 These warnings are harmless as far as we've been able to tell.
-The [`valgrind.supp`](https://github.com/abacusorg/abacus/blob/master/valgrind.supp)
+The [`valgrind.supp`](https://github.com/abacusorg/abacus-public/blob/master/valgrind.supp)
 suppressions file in the root of the Abacus repository should hide
 most of these. (TODO: haven't checked the suppressions file
 in a while, may need updating).

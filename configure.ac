@@ -5,7 +5,7 @@
 # Athena (https://trac.princeton.edu/Athena/)
 
 # Initialization
-AC_INIT([abacus], [2.0], [], [], [github.com/abacusorg/abacus])
+AC_INIT([abacus], [2.0], [], [], [github.com/abacusorg/abacus-public])
 
 if test -f ./config.site; then
     echo "configure: loading site script ./config.site"
