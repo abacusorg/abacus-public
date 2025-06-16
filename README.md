@@ -7,7 +7,7 @@
 <div align="center">
 A high-performance N-body code for cosmological simulations.
 
-[![GPU Tests](https://jenkins.flatironinstitute.org/buildStatus/icon?job=abacus%2Fdevelopment&subject=GPU%20Tests)](https://jenkins.flatironinstitute.org/job/abacus/job/development/)
+[![GPU Tests](https://jenkins.flatironinstitute.org/buildStatus/icon?job=abacus-public%2Fmain&subject=GPU%20Tests)](https://jenkins.flatironinstitute.org/job/abacus-public/job/main/)
 </div>
 
 ## Obtaining the Code
