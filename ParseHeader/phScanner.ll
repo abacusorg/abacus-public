@@ -1,7 +1,6 @@
-// Copyright 2012-2025 The Abacus Developers
-// SPDX-License-Identifier: GPL-3.0-or-later
-
-/* -*- C++ -*- */
+/* Copyright 2012-2025 The Abacus Developers
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * -*- C++ -*- */
 %option outfile="phScanner.cc"
 %option header-file="phScanner.hh"
 %{
