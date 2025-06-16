@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /// These routines provide the interface to the multipole and taylor
 /// evaluation modules.
 

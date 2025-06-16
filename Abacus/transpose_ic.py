@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright 2012-2025 The Abacus Developers
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 '''
 The 2D code needs to read a [x,z] subdomain of the ICs.
 But the zeldovich code writes out [slab][x,y,z] ([slab] are separate

@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /* file: neighbor_exchange.cpp
  *
  * The "neighbor exchange" is a 2D parallel concept where ghost

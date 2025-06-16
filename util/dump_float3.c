@@ -1,3 +1,8 @@
+/*
+ * Copyright 2012-2025 The Abacus Developers
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 #define PROGNAME "dump_float3"
 
 #include "util_header.h"

@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /** \file This is the code that searches for links between CellGroups in neighboring
 cells.  When a link is found, it is placed in the GroupLinkList GLL.
 Aside from those GroupLinks, there is no other output from this code.

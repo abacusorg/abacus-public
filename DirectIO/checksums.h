@@ -1,4 +1,9 @@
 /*
+ * Copyright 2012-2025 The Abacus Developers
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+/*
 
 This is the Abacus object-oriented interface to the checksum
 functions defined in crc32_fast.

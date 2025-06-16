@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright 2012-2025 The Abacus Developers
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """
 usage: convert_derivs_to_float32.py [-h]
                                     fourierspace_file [fourierspace_file ...]

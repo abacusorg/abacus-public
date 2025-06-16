@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Copyright 2012-2025 The Abacus Developers
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 '''
 Concatenate and compress the given slabs into a superslab in ASDF file format.
 '''

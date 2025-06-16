@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /* 
 The cell-oriented structure of abacus allows for an efficient way
 to compress the particle data.  A typical cell size is a few Mpc.

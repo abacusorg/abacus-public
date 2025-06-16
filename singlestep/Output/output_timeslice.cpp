@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /*
  * This class creates an AppendArena object of the desired output type
  * and repeatedly calls "addparticle()" on it.  The actual implementation

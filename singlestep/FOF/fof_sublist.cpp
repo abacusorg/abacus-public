@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /** \file This file contains the routines to do FOF on a consecutive list of 
 particles, either from a cell or from a L0 or L1 gathering.
 Optionally, this can perform a permutation on the particle set.

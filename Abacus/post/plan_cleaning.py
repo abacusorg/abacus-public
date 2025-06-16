@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Copyright 2012-2025 The Abacus Developers
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 '''
 Take halo merger associations (the output of the merger.py module) and identify
 halos that are eligible for "cleaning".

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright 2012-2025 The Abacus Developers
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 '''
 This is an out-of-core wrapper to Corrfunc, designed to
 support pair-counting (auto-correlation or cross-correlation)

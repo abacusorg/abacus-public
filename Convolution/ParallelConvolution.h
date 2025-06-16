@@ -1,3 +1,8 @@
+/*
+ * Copyright 2012-2025 The Abacus Developers
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 #define CPD2PADDING 1024    // Byte padding
 
 /// The ParallelConvolution class is responsible for performing the Fourier space convolution of the multipole moments with the derivatives tensor to obtain the Taylor coefficients required to compute the far field, in the use case where Abacus is running on multipole nodes. 

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright 2012-2025 The Abacus Developers
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 '''
 This is a thin wrapper for running Corrfunc on sets of
 particles that can be loaded into memory all at once.

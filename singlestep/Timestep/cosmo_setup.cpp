@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 Cosmology *InitializeCosmology(double ScaleFactor) {
     // Be warned that all of the Cosmology routines quote time units
     // by what is entered as H0.  The code wants to use H0=1 units.

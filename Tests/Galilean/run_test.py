@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright 2012-2025 The Abacus Developers
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 '''
 Set up a uniform grid with a constant velocity and run for a number
 of time steps. Then check that we haven't lost any particles!

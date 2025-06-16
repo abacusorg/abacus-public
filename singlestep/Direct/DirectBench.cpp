@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //Benchmark the direct module using "realistic" fake slabs
 #include <gsl/gsl_rng.h>
 #include <gsl/gsl_randist.h>

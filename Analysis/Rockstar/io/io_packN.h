@@ -1,3 +1,8 @@
+/*
+ * Copyright 2012-2025 The Abacus Developers
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 #ifndef _IO_PACKN_H_
 #define _IO_PACKN_H_
 #include <stdint.h>

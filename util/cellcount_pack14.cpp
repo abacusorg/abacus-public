@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 #define PROGNAME "cellcount_pack14"
 
 // This simply outputs the counts in each cell.

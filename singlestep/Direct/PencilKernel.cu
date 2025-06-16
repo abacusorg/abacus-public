@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /// \file These are the GPU-side routines that implement the Block-on-Block computation.
 
 /// We specialize these Block-based kernels to the choice of 

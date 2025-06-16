@@ -1,3 +1,6 @@
+# Copyright 2012-2025 The Abacus Developers
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """
 The halo light cone code selects halos from the halo time slice catalog and computes
 their intersection with the light cone. In most cases, only some of these halos will

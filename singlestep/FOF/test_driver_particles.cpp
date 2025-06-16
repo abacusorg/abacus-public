@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // This is the code to input or create particles for a simple global test.
 
 class SortStruct {

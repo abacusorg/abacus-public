@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 class ringbuffer {
 public:
     ringbuffer(int _n) { n = _n; h=0;t=0; s=0; ring = new iorequest[n]; chk();  }

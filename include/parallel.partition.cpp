@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /* 
 Compile with:
 g++ -O2 -DPPTEST -march=native -fopenmp -lgomp -DOMP parallel.partition.cpp

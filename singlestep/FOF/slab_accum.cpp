@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /*** This is a set of classes to accumulate and store a cell-based listing
 of objects in a Slab.  The challenge is that we don't know the lengths
 as we're creating them, yet must support multi-threading.  The threading

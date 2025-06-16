@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 #define THISCODE std::string("Time-stamp: <DumpSpiral.cc on Saturday, 19 November, 2011 at 21:28:38 EST (bob)>")
 
 /*

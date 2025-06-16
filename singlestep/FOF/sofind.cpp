@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /** \file Code to perform spherical overdensity finding on provided particle
 sets, in particular the L0 groups.
 

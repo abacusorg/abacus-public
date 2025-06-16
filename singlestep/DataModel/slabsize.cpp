@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /* slabsize.cpp
 *
 * \brief Provides a class to load and store the number of particles per slab from disk.

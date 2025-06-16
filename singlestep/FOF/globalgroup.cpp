@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /** \file This is the code that traverses the graph of links to make the GlobalGroups.
 A GlobalGroup is just a list of CellGroups, stored by their LinkID.
 

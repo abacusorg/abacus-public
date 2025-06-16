@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /* arenaallocator.cpp
  *
  * \brief Our low-level routine for handling memory.

@@ -1,3 +1,6 @@
+# Copyright 2012-2025 The Abacus Developers
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 '''
 Driver functions to invoke the `CreateDerivatives` executable to precompute
 derivatives for a given CPD and Order.  Also handles creating derivatives

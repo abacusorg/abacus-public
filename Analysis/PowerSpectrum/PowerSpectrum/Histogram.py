@@ -1,3 +1,6 @@
+# Copyright 2012-2025 The Abacus Developers
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 import numpy as np
 import scipy
 from Abacus.Tools import numexpr_dist

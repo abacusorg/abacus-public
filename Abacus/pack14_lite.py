@@ -1,3 +1,6 @@
+# Copyright 2012-2025 The Abacus Developers
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 '''
 This file contains a number of functions for reading our
 pack14 file format in Python.  Our standard way to do this

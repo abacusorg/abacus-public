@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // multiappendlist.cpp
 
 /* The class MultiAppendList is a multi-threaded append-in-place code.

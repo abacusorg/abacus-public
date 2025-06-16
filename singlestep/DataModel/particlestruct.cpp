@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /* particlestruct.cpp
 
 Base structures for the particle and cell data.  This is where

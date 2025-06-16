@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Copyright 2012-2025 The Abacus Developers
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 '''
 Use halo catalogs and particle IDs to form merger associations (i.e. merger trees)
 between output epochs.

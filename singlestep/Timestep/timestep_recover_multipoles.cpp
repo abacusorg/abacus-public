@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /* timestep_recover_multipoles.cpp
 
 This is a minimal slab pipeline that will load position slabs

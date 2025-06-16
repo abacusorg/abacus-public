@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 #include "proepi.cpp"
 #include "timestep_ic.cpp"
 #include "cosmo_setup.cpp"

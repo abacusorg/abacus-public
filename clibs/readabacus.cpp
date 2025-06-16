@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 #include "cell_header.h"
 #include "packN_storage.cpp"
 #include "threevector.hh"

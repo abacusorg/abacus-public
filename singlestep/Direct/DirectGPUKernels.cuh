@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /** \file This file contains the pairwise direct kernel.
  * 
  * We have various choices for softening, selected by pre-processor #ifdef

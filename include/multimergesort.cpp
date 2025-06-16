@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /* MultiMergeSort -- Daniel Eisenstein, July 2017
 
 The algorithm sorts cache-sized sub-lists and marks partitions in them.

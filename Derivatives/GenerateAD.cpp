@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 #include "../include/header.cpp"
 #include "quad_double.cpp"
 #include "../include/threevector.hh"

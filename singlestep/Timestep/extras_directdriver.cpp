@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // This file contains parts of directdriver.cpp that are relevant
 // to CPU computation and comparison of the GPU & CPU code.
 // These routines are not normally executed.

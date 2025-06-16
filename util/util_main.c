@@ -1,3 +1,8 @@
+/*
+ * Copyright 2012-2025 The Abacus Developers
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 // This is a simple code to drive all of the utilities.
 // Generically, we take many file names and apply in sequence.
 // If the first argument is -, then we apply to stdin.

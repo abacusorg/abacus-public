@@ -1,3 +1,8 @@
+/*
+ * Copyright 2012-2025 The Abacus Developers
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 #ifndef __D4DECL__
 #define __D4DECL__
 typedef struct { double v[4]; } d4;

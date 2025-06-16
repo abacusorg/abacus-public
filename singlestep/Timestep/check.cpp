@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /* check.cpp 
  * Future general validation code may be placed here.
  * Alternatively, this file could easily be refactored into the cellinfo class

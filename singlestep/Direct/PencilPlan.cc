@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /** \file This file contains the routines to prepare plans for the 
 Sink and Source pencils, and then to actually use them to load into
 the GPU pinned memory.  The former action is conducted by the primary

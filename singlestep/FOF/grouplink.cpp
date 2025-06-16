@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /** \file The GroupLinkList is a pan-slab list of pairs of CellGroups,
 where the pairs have at least one particle within the FOF distance.
 Having found the CellGroups, we then form them into GlobalGroups by

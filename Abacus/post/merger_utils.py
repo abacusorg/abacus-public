@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Copyright 2012-2025 The Abacus Developers
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 '''
 Helper routines for the merger tree modules.
 

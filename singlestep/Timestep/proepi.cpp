@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /*! \brief Setup and teardown code for singlestep
  * proepi.cpp has several responsibilities:
  *  1.It is the root inclusion point for the entirety of Singlestep. All compile-time dependencies

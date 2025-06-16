@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /* AVX-512 implementations of our directs kernels
    Some of the AVX-512 ideas are based on Manodeep Sinha's AVX-512 pair counting implementation for Corrfunc.
 

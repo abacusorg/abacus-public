@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Copyright 2012-2025 The Abacus Developers
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """
 Concatenate and compress the given lightcone files into ASDF file format,
 one per step per file type.

@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /*
  * binning.cpp
  * Seperates out the triangular shaped cloud binning code from the power spectrum code. Other binning methods can also go in here

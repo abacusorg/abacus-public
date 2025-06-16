@@ -1,3 +1,6 @@
+# Copyright 2012-2025 The Abacus Developers
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """
 Tools for efficient reading of various Abacus file formats in Python.
 See the Abacus readme for details on the various formats.

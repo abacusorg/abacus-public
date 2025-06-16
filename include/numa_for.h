@@ -1,4 +1,9 @@
 /*
+ * Copyright 2012-2025 The Abacus Developers
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+/*
 
 On NUMA systems, having cores operate on memory within their NUMA node is important
 for performance.  But OpenMP doesn't provide any mechanisms by which to assign threads

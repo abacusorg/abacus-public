@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 class InCoreConvolution : public basemultipoles {
 private:
     Complex *_mcache,*_tcache;

@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /* timestep.cpp
 
 This is the main routine to evolve the particles.  This defines the

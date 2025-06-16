@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /* slabbuffer.cpp
 
 This defines all of the types of slabs that we will use

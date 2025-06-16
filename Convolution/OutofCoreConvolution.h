@@ -1,3 +1,8 @@
+/*
+ * Copyright 2012-2025 The Abacus Developers
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 #include "ConvolutionParametersStatistics.cpp" //NAM TODO haven't tested if this compiles. 
 #include "block_io_utils.cpp"
 

@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 AVXDirectFloatNR::AVXDirectFloatNR(int maxsrc) : maxsrc(maxsrc) {
     assert( posix_memalign((void **)&jpdata,  64, sizeof(jpstruct<float>)*maxsrc)     == 0 );
     assert( posix_memalign((void **)&ipdata,  64, sizeof(ipstruct<float,8>))  == 0 );

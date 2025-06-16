@@ -1,3 +1,6 @@
+# Copyright 2012-2025 The Abacus Developers
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 '''
 Our numba implementations of histogramming of gridded quantities
 are fast, but not very flexible, so there's a fair number of

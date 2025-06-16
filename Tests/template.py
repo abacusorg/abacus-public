@@ -1,3 +1,6 @@
+# Copyright 2012-2025 The Abacus Developers
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 #/usr/bin/env python
 '''
 Template for all tests. Put any functionality in the *run* method

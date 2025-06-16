@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /* This class will handle the Multipoles and Taylors in a parallel
 in-memory setting.  The timestep code should compute MultipoleSlab
 and then hand it to this code.  Here, we trigger MPI_Issends() and

@@ -1,3 +1,6 @@
+# Copyright 2012-2025 The Abacus Developers
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """
 Compute "transfer functions" (i.e. ratios of power or deltak)
 between two sets of particles or density fields.

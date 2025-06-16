@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /** \file We create a CellGroup for every multiplets and every boundary singlet.
 We hide the bounding box test and status bits in the upper 8 bits of the multiplicity
 This limits cell groups to 16M particles, which is safe

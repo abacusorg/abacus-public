@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /* Abacus forces are of sufficient accuracy that we can support an
 alternative derivation of higher-order LPT, in which we derive the 
 high-order displacements from force calculations. 

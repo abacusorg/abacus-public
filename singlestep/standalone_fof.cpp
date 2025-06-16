@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /*  Run the on-the-fly group finder on a state or time slice outputs.
  *  This executable is primarily invoked via the `Abacus/standalone_fof.py` script.
  *  TODO: add functionality to run on states.

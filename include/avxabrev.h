@@ -1,3 +1,8 @@
+/*
+ * Copyright 2012-2025 The Abacus Developers
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 #define VZEROALL                   asm("vzeroall");
 #define VLOADPS(mem, dst)          asm("vmovaps %0, %" dst::"m"(mem));
 #define VLOADPD(mem, dst)          asm("vmovapd %0, %" dst::"m"(mem));

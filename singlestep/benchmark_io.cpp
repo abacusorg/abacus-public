@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /*  This is an IO benchmark utility that simply reads the state files
  *  and writes them back out.
  */

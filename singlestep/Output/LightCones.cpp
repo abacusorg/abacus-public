@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /*
  * LightCones.cpp
  *      Identify particles in the lightcone for a given set of origins and output them.

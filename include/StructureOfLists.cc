@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // Easy to use 3 component float structure of lists
 
 #ifndef __STRUCTUREOFLISTS_CC

@@ -1,3 +1,8 @@
+/*
+ * Copyright 2012-2025 The Abacus Developers
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 /* This file contains the pure C parts of our HaloStat definition.
    This facilitates interoperability with C and Python.
    C++ applications should not include this directly, but instead

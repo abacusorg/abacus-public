@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /*
  * \brief The grid class provides the periodic geometry of the cells and 
  * the positions (in simulation units).

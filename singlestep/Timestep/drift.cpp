@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /* drift.cpp
  * This drifts the particles by a specified drift factor.  
  * It then checks to see if the particles have drifted outside of

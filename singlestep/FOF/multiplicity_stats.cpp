@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /** This provides a simple statistical summary of the group sizes,
 particularly generating a histogram.  
 */

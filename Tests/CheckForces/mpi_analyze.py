@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright 2012-2025 The Abacus Developers
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 '''
 For extremely large check_forces problems, we sometimes want to run check_forces,
 store the results, and analyze them later/on a different system.  This script

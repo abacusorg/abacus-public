@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // This takes the input and outputs binary RVdouble format.
 
 #define PROGNAME "pack14_to_rvdouble"

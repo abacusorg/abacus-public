@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /* kick.cpp
  * Kick all of the particles in a slab by a specified kick factor.
  *

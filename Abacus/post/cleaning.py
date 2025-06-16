@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Copyright 2012-2025 The Abacus Developers
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 '''
 Take the cleaning plan (the output of the plan_cleaning.py module) and write amended,
 "cleaned" halo catalogs, along with particle subsamples.

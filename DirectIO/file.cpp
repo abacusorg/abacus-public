@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 #ifndef INCLUDE_FILE
 #define INCLUDE_FILE
 

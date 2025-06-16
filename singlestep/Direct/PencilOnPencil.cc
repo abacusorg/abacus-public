@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /** \file This is the code to load up the SetInteractionCollection
  * instances, which is the CPU's organization of the work involved in
  * computing the near-field pencil-on-pencil directs.

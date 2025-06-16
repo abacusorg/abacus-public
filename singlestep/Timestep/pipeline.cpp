@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /* pipeline.cpp
  *
  * pipeline.cpp defines the dependencies used in timestep.cpp. Each is a

@@ -1,3 +1,6 @@
+# Copyright 2012-2025 The Abacus Developers
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 '''
 A Python implementation of triangle-shaped cloud
 binning, using Numba for C-like efficiency.

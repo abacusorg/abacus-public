@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 double fact(int n) {
     double f = 1.0;
     for(int i=2;i<=n;i++) f *= i;

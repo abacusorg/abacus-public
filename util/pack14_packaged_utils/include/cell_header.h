@@ -1,3 +1,8 @@
+/*
+ * Copyright 2012-2025 The Abacus Developers
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 /* cell_header.h
 
 This is a simple class to track information about cells for the append_arena.cpp

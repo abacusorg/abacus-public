@@ -1,4 +1,9 @@
 /*
+ * Copyright 2012-2025 The Abacus Developers
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+/*
 
 In the MPI parallel code, some of the MPI work falls way behind the theoretical
 network speed on platforms like Summit.  The reason is unclear, but we worry

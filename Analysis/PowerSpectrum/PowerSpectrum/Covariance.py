@@ -1,3 +1,6 @@
+# Copyright 2012-2025 The Abacus Developers
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 """
 A library for computing covariance matricies from power spectra;
 e.g. computing the covariance of a two-point correlation function,

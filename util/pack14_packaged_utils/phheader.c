@@ -1,3 +1,8 @@
+/*
+ * Copyright 2012-2025 The Abacus Developers
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 /* phheader -- Print the ParseHeader header of a file to stdout.
 This routine doesn't do any parsing -- just echos the text, 
 stripping out the final demarker (^B\n).  We add a \n to the end of the file.

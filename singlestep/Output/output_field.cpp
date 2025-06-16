@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // ================  Routines for the non-L0 taggable output =============
 
 /** Gather all of the taggable particles that aren't in L0 groups into

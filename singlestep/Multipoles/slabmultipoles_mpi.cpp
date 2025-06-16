@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 
 #ifdef MULTIPOLE_2D_MPI_USE_FLOAT
 // Precision of network transfers (Taylors and Multipoles)

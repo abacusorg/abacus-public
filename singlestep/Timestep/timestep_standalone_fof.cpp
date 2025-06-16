@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /* timestep_standalone_fof.cpp
 
 This file contains a minimal slab pipeline that runs on-the-fly

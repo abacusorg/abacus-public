@@ -1,3 +1,8 @@
+/*
+ * Copyright 2012-2025 The Abacus Developers
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 /* phdata -- Skip the ParseHeader header of a file and print the rest to stdout.
 If no filename is given, read from stdin.  
 If many file names are given, perform on all of them.

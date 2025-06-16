@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /*
  * This class provides access to particle data in a cell-oriented manner.
  * This is done in a way such that in-order access to the particles should

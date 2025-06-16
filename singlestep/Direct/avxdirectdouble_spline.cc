@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 AVXDirectDouble::AVXDirectDouble(int maxsrc) : maxsrc(maxsrc) {
     assert( posix_memalign((void **)&jpdata,  64, sizeof(jpstruct<double>)*maxsrc)     == 0 );
     assert( posix_memalign((void **)&ipdata,  64, sizeof(ipstruct<double,4>))  == 0 );

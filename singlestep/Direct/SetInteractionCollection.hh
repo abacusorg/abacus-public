@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /** \file Holds information about an group of interactions (i.e. pencil on pencil) to compute directs for 
 These sets can be any arbitrary collections of particles (e.g. groups), but frequently are (2*NearFieldRadius+1) cell pencils (hereafter 5).
 

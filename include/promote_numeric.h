@@ -1,4 +1,9 @@
 /*
+ * Copyright 2012-2025 The Abacus Developers
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+/*
   Template stuff for type-promotion
 
   needed by threevector and simplefuncs

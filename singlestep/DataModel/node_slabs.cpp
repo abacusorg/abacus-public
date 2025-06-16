@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /** This code describes a file that will direct the nodes as to 
 which slabs to work on.  The file is simply NNode numbers, which 
 list the first slab of each node.  A node needs that number as well

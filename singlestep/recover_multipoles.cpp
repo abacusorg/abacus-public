@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /*  This is a multipole recovery utility that simply loads positions
  *  from the read state and outputs multipoles to the multipole directory.
  *  

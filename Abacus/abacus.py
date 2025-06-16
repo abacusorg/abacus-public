@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright 2012-2025 The Abacus Developers
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 '''
 This module is the main entry point for running an Abacus simulation.
 For a complete example of a simulation setup that demonstrates how

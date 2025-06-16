@@ -175,9 +175,45 @@ Tests are in the `Tests` directory. See [`Tests/README.md`](Tests/README.md).
 
 * **papers**: Journal & conference papers (make subdirectories for each one)
 
-## Papers
-The [AbacusSummit Papers & Citation page](https://abacussummit.readthedocs.io/en/latest/citation.html) lists all the relevant Abacus papers.
-
 ## Related Projects
 - [abacusutils](https://github.com/abacusorg/abacusutils): Python code to interface with halo catalogs and other Abacus N-body data products
 - [AbacusSummit](https://abacussummit.readthedocs.io/): information about the AbacusSummit simulation suite
+
+## Citation
+If you use or reference Abacus in a published work, please cite [Garrison, et al. (2021)](https://doi.org/10.1093/mnras/stab2482). A BibTeX entry in included below for convenience. Depending on which components or data are used, more citations may be appropriate. The [AbacusSummit Papers & Citation page](https://abacussummit.readthedocs.io/en/latest/citation.html) lists most of the core Abacus papers.
+
+<details>
+<summary>BibTeX entry</summary>
+
+```bibtex
+@ARTICLE{10.1093/mnras/stab2482,
+    author = {Garrison, Lehman H and Eisenstein, Daniel J and Ferrer, Douglas and Maksimova, Nina A and Pinto, Philip A},
+    title = "{The abacus cosmological N-body code}",
+    journal = {Monthly Notices of the Royal Astronomical Society},
+    volume = {508},
+    number = {1},
+    pages = {575-596},
+    year = {2021},
+    month = {09},
+    abstract = "{We present abacus, a fast and accurate cosmological N-body code based on a new method for calculating the gravitational potential from a static multipole mesh. The method analytically separates the near- and far-field forces, reducing the former to direct 1/r2 summation and the latter to a discrete convolution over multipoles. The method achieves 70 million particle updates per second per node of the Summit supercomputer, while maintaining a median fractional force error of 10−5. We express the simulation time-step as an event-driven ‘pipeline’, incorporating asynchronous events such as completion of co-processor work, input/output, and network communication. abacus has been used to produce the largest suite of N-body simulations to date, the abacussummit suite of 60 trillion particles, incorporating on-the-fly halo finding. abacus enables the production of mock catalogues of the volume and resolution required by the coming generation of cosmological surveys.}",
+    issn = {0035-8711},
+    doi = {10.1093/mnras/stab2482},
+    url = {https://doi.org/10.1093/mnras/stab2482},
+    eprint = {https://academic.oup.com/mnras/article-pdf/508/1/575/40458823/stab2482.pdf},
+}
+```
+</details>
+
+## License
+Abacus is licensed under the [GNU General Public License v3.0](./LICENSE) or any later version (SPDX-License-Identifier: GPL-3.0-or-later).
+
+Some sources are included from external projects under the terms of those projects' licenses. These sources retain their original license notices.
+
+### The Abacus Name
+
+To avoid confusion in the scientific community, we kindly ask that you:
+
+- Feel free to mention Abacus when describing work that uses this software
+- Consider alternative naming schemes for derivative works that don't incorporate "Abacus" directly in the title (e.g., instead of "AbacusMocks," perhaps "Mocks with Abacus" or your own unique name)
+
+This helps users distinguish between the core Abacus project and the community contributions built around it.

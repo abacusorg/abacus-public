@@ -1,3 +1,8 @@
+/*
+ * Copyright 2012-2025 The Abacus Developers
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 /* This is a macro template file meant to be loaded via #include "fft.h"
  *  Must define:
  *  FFT_FUNC_NAME:

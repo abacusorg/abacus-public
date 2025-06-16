@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // Generate FFT functions with various options.  See fft.h.
 
 //aliased tsc window function from jeong (2010) chap. 7

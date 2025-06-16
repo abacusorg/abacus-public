@@ -1,3 +1,8 @@
+/*
+ * Copyright 2012-2025 The Abacus Developers
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 /// Euler16.c
 
 /* This code takes two orthogonal axes (notionally the major and minor)

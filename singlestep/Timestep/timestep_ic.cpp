@@ -1,3 +1,6 @@
+// Copyright 2012-2025 The Abacus Developers
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 /* timestep_ic.cpp
 
 This file contains a minimal slab pipeline that is run during an IC step.

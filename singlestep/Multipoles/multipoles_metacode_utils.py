@@ -1,3 +1,6 @@
+# Copyright 2012-2025 The Abacus Developers
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 '''
 This module contains a few functions related to the loop-unrolling
 meta-code for the multipoles/Taylors (generateCartesianUnrolled.py
