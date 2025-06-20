@@ -15,7 +15,7 @@ A high-performance N-body code for cosmological simulations.
 > 
 > - Documentation is limited and evolving
 > - Developer support for issues is minimal at this time
-> - Pull requests may be deferred while we focus on core architecture
+> - Pull requests may be deferred while we focus on core infrastructure
 > 
 > We're currently prioritizing fundamental improvements before establishing official workflows. We appreciate your interest and patience as Abacus matures toward a more supported state!
 
@@ -223,6 +223,6 @@ Some sources are included from external projects under the terms of those projec
 To avoid confusion in the scientific community, we kindly ask that you:
 
 - Feel free to mention Abacus when describing work that uses this software
-- Consider alternative naming schemes for derivative works that don't incorporate "Abacus" directly in the title (e.g., instead of "AbacusMocks," perhaps "Mocks with Abacus" or your own unique name)
+- Consider alternative naming schemes for derivative works that don't center "Abacus" in the title (e.g., instead of "AbacusMocks," perhaps "Mocks with Abacus" or your own unique name)
 
 This helps users distinguish between the core Abacus project and the community contributions built around it.
