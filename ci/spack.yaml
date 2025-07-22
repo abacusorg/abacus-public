@@ -32,7 +32,7 @@ spack:
   container:
     images:
       os: rockylinux:8
-      spack: '0.23'
+      spack: '1.0'
 
     strip: false
 

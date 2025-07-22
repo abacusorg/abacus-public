@@ -10,6 +10,7 @@ pipeline {
     }
     options {
         timeout(time: 1, unit: 'HOURS')
+        disableConcurrentBuilds(abortPrevious: true)
     }
     environment {
         HOME = "$WORKSPACE"

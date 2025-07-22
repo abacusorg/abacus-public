@@ -1,6 +1,6 @@
 # Build stage with Spack pre-installed and ready to be used
 
-FROM spack/rockylinux8:0.23.1 as builder
+FROM spack/rockylinux8:1.0.0 as builder
 
 # What we want to install and how we want to install it
 # is specified in a manifest file (spack.yaml)
@@ -85,14 +85,7 @@ RUN --mount=type=tmpfs,target=/opt/spack-stage,size=32G \
     echo "Building with $SPACK_INSTALL_PROCESSES processes and $SPACK_INSTALL_JOBS jobs" && \
     cd /opt/spack-environment && \
     spack env activate . && \
-    for _ in $(seq 1 $SPACK_INSTALL_PROCESSES); do \
-        spack install --fail-fast -j $SPACK_INSTALL_JOBS & \
-        pids+=($!); \
-    done && \
-    # catch any errors from the parallel installs
-    for pid in ${pids[*]}; do \
-        wait $pid ; \
-    done && \
+    spack install --fail-fast -j $SPACK_INSTALL_JOBS -p $SPACK_INSTALL_PROCESSES && \
     spack gc -y
 
 # Modifications to the environment that are necessary to run
