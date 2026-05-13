@@ -1,34 +1,22 @@
-pipeline {
-    agent {
-        dockerfile {
-            filename 'ci/Dockerfile'
-            args '--gpus 1 --shm-size=4g'
-            label 'docker && v100 && jenkins'
-            // additionalBuildArgs '--cache-to=type=local,dest=/home/jenkins/abacus-cache --cache-from=type=local,src=/home/jenkins/abacus-cache --build-arg SPACK_INSTALL_PROCESSES=1 --build-arg SPACK_INSTALL_JOBS=16'
-            additionalBuildArgs '--build-arg SPACK_INSTALL_PROCESSES=1 --build-arg SPACK_INSTALL_JOBS=$PARALLEL'
-        }
-    }
-    options {
-        timeout(time: 1, unit: 'HOURS')
-        disableConcurrentBuilds(abortPrevious: true)
-    }
-    environment {
-        HOME = "$WORKSPACE"
-        // N.B. 4 threads is set via cgroup,
-        // so processes have to be informed about this limitation manually
-        OMP_NUM_THREADS = "${env.PARALLEL}"
-        
-        ABACUS = "$WORKSPACE"
-        ABACUS_TMP = "/dev/shm/"
-        ABACUS_PERSIST = "/dev/shm"
-        ABACUS_SSD = "/dev/shm"
-    }
-    stages {
+properties([
+  disableConcurrentBuilds(abortPrevious: true)
+])
+
+timeout(time: 24, unit: 'HOURS') {
+  buildPod(context: 'ci', gpus: 1, devShm: true,
+    buildArgs: '--build-arg SPACK_INSTALL_PROCESSES=2 --build-arg SPACK_INSTALL_JOBS=2') {
+    withEnv([
+      "HOME=$WORKSPACE",
+      "ABACUS=$WORKSPACE",
+      "ABACUS_TMP=/dev/shm/",
+      "ABACUS_PERSIST=/dev/shm",
+      "ABACUS_SSD=/dev/shm"
+    ]) {
+      timeout(time: 1, unit: 'HOURS') {
         stage('Build') {
-            steps {
                 sh '''
                     . /opt/spack-environment/activate.sh
-                    export PYTHONPATH=$ABACUS:$PYTHONPATH
+                    export PYTHONPATH=$ABACUS:$PYTHONPATH OMP_NUM_THREADS=$PARALLEL
 
                     cd $ABACUS/external/zeldovich-PLT
                     meson setup build
@@ -41,13 +29,11 @@ pipeline {
                     cd Production/site_files
                     ln -s jenkins.def site.def
                 '''
-            }
         }
         stage('Test') {
-            steps {
                 sh '''
                     . /opt/spack-environment/activate.sh
-                    export PYTHONPATH=$ABACUS:$PYTHONPATH
+                    export PYTHONPATH=$ABACUS:$PYTHONPATH OMP_NUM_THREADS=$PARALLEL
 
                     cd $ABACUS/Tests/Ewald
                     ./run_ewald.py --no-plot
@@ -58,7 +44,8 @@ pipeline {
                     cd $ABACUS/Tests/Spiral
                     ./SpiralTest.py --no-plot
                 '''
-            }
         }
+      }
     }
+  }
 }
