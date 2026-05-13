@@ -1,6 +1,6 @@
 # Build stage with Spack pre-installed and ready to be used
 
-FROM spack/rockylinux8:1.0.0 as builder
+FROM docker.io/spack/rockylinux8:1.0.0 AS builder
 
 # What we want to install and how we want to install it
 # is specified in a manifest file (spack.yaml)
@@ -75,8 +75,9 @@ ARG SPACK_INSTALL_JOBS
 
 # Install the software with a parallel build,
 # and remove unnecessary deps
-RUN --mount=type=tmpfs,target=/opt/spack-stage,size=32G \
+RUN --mount=type=tmpfs,target=/opt/spack-stage,tmpfs-size=32G \
     --mount=type=cache,target=/opt/spack-cache \
+    . $SPACK_ROOT/share/spack/setup-env.sh && \
     rm -rf /opt/spack-cache/* && \
     spack mirror add --autopush --unsigned jenkins-cache /opt/spack-cache && \
     # buildcache update is allowed to fail, the cache may be empty!
@@ -90,6 +91,7 @@ RUN --mount=type=tmpfs,target=/opt/spack-stage,size=32G \
 
 # Modifications to the environment that are necessary to run
 RUN cd /opt/spack-environment && \
+    . $SPACK_ROOT/share/spack/setup-env.sh && \
     spack env activate --sh -d . > activate.sh
 
 RUN . /opt/spack-environment/activate.sh && \
