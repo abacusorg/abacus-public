@@ -1,24 +1,24 @@
 [submodule "external/zeldovich-PLT"]
 	path = external/zeldovich-PLT
-	url = git@github.com:abacusorg/zeldovich-PLT.git
+	url = https://github.com/abacusorg/zeldovich-PLT.git
 	branch = master
 [submodule "external/fast-cksum"]
 	path = external/fast-cksum
-	url = git@github.com:abacusorg/fast-cksum.git
+	url = https://github.com/abacusorg/fast-cksum.git
 	branch = master
 [submodule "external/AbacusSummit"]
 	path = external/AbacusSummit
-	url = git@github.com:abacusorg/AbacusSummit.git
+	url = https://github.com/abacusorg/AbacusSummit.git
 	branch = master
 [submodule "external/oneTBB"]
 	path = external/oneTBB
-	url = git@github.com:oneapi-src/oneTBB.git
+	url = https://github.com/oneapi-src/oneTBB.git
 [submodule "external/gperftools"]
 	path = external/gperftools
-	url = git@github.com:gperftools/gperftools.git
+	url = https://github.com/gperftools/gperftools.git
 [submodule "external/ips4o"]
 	path = external/ips4o
-	url = git@github.com:ips4o/ips4o.git
+	url = https://github.com/ips4o/ips4o.git
 [submodule "external/fmt"]
 	path = external/fmt
 	url = https://github.com/fmtlib/fmt.git
